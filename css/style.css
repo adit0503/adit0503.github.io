@@ -1,0 +1,50 @@
+/* Polished responsive resume styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+:root{--accent:#1266d3;--muted:#667085;--bg:#f7fafc}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;color:#0f1724;background:var(--bg);line-height:1.5;-webkit-font-smoothing:antialiased}
+.container{max-width:1000px;margin:0 auto;padding:28px}
+.site-header{background:#fff;border-bottom:1px solid #e6edf6}
+.site-header .container{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{margin:0;font-size:1.25rem;color:var(--accent);font-weight:600}
+.nav a{margin-left:16px;color:var(--muted);text-decoration:none;padding:8px;border-radius:6px}
+.nav a:hover{background:#f1f6ff;color:var(--accent)}
+.hero{display:flex;gap:28px;align-items:flex-start;padding:28px 0}
+.hero-left{width:240px;min-width:160px;text-align:center}
+.avatar{width:160px;height:160px;border-radius:12px;object-fit:cover;box-shadow:0 6px 18px rgba(18,102,211,0.12)}
+.name{margin:10px 0 4px;font-size:1.25rem}
+.role{margin:0;color:var(--accent);font-weight:600}
+.contact a{color:var(--accent);text-decoration:none}
+.muted{color:var(--muted);font-size:0.95rem}
+.social a{margin-right:10px;color:var(--muted);font-size:1.05rem}
+.btn{display:inline-block;margin-top:12px;background:var(--accent);color:#fff;padding:8px 12px;border-radius:8px;text-decoration:none}
+.card{background:#fff;padding:20px;margin-bottom:18px;border-radius:12px;box-shadow:0 6px 18px rgba(16,24,40,0.04)}
+.summary p{margin:0 0 12px}
+.highlights{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0;padding:0;list-style:none}
+.highlights li{background:#f1f6ff;color:var(--accent);padding:6px 10px;border-radius:999px;font-size:0.9rem}
+.skill-grid{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:#f3f4f6;border:1px solid #e6eefb;padding:6px 10px;border-radius:999px;font-size:0.9rem;color:#0f1724}
+.experience .exp-item{margin-bottom:12px}
+.exp-item header{display:flex;flex-direction:column;gap:6px}
+.exp-item strong{font-weight:600}
+.exp-item ul{margin:8px 0 0;padding-left:18px}
+.projects article{margin-bottom:12px}
+.edu-item{margin-bottom:8px}
+.site-footer{background:transparent;padding:28px;text-align:center;color:var(--muted)}
+
+/* Responsive adjustments */
+@media (max-width:820px){
+	.hero{flex-direction:column}
+	.hero-left{width:100%;display:flex;align-items:center;gap:12px}
+	.avatar{width:96px;height:96px}
+	.container{padding:18px}
+}
+
+/* Print-friendly: simplify layout for PDF export */
+@media print{
+	body{background:white}
+	.site-header,.nav,.btn,.social{display:none}
+	.container{max-width:700px;padding:0}
+	.card{box-shadow:none;border-radius:0;padding:4px}
+	a[href]:after{content:" (" attr(href) ")"}
+}
