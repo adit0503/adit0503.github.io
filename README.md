@@ -1,5 +1,12 @@
-# adit0503.github.io
+Professional single-page resume site for Aditya Shashank Chavan.
 
-currently hosts on static webpage of my resume using basic HTML and W3CSS-framework.
+Preview locally:
 
-TODO: incorporate more functionalities using CSS3 and JS
+```bash
+python3 -m http.server 8000
+# open http://localhost:8000
+```
+
+Deploy on GitHub Pages:
+- Commit and push this repository to GitHub. If the repo name is `adit0503.github.io` the site will be available at `https://adit0503.github.io/`.
+- Or enable Pages in repo Settings and point to the `main` branch root.
