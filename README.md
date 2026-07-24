@@ -1,15 +1,23 @@
-<!-- RESUME -->
+<\!-- RESUME -->
 
-Simple resume website template. Open `index.html` in a browser to preview locally.
+Simple resume website template (multi-page). `index.html` is at the repo root for GitHub Pages, with secondary pages organized in the `pages/` folder and shared assets in `css/` and `pdf/`.
 
-Quick preview (from this repo root):
+Quick preview:
 
 ```bash
-# open with default browser (Linux example)
+# use the repo root
 xdg-open index.html
 
-# or use Python's simple HTTP server and visit http://localhost:8000
+# or start a local server from the repo root and visit http://localhost:8000
 python3 -m http.server
 ```
 
-Files added: `index.html`, `css/styles.css`. Replace placeholder text in `index.html` with your details.
+File structure:
+- `index.html`
+- `pages/education.html`
+- `pages/experience.html`
+- `pages/skills.html`
+- `css/styles.css`
+- `pdf/Resume - Aug26.pdf`
+
+Update placeholder text in the HTML pages with your real resume details.

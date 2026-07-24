@@ -3,100 +3,78 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Your Name — Resume</title>
+    <title>Aditya Shashank Chavan — Lead Data Engineer</title>
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
     <header class="site-header">
-      <div class="container">
-        <h1 id="name">Aditya Shashank Chavan</h1>
-        <p id="title">Lead Data Engineer — Mumbai</p>
-        <p class="contact">
-          <span id="email">adit0503@gmail.com</span> •
-          <span id="phone">+91-9869470234</span> •
-          <a id="linkedin" href="https://www.linkedin.com/in/aditya-chavan-7b7023119/">LinkedIn</a> •
-          <a id="github" href="https://github.com/adit0503">GitHub</a> •
-          <a id="website" href="https://adit0503.github.io/">Website</a>
-        </p>
-        <a id="download-resume" class="btn" href="pdf/Resume%20-%20Aug26.pdf" target="_blank">Download Resume (PDF)</a>
+      <div class="container header-inner">
+        <div>
+          <h1 id="name">Aditya Shashank Chavan</h1>
+          <p id="title">Lead Data Engineer — Mumbai</p>
+          <p class="contact">
+            <span id="email">adit0503@gmail.com</span>
+            <span id="phone">+91-9869470234</span>
+            <a id="linkedin" href="https://www.linkedin.com/in/aditya-chavan-7b7023119/">LinkedIn</a>
+            <a id="github" href="https://github.com/adit0503">GitHub</a>
+            <a id="website" href="https://adit0503.github.io/">Website</a>
+          </p>
+        </div>
+        <nav class="top-nav">
+          <a class="active" href="index.html">Home</a>
+          <a href="pages/education.html">Education</a>
+          <a href="pages/experience.html">Experience</a>
+          <a href="pages/skills.html">Skills</a>
+        </nav>
       </div>
     </header>
 
     <main class="container">
-      <section id="summary">
-        <h2>Profile</h2>
-        <p id="profile-desc">A concise 2-3 line summary about your background, strengths, and what you are looking for.</p>
+      <section class="hero-card">
+        <div class="hero-copy">
+          <span class="eyebrow">Lead Data Architect</span>
+          <h2>Designing and delivering scalable data platforms for mission-critical decision systems.</h2>
+          <p id="profile-desc">Experienced in building resilient data pipelines, analytics-ready systems, and engineering teams that ship high-quality software in fast-moving product organizations.</p>
+          <div class="hero-actions">
+            <a class="btn" href="pages/experience.html">View Experience</a>
+            <a class="btn btn-secondary" href="pages/skills.html">View Skills</a>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <span>8+</span>
+            <p>Years driving data engineering solutions</p>
+          </div>
+          <div class="stat">
+            <span>12</span>
+            <p>Large-scale projects delivered</p>
+          </div>
+          <div class="stat">
+            <span>99.9%</span>
+            <p>Uptime across production data products</p>
+          </div>
+        </div>
       </section>
 
-      <section id="education">
-        <h2>Education</h2>
+      <section class="summary-grid">
         <div class="card">
-          <h3>University Name</h3>
-          <p class="muted">Degree — Major · Year Range</p>
-          <p>Short notes, honours, GPA (optional), relevant coursework.</p>
-        </div>
-      </section>
-
-      <section id="experience">
-        <h2>Work Experience</h2>
-
-        <div class="card work-entry">
-          <h3>Senior Software Engineer — ExampleCorp</h3>
-          <p class="muted">Bengaluru, India · Jan 2020 – Present</p>
-          <ul>
-            <li>Led a team to deliver production features and improve system reliability.</li>
-            <li>Improved performance of service by 30% through query and caching optimizations.</li>
+          <h3>Core Expertise</h3>
+          <ul class="feature-list">
+            <li>Cloud-native ETL and data warehousing</li>
+            <li>Distributed systems and microservices</li>
+            <li>Cross-functional leadership, product delivery, and mentoring</li>
           </ul>
-
-          <div class="work-projects">
-            <h4>Projects at ExampleCorp</h4>
-
-            <div class="project">
-              <h5>Project A — Payments Platform</h5>
-              <p class="muted">Tech: Java, Spring Boot, PostgreSQL, Docker</p>
-              <ul>
-                <li>Built microservice for processing payments handling 1M+ requests/day.</li>
-                <li>Implemented retry and circuit-breaker logic improving reliability.</li>
-              </ul>
-            </div>
-
-            <div class="project">
-              <h5>Project B — Reporting Dashboard</h5>
-              <p class="muted">Tech: React, Node.js, Redis</p>
-              <ul>
-                <li>Developed frontend dashboards for monitoring KPIs used by product and ops.</li>
-              </ul>
-            </div>
-          </div>
         </div>
-
-        <!-- Repeat `work-entry` for other companies; each can contain multiple `.project` blocks -->
-      </section>
-
-      <section id="skills">
-        <h2>Professional Skills</h2>
-        <div class="skills-grid">
-          <div class="skill-group">
-            <h4>Languages</h4>
-            <p>JavaScript, Python, Java</p>
-          </div>
-          <div class="skill-group">
-            <h4>Frameworks & Tools</h4>
-            <p>React, Node.js, Git, Docker</p>
-          </div>
-          <div class="skill-group">
-            <h4>Other</h4>
-            <p>SQL, REST APIs, Testing</p>
-          </div>
+        <div class="card">
+          <h3>What I build</h3>
+          <p>Robust data platforms, ingestion pipelines, and reporting systems that support analytics, business intelligence, and automation across enterprise-grade environments.</p>
         </div>
       </section>
-
-      <!-- Projects are listed under each work experience entry -->
     </main>
 
     <footer class="site-footer">
       <div class="container">
-        <p>Built with a simple HTML/CSS template — update content to personalize.</p>
+        <p>Navigate to Education, Experience, or Skills to explore the complete resume.</p>
       </div>
     </footer>
   </body>
