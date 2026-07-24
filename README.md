@@ -1,12 +1,23 @@
-Professional single-page resume site for Aditya Shashank Chavan.
+<\!-- RESUME -->
 
-Preview locally:
+Simple resume website template (multi-page). `index.html` is at the repo root for GitHub Pages, with secondary pages organized in the `pages/` folder and shared assets in `css/` and `pdf/`.
+
+Quick preview:
 
 ```bash
-python3 -m http.server 8000
-# open http://localhost:8000
+# use the repo root
+xdg-open index.html
+
+# or start a local server from the repo root and visit http://localhost:8000
+python3 -m http.server
 ```
 
-Deploy on GitHub Pages:
-- Commit and push this repository to GitHub. If the repo name is `adit0503.github.io` the site will be available at `https://adit0503.github.io/`.
-- Or enable Pages in repo Settings and point to the `main` branch root.
+File structure:
+- `index.html`
+- `pages/education.html`
+- `pages/experience.html`
+- `pages/skills.html`
+- `css/styles.css`
+- `pdf/Resume - Aug26.pdf`
+
+Update placeholder text in the HTML pages with your real resume details.
