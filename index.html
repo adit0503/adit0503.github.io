@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Your Name — Resume</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <h1 id="name">Aditya Shashank Chavan</h1>
+        <p id="title">Lead Data Engineer — Mumbai</p>
+        <p class="contact">
+          <span id="email">adit0503@gmail.com</span> •
+          <span id="phone">+91-9869470234</span> •
+          <a id="linkedin" href="https://www.linkedin.com/in/aditya-chavan-7b7023119/">LinkedIn</a> •
+          <a id="github" href="https://github.com/adit0503">GitHub</a> •
+          <a id="website" href="https://adit0503.github.io/">Website</a>
+        </p>
+        <a id="download-resume" class="btn" href="pdf/Resume%20-%20Aug26.pdf" target="_blank">Download Resume (PDF)</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="summary">
+        <h2>Profile</h2>
+        <p id="profile-desc">A concise 2-3 line summary about your background, strengths, and what you are looking for.</p>
+      </section>
+
+      <section id="education">
+        <h2>Education</h2>
+        <div class="card">
+          <h3>University Name</h3>
+          <p class="muted">Degree — Major · Year Range</p>
+          <p>Short notes, honours, GPA (optional), relevant coursework.</p>
+        </div>
+      </section>
+
+      <section id="experience">
+        <h2>Work Experience</h2>
+
+        <div class="card work-entry">
+          <h3>Senior Software Engineer — ExampleCorp</h3>
+          <p class="muted">Bengaluru, India · Jan 2020 – Present</p>
+          <ul>
+            <li>Led a team to deliver production features and improve system reliability.</li>
+            <li>Improved performance of service by 30% through query and caching optimizations.</li>
+          </ul>
+
+          <div class="work-projects">
+            <h4>Projects at ExampleCorp</h4>
+
+            <div class="project">
+              <h5>Project A — Payments Platform</h5>
+              <p class="muted">Tech: Java, Spring Boot, PostgreSQL, Docker</p>
+              <ul>
+                <li>Built microservice for processing payments handling 1M+ requests/day.</li>
+                <li>Implemented retry and circuit-breaker logic improving reliability.</li>
+              </ul>
+            </div>
+
+            <div class="project">
+              <h5>Project B — Reporting Dashboard</h5>
+              <p class="muted">Tech: React, Node.js, Redis</p>
+              <ul>
+                <li>Developed frontend dashboards for monitoring KPIs used by product and ops.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Repeat `work-entry` for other companies; each can contain multiple `.project` blocks -->
+      </section>
+
+      <section id="skills">
+        <h2>Professional Skills</h2>
+        <div class="skills-grid">
+          <div class="skill-group">
+            <h4>Languages</h4>
+            <p>JavaScript, Python, Java</p>
+          </div>
+          <div class="skill-group">
+            <h4>Frameworks & Tools</h4>
+            <p>React, Node.js, Git, Docker</p>
+          </div>
+          <div class="skill-group">
+            <h4>Other</h4>
+            <p>SQL, REST APIs, Testing</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Projects are listed under each work experience entry -->
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>Built with a simple HTML/CSS template — update content to personalize.</p>
+      </div>
+    </footer>
+  </body>
+</html>
