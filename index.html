@@ -4,78 +4,279 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Aditya Shashank Chavan — Lead Data Engineer</title>
+    <meta name="description" content="Lead Data Engineer specializing in ETL workloads, cloud-native migrations, and scalable data platforms. 8+ years building production-grade data infrastructure." />
+    <meta property="og:title" content="Aditya Shashank Chavan — Lead Data Engineer" />
+    <meta property="og:description" content="Building scalable data platforms, resilient pipelines, and analytics-ready systems for mission-critical decision making." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://adit0503.github.io/" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div class="container header-inner">
-        <div>
-          <h1 id="name">Aditya Shashank Chavan</h1>
-          <p id="title">Lead Data Engineer — Mumbai</p>
-          <p class="contact">
-            <span id="email">adit0503@gmail.com</span>
-            <span id="phone">+91-9869470234</span>
-            <a id="linkedin" href="https://www.linkedin.com/in/aditya-chavan-7b7023119/">LinkedIn</a>
-            <a id="github" href="https://github.com/adit0503">GitHub</a>
-            <a id="website" href="https://adit0503.github.io/">Website</a>
-          </p>
-        </div>
-        <nav class="top-nav">
+        <a href="index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
           <a class="active" href="index.html">Home</a>
-          <a href="pages/education.html">Education</a>
           <a href="pages/experience.html">Experience</a>
+          <a href="pages/projects.html">Projects</a>
           <a href="pages/skills.html">Skills</a>
+          <a href="pages/education.html">Education</a>
+          <a href="pages/knowledge.html">Knowledge</a>
         </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <a class="btn btn-sm" href="pdf/Resume_2026.pdf" download>Download CV</a>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
       </div>
     </header>
 
-    <main class="container">
-      <section class="hero-card">
-        <div class="hero-copy">
-          <span class="eyebrow">Lead Data Architect</span>
-          <h2>Designing and delivering scalable data platforms for mission-critical decision systems.</h2>
-          <p id="profile-desc">Experienced in building resilient data pipelines, analytics-ready systems, and engineering teams that ship high-quality software in fast-moving product organizations.</p>
-          <div class="hero-actions">
-            <a class="btn" href="pages/experience.html">View Experience</a>
-            <a class="btn btn-secondary" href="pages/skills.html">View Skills</a>
-          </div>
-        </div>
-        <div class="hero-stats">
-          <div class="stat">
-            <span>8+</span>
-            <p>Years driving data engineering solutions</p>
-          </div>
-          <div class="stat">
-            <span>12</span>
-            <p>Large-scale projects delivered</p>
-          </div>
-          <div class="stat">
-            <span>99.9%</span>
-            <p>Uptime across production data products</p>
+    <main>
+      <!-- Hero Section -->
+      <section class="hero">
+        <div class="container">
+          <div class="hero-card animate-in">
+            <div class="hero-copy">
+              <span class="eyebrow">Lead Data Engineer</span>
+              <h1 class="hero-title">Building scalable data platforms for mission-critical systems.</h1>
+              <p class="hero-desc">Specialized in ETL workloads, core backend systems, cloud-native migrations & automation. Experienced in designing resilient data pipelines, lakehouse architectures, and leading engineering teams that ship production-grade infrastructure at scale.</p>
+              <div class="hero-actions">
+                <a class="btn" href="pages/experience.html">View Experience</a>
+                <a class="btn btn-secondary" href="pages/projects.html">Explore Projects</a>
+                <a class="btn btn-ghost" href="#contact">Get in Touch</a>
+              </div>
+            </div>
+            <div class="hero-visual">
+              <div class="hero-stats">
+                <div class="stat animate-in" style="--delay: 0.1s">
+                  <span class="stat-number" data-target="8">0</span><span class="stat-suffix">+</span>
+                  <p>Years in Data Engineering</p>
+                </div>
+                <div class="stat animate-in" style="--delay: 0.2s">
+                  <span class="stat-number" data-target="40">0</span><span class="stat-suffix">TB+</span>
+                  <p>Data Managed Daily</p>
+                </div>
+                <div class="stat animate-in" style="--delay: 0.3s">
+                  <span class="stat-number" data-target="10">0</span><span class="stat-suffix">+</span>
+                  <p>Enterprise Projects Delivered</p>
+                </div>
+                <div class="stat animate-in" style="--delay: 0.4s">
+                  <span class="stat-number" data-target="90">0</span><span class="stat-suffix">%</span>
+                  <p>Pipeline Runtime Reduction</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="summary-grid">
-        <div class="card">
-          <h3>Core Expertise</h3>
-          <ul class="feature-list">
-            <li>Cloud-native ETL and data warehousing</li>
-            <li>Distributed systems and microservices</li>
-            <li>Cross-functional leadership, product delivery, and mentoring</li>
-          </ul>
+      <!-- Tech Stack Marquee -->
+      <section class="marquee-section">
+        <div class="marquee">
+          <div class="marquee-track">
+            <span class="marquee-item">Spark</span>
+            <span class="marquee-item">Kafka</span>
+            <span class="marquee-item">AWS</span>
+            <span class="marquee-item">GCP</span>
+            <span class="marquee-item">Cloudera</span>
+            <span class="marquee-item">Airflow</span>
+            <span class="marquee-item">dbt</span>
+            <span class="marquee-item">Python</span>
+            <span class="marquee-item">Scala</span>
+            <span class="marquee-item">SQL</span>
+            <span class="marquee-item">Docker</span>
+            <span class="marquee-item">Kubernetes</span>
+            <span class="marquee-item">Azure Databricks</span>
+            <span class="marquee-item">Delta Lake</span>
+            <span class="marquee-item">Hudi</span>
+            <span class="marquee-item">Iceberg</span>
+            <span class="marquee-item">Flink</span>
+            <span class="marquee-item">NiFi</span>
+            <span class="marquee-item">HDFS</span>
+            <!-- Duplicate for seamless loop -->
+            <span class="marquee-item">Spark</span>
+            <span class="marquee-item">Kafka</span>
+            <span class="marquee-item">AWS</span>
+            <span class="marquee-item">GCP</span>
+            <span class="marquee-item">Cloudera</span>
+            <span class="marquee-item">Airflow</span>
+            <span class="marquee-item">dbt</span>
+            <span class="marquee-item">Python</span>
+            <span class="marquee-item">Scala</span>
+            <span class="marquee-item">SQL</span>
+            <span class="marquee-item">Docker</span>
+            <span class="marquee-item">Kubernetes</span>
+            <span class="marquee-item">Azure Databricks</span>
+            <span class="marquee-item">Delta Lake</span>
+            <span class="marquee-item">Hudi</span>
+            <span class="marquee-item">Iceberg</span>
+            <span class="marquee-item">Flink</span>
+            <span class="marquee-item">NiFi</span>
+            <span class="marquee-item">HDFS</span>
+          </div>
         </div>
-        <div class="card">
-          <h3>What I build</h3>
-          <p>Robust data platforms, ingestion pipelines, and reporting systems that support analytics, business intelligence, and automation across enterprise-grade environments.</p>
+      </section>
+
+      <!-- About / Summary -->
+      <section class="section" id="about">
+        <div class="container">
+          <div class="section-header animate-in">
+            <span class="section-tag">About</span>
+            <h2>What I Do</h2>
+          </div>
+          <div class="about-grid">
+            <div class="card card-highlight animate-in" style="--delay: 0.1s">
+              <div class="card-icon">🏗️</div>
+              <h3>Data Platform Architecture</h3>
+              <p>Greenfield design and setup of DataLake platforms on Cloudera, AWS, and GCP. Medallion architecture, dimensional modeling, and Customer 360 data products.</p>
+            </div>
+            <div class="card card-highlight animate-in" style="--delay: 0.2s">
+              <div class="card-icon">⚡</div>
+              <h3>High-Scale Pipeline Engineering</h3>
+              <p>Building ingestion frameworks processing 5-8TB+ daily using Spark, NiFi, Oracle GoldenGate, with 95% reconciliation accuracy. Lakehouse architectures with Iceberg, Hudi, and Delta Lake.</p>
+            </div>
+            <div class="card card-highlight animate-in" style="--delay: 0.3s">
+              <div class="card-icon">☁️</div>
+              <h3>Cloud-Native Migrations</h3>
+              <p>Migrating on-prem analytics workloads to cloud with AI-assisted tooling. Expertise across AWS EMR/Glue, GCP Databricks/BigQuery, Azure Databricks, and hybrid Cloudera environments.</p>
+            </div>
+            <div class="card card-highlight animate-in" style="--delay: 0.4s">
+              <div class="card-icon">📊</div>
+              <h3>Data Governance & Quality</h3>
+              <p>PII tagging with Apache Atlas, data lineage tracking across Spark and dbt pipelines. AWS Lake Formation and Databricks Unity Catalog for centralized governance and access control.</p>
+            </div>
+            <div class="card card-highlight animate-in" style="--delay: 0.5s">
+              <div class="card-icon">🔧</div>
+              <h3>Lakehouse Architecture</h3>
+              <p>Delta Lake medallion patterns (Bronze/Silver/Gold), Apache Iceberg with time-travel and schema evolution, Hudi for incremental upserts. Databricks Unity Catalog for unified governance.</p>
+            </div>
+            <div class="card card-highlight animate-in" style="--delay: 0.6s">
+              <div class="card-icon">👥</div>
+              <h3>Technical Leadership</h3>
+              <p>Leading teams of 4+ engineers, enforcing best practices, cross-functional collaboration with business stakeholders, and mentoring junior engineers.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Featured Experience -->
+      <section class="section section-alt" id="experience-preview">
+        <div class="container">
+          <div class="section-header animate-in">
+            <span class="section-tag">Experience</span>
+            <h2>Career Highlights</h2>
+          </div>
+          <div class="timeline">
+            <div class="timeline-item animate-in">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content card">
+                <div class="timeline-date">Oct 2024 — Present</div>
+                <h3>Lead Data Engineer</h3>
+                <p class="company">Crisp Analytics Pvt Ltd, Mumbai</p>
+                <p>Leading data engineering initiatives for SBI Funds Management and Kotak Mutual Fund. Greenfield DataLakehouse design on Cloudera, 40TB+ data across Oracle, SQL Server, and MariaDB sources.</p>
+                <div class="tags">
+                  <span class="tag">Cloudera</span>
+                  <span class="tag">AWS</span>
+                  <span class="tag">Spark</span>
+                  <span class="tag">dbt</span>
+                  <span class="tag">Airflow</span>
+                </div>
+              </div>
+            </div>
+            <div class="timeline-item animate-in">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content card">
+                <div class="timeline-date">Jul 2021 — Oct 2024</div>
+                <h3>Senior Data Engineer</h3>
+                <p class="company">Quantiphi Analytics Solutions Pvt Ltd, Mumbai</p>
+                <p>Multi-client engagements building ETL pipelines, cloud migrations, and lakehouse architectures for Scotts-Miracle Gro, Definity Financial, 4G-Capital, and Aflac.</p>
+                <div class="tags">
+                  <span class="tag">GCP</span>
+                  <span class="tag">Databricks</span>
+                  <span class="tag">BigQuery</span>
+                  <span class="tag">EMR</span>
+                  <span class="tag">Delta Lake</span>
+                  <span class="tag">Iceberg</span>
+                </div>
+              </div>
+            </div>
+            <div class="timeline-item animate-in">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content card">
+                <div class="timeline-date">Jan 2020 — Jul 2021</div>
+                <h3>Software Engineer — Big Data</h3>
+                <p class="company">Zineone India Pvt Ltd, Mumbai</p>
+                <p>Spark Streaming on EMR consuming Kafka topics for real-time user event ingestion, CDC using AWS DMS, and event-driven architectures on Amazon MSK.</p>
+                <div class="tags">
+                  <span class="tag">Kafka</span>
+                  <span class="tag">Spark Streaming</span>
+                  <span class="tag">AWS DMS</span>
+                  <span class="tag">MSK</span>
+                  <span class="tag">EMR</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="section-cta">
+            <a class="btn" href="pages/experience.html">View Full Experience →</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Contact -->
+      <section class="section" id="contact">
+        <div class="container">
+          <div class="section-header animate-in">
+            <span class="section-tag">Contact</span>
+            <h2>Let's Connect</h2>
+          </div>
+          <div class="contact-grid animate-in">
+            <a href="mailto:adit0503@gmail.com" class="contact-card">
+              <span class="contact-icon">✉️</span>
+              <span class="contact-label">Email</span>
+              <span class="contact-value">adit0503@gmail.com</span>
+            </a>
+            <a href="tel:+919869470234" class="contact-card">
+              <span class="contact-icon">📱</span>
+              <span class="contact-label">Phone</span>
+              <span class="contact-value">+91-9869470234</span>
+            </a>
+            <a href="https://www.linkedin.com/in/aditya-chavan-7b7023119/" target="_blank" rel="noopener" class="contact-card">
+              <span class="contact-icon">💼</span>
+              <span class="contact-label">LinkedIn</span>
+              <span class="contact-value">aditya-chavan</span>
+            </a>
+            <a href="https://github.com/adit0503" target="_blank" rel="noopener" class="contact-card">
+              <span class="contact-icon">🐙</span>
+              <span class="contact-label">GitHub</span>
+              <span class="contact-value">adit0503</span>
+            </a>
+          </div>
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <div class="container">
-        <p>Navigate to Education, Experience, or Skills to explore the complete resume.</p>
+      <div class="container footer-inner">
+        <p>© 2024 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="pages/experience.html">Experience</a>
+          <a href="pages/projects.html">Projects</a>
+          <a href="pages/skills.html">Skills</a>
+          <a href="pages/education.html">Education</a>
+        </div>
       </div>
     </footer>
+
+    <script src="js/main.js"></script>
   </body>
 </html>

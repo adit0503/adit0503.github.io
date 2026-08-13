@@ -4,73 +4,218 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Experience — Aditya Shashank Chavan</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="../css/styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div class="container header-inner">
-        <div>
-          <h1 id="name">Aditya Shashank Chavan</h1>
-          <p id="title">Lead Data Engineer — Mumbai</p>
-          <p class="contact">
-            <span id="email">adit0503@gmail.com</span>
-            <span id="phone">+91-9869470234</span>
-            <a id="linkedin" href="https://www.linkedin.com/in/aditya-chavan-7b7023119/">LinkedIn</a>
-            <a id="github" href="https://github.com/adit0503">GitHub</a>
-            <a id="website" href="https://adit0503.github.io/">Website</a>
-          </p>
-        </div>
-        <nav class="top-nav">
+        <a href="../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
           <a href="../index.html">Home</a>
-          <a href="education.html">Education</a>
           <a class="active" href="experience.html">Experience</a>
+          <a href="projects.html">Projects</a>
           <a href="skills.html">Skills</a>
+          <a href="education.html">Education</a>
+          <a href="knowledge.html">Knowledge</a>
         </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <a class="btn btn-sm" href="../pdf/Resume_2026.pdf" download>Download CV</a>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
       </div>
     </header>
 
-    <main class="container">
-      <section class="card">
-        <h2>Work Experience</h2>
-        <p class="muted">Technical leadership, delivery management, and data platform ownership across service-based engagements.</p>
+    <main>
+      <section class="page-hero">
+        <div class="container">
+          <h1 class="animate-in">Work Experience</h1>
+          <p class="page-desc animate-in" style="--delay: 0.1s">8+ years of progressive data engineering leadership across service-based engagements, building and scaling production data platforms for enterprise clients.</p>
+        </div>
       </section>
 
-      <section class="card work-entry">
-        <h3>Senior Software Engineer — ExampleCorp</h3>
-        <p class="muted">Bengaluru, India · Jan 2020 – Present</p>
-        <ul>
-          <li>Led engineering delivery for complex data integration and analytics initiatives.</li>
-          <li>Designed end-to-end ETL architecture with monitoring and automated deployment.</li>
-          <li>Partnered with product and stakeholders to reduce incident response time.</li>
-        </ul>
+      <section class="section">
+        <div class="container">
+          <!-- Crisp Analytics -->
+          <div class="card work-entry animate-in">
+            <div class="work-meta">
+              <span class="timeline-date">Oct 2024 — Present</span>
+              <span class="location">Mumbai, India</span>
+            </div>
+            <h3>Lead Data Engineer</h3>
+            <p class="company">Crisp Analytics Pvt Ltd</p>
 
-        <div class="work-projects">
-          <h4>Projects at ExampleCorp</h4>
+            <div class="work-projects">
+              <h4>Client: SBI Funds Management Pvt Ltd</h4>
+              <div class="project-card">
+                <h5>DataLakehouse Platform (Greenfield)</h5>
+                <p class="tech">Cloudera · NiFi · Spark · Oracle · SQL Server · MariaDB · dbt · Impala · Airflow · Apache Atlas</p>
+                <ul>
+                  <li>Led a team of 4 data engineers in the greenfield design and setup of a DataLakehouse platform on Cloudera On-Premise, establishing ingestion frameworks using NiFi and Spark across Oracle, SQL Server, and MariaDB sources totaling 40TB.</li>
+                  <li>Engineered data pipelines ingesting 5TB+ with 95% reconciliation accuracy, ensuring data integrity across source systems.</li>
+                  <li>Built deep domain expertise in Capital Markets (Mutual Funds, PMS, AIF) by collaborating with business stakeholders to deliver data products for SEBI regulatory reporting and executive dashboards.</li>
+                  <li>Designed and implemented Dimensional Models (Fact/Dim + One Big Table) following medallion architecture for Customer 360 and Distributor 360 service layers using dbt with Impala and Spark adapters.</li>
+                  <li>Migrated on-prem analytics workloads using AI-assisted tooling, achieving 90% reduction in pipeline runtime through Airflow orchestration and custom Python frameworks.</li>
+                  <li>Implemented PII tagging using Apache Atlas and integrated data lineage tracking across Spark and dbt data pipelines for governance compliance.</li>
+                  <li>Mentored a team of engineers, enforced best practices, collaborated cross-functionally to deliver reliable, cost-efficient, production-grade data infrastructure at scale.</li>
+                </ul>
+              </div>
 
-          <div class="project">
-            <h5>Payments Platform</h5>
-            <p class="muted">Tech: Java, Spring Boot, PostgreSQL, Docker</p>
-            <ul>
-              <li>Built a resilient payment orchestration service handling high throughput.</li>
-              <li>Implemented observability and retry strategies for zero-downtime upgrades.</li>
-            </ul>
+              <h4>Client: Kotak Mutual Fund LLC</h4>
+              <div class="project-card">
+                <h5>Scalable Ingestion Framework</h5>
+                <p class="tech">Oracle GoldenGate · PySpark · AWS EMR · Glue · Iceberg · Hudi · S3 · Athena · Hive · Lake Formation</p>
+                <ul>
+                  <li>Led the design and development of a scalable, modular ingestion framework capable of processing over 8TB of data daily using Oracle GoldenGate for real-time change data capture.</li>
+                  <li>Built and optimized Spark-based ETL pipelines in PySpark, deployed on AWS EMR and Glue, with data persisted in Apache Iceberg / Hudi table format on S3 to support incremental upserts, schema evolution, and time-travel queries.</li>
+                  <li>Leveraged AWS Lake Formation for fine-grained access control and centralized data governance across the lakehouse.</li>
+                  <li>Achieved 33% cost savings through targeted Spark tuning — including shuffle optimization, dynamic partitioning, and efficient compaction strategies — reducing both compute time and cluster resource consumption.</li>
+                  <li>Designed backfill pipelines for the sales datamart, engineered to run with minimal impact on daily scheduled production jobs through off-peak scheduling and partition-level isolation.</li>
+                  <li>Migrated on-prem analytics workloads to the cloud using AI-assisted tooling for code conversion and validation, achieving a 55% reduction in deployment time.</li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <div class="project">
-            <h5>Reporting Dashboard</h5>
-            <p class="muted">Tech: React, Node.js, Redis</p>
-            <ul>
-              <li>Delivered a real-time KPI reporting portal used by operations and leadership.</li>
-            </ul>
+          <!-- Quantiphi -->
+          <div class="card work-entry animate-in">
+            <div class="work-meta">
+              <span class="timeline-date">Jul 2021 — Oct 2024</span>
+              <span class="location">Mumbai, India</span>
+            </div>
+            <h3>Senior Data Engineer</h3>
+            <p class="company">Quantiphi Analytics Solutions Pvt Ltd</p>
+
+            <div class="work-projects">
+              <h4>Client: Scotts-Miracle Gro LLC</h4>
+              <div class="project-card">
+                <h5>ETL Pipeline Platform</h5>
+                <p class="tech">Airflow · EMR · EKS · Athena · Spark-Scala · PySpark · Apache Iceberg</p>
+                <ul>
+                  <li>Developed custom Airflow operators for orchestrating ETL pipelines across EMR and EKS clusters.</li>
+                  <li>Optimized Athena SQL queries through partition pruning and predicate pushdown, improving runtime by 30%.</li>
+                  <li>Built Spark-Scala ingestion layers converting diverse source formats into Apache Iceberg tables, enabling time-travel queries, schema evolution, and snapshot-based incremental reads.</li>
+                  <li>Monitored Iceberg table metrics including file count, partition distribution, and compaction health.</li>
+                  <li>Designed an automated PySpark testing framework generating daily validation reports.</li>
+                  <li>Collaborated with data-analyst teams to evolve pipeline architecture iteratively in an Agile workflow.</li>
+                </ul>
+              </div>
+
+              <h4>Client: Definity Financial Corporation</h4>
+              <div class="project-card">
+                <h5>Cloud Migration & Data Ingestion</h5>
+                <p class="tech">Spark-Scala · Cloudera · GCP Databricks · BigQuery · Scalaxb · Cloud Composer · IBM-MQ</p>
+                <ul>
+                  <li>Migration of Spark-Scala jobs from Cloudera on-prem servers to GCP Databricks.</li>
+                  <li>Developed a data-ingestion framework to parse XML & JSON data into BigQuery using Scalaxb library. Reduced ingestion runtime by 80%.</li>
+                  <li>Built a standalone data-validation custom module using Spark-SQL for validating business rules.</li>
+                  <li>Incorporated a Java module to send messages on IBM-MQ by parsing a BQ table.</li>
+                  <li>Translation of Impala SQL into BigQuery SQL & orchestration of jobs using Cloud Composer.</li>
+                  <li>Optimized SQL queries by 60% of original on-prem jobs.</li>
+                  <li>Designed a framework for ingesting CSV & RDBMS data on AWS into BigQuery tables using Spark-Scala.</li>
+                </ul>
+              </div>
+
+              <h4>Client: 4G-Capital LLC</h4>
+              <div class="project-card">
+                <h5>Databricks Lakehouse Platform</h5>
+                <p class="tech">Databricks · PySpark · Delta Lake · Unity Catalog</p>
+                <ul>
+                  <li>Built and optimized data pipelines on Databricks using PySpark for large-scale batch and incremental processing.</li>
+                  <li>Designed Delta Lake architectures with medallion patterns (Bronze/Silver/Gold) for structured data lakehouse workflows.</li>
+                  <li>Leveraged Databricks Unity Catalog for centralized governance and access control.</li>
+                  <li>Implemented notebook-based workflows with job orchestration for scheduled ETL runs.</li>
+                  <li>Tuned Spark clusters for cost efficiency and performance across production workloads.</li>
+                </ul>
+              </div>
+
+              <h4>Client: Aflac Inc</h4>
+              <div class="project-card">
+                <h5>ETL & Data Processing Platform</h5>
+                <p class="tech">AWS Glue · EMR · Spark · DynamoDB · EC2 · Python</p>
+                <ul>
+                  <li>Built and maintained ETL pipelines on AWS Glue and EMR for ingesting, transforming, and storing data in optimized schemas on DynamoDB for low-latency retrieval.</li>
+                  <li>Developed Spark jobs on EMR for large-scale data processing and aggregation workloads.</li>
+                  <li>Wrote Python scripts for data loading, validation, and bulk ingestion into DynamoDB, deployed on EC2.</li>
+                  <li>Designed data validation frameworks ensuring consistency and accuracy across all four deployed environments.</li>
+                  <li>Served on-call rotations, triaging and resolving data discrepancy issues reported by clients through root cause analysis.</li>
+                </ul>
+              </div>
+            </div>
           </div>
+
+          <!-- Zineone -->
+          <div class="card work-entry animate-in">
+            <div class="work-meta">
+              <span class="timeline-date">Jan 2020 — Jul 2021</span>
+              <span class="location">Mumbai, India</span>
+            </div>
+            <h3>Software Engineer — Big Data</h3>
+            <p class="company">Zineone India Pvt Ltd</p>
+
+            <div class="work-projects">
+              <div class="project-card">
+                <h5>Real-time ML & Event-Driven Pipelines</h5>
+                <p class="tech">Spark Streaming · EMR · Kafka · Amazon MSK · AWS DMS · MySQL · S3 · Hive · Python</p>
+                <ul>
+                  <li>Engineered feature extraction pipelines for an LGBM-based early purchase propensity model.</li>
+                  <li>Built Spark Streaming jobs on EMR consuming Kafka topics for real-time user event ingestion, triggering EPP scoring engines.</li>
+                  <li>Implemented CDC using AWS DMS for MySQL ingestion into S3-backed Hive tables.</li>
+                  <li>Worked with event-driven architectures on Amazon MSK, managing broker clusters, partitioned topics, retention policies, and consumer group offsets to ensure reliable delivery.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- USC -->
+          <div class="card work-entry animate-in">
+            <div class="work-meta">
+              <span class="timeline-date">May 2018 — Oct 2019</span>
+              <span class="location">Los Angeles, USA</span>
+            </div>
+            <h3>Junior Developer (Part-time)</h3>
+            <p class="company">USC Facilities Management Services</p>
+
+            <div class="work-projects">
+              <div class="project-card">
+                <h5>Inventory Management & Document Processing</h5>
+                <p class="tech">Python · SQL · Tesseract OCR · Solr · Lucene</p>
+                <ul>
+                  <li>Implemented a searchable Inventory Management system for office-issued electronic devices.</li>
+                  <li>Designed a database for storage of all invoices received by accounts dept & performed statistical analysis.</li>
+                  <li>Built a module for upload and storage of PDF files in a local filesystem and retrieved saved metadata.</li>
+                  <li>Implemented watch and staging folders for automatic upload via a schedule.</li>
+                  <li>Performed OCR (Tesseract engine) to extract searchable text using Solr and Lucene.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <div class="container">
-        <p>Return to <a href="../index.html">Home</a> or view <a href="skills.html">Skills</a>.</p>
+      <div class="container footer-inner">
+        <p>© 2024 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../index.html">Home</a>
+          <a href="projects.html">Projects</a>
+          <a href="skills.html">Skills</a>
+          <a href="education.html">Education</a>
+        </div>
       </div>
     </footer>
+
+    <script src="../js/main.js"></script>
   </body>
 </html>

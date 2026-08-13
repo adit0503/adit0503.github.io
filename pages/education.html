@@ -4,48 +4,94 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Education — Aditya Shashank Chavan</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="../css/styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div class="container header-inner">
-        <div>
-          <h1 id="name">Aditya Shashank Chavan</h1>
-          <p id="title">Lead Data Engineer — Mumbai</p>
-          <p class="contact">
-            <span id="email">adit0503@gmail.com</span>
-            <span id="phone">+91-9869470234</span>
-            <a id="linkedin" href="https://www.linkedin.com/in/aditya-chavan-7b7023119/">LinkedIn</a>
-            <a id="github" href="https://github.com/adit0503">GitHub</a>
-            <a id="website" href="https://adit0503.github.io/">Website</a>
-          </p>
-        </div>
-        <nav class="top-nav">
+        <a href="../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
           <a href="../index.html">Home</a>
-          <a class="active" href="education.html">Education</a>
           <a href="experience.html">Experience</a>
+          <a href="projects.html">Projects</a>
           <a href="skills.html">Skills</a>
+          <a class="active" href="education.html">Education</a>
+          <a href="knowledge.html">Knowledge</a>
         </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <a class="btn btn-sm" href="../pdf/Resume_2026.pdf" download>Download CV</a>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
       </div>
     </header>
 
-    <main class="container">
-      <section class="card">
-        <h2>Education</h2>
-        <p class="muted">Academic background that supports strong engineering foundations and analytical problem solving.</p>
+    <main>
+      <section class="page-hero">
+        <div class="container">
+          <h1 class="animate-in">Education</h1>
+          <p class="page-desc animate-in" style="--delay: 0.1s">Strong academic foundation in Computer Science from top engineering institutions, with specialization in AI, ML, and Data Systems.</p>
+        </div>
       </section>
 
-      <section class="card">
-        <h3>University Name</h3>
-        <p class="muted">Degree — Major · Year Range</p>
-        <p>Short notes, honours, GPA (optional), relevant coursework.</p>
+      <section class="section">
+        <div class="container">
+
+          <!-- USC -->
+          <div class="card edu-card animate-in">
+            <div class="edu-degree">Master of Science in Computer Science</div>
+            <div class="edu-school">University of Southern California, Los Angeles</div>
+            <div class="edu-meta">
+              <span>Viterbi School of Engineering</span>
+              <span class="edu-gpa">GPA: 3.79 / 4.0</span>
+            </div>
+            <h4 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px;">Relevant Coursework</h4>
+            <div class="coursework">
+              <span class="tag">Analysis of Algorithms</span>
+              <span class="tag">Foundations of Artificial Intelligence</span>
+              <span class="tag">Information Retrieval & Web Search Engines</span>
+              <span class="tag">Applied Natural Language Processing</span>
+              <span class="tag">Machine Learning</span>
+              <span class="tag">Applied Data Mining</span>
+              <span class="tag">Database Systems</span>
+            </div>
+          </div>
+
+          <!-- Mumbai -->
+          <div class="card edu-card animate-in" style="--delay: 0.15s">
+            <div class="edu-degree">Bachelor of Engineering in Computer Engineering</div>
+            <div class="edu-school">University of Mumbai, Vile Parle</div>
+            <div class="edu-meta">
+              <span>Dwarkadas J. Sanghvi College of Engineering</span>
+              <span class="edu-gpa">GPA: 9.17 / 10</span>
+            </div>
+          </div>
+
+        </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <div class="container">
-        <p>Return to <a href="../index.html">Home</a> or continue to <a href="experience.html">Experience</a>.</p>
+      <div class="container footer-inner">
+        <p>© 2024 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../index.html">Home</a>
+          <a href="experience.html">Experience</a>
+          <a href="projects.html">Projects</a>
+          <a href="skills.html">Skills</a>
+        </div>
       </div>
     </footer>
+
+    <script src="../js/main.js"></script>
   </body>
 </html>

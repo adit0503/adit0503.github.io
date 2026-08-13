@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Knowledge Work — Aditya Shashank Chavan</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../index.html">Home</a>
+          <a href="experience.html">Experience</a>
+          <a href="projects.html">Projects</a>
+          <a href="skills.html">Skills</a>
+          <a href="education.html">Education</a>
+          <a class="active" href="knowledge.html">Knowledge</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <a class="btn btn-sm" href="../pdf/Resume_2026.pdf" download>Download CV</a>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <div class="container">
+          <h1 class="animate-in">Knowledge Work</h1>
+          <p class="page-desc animate-in" style="--delay: 0.1s">Insights, architectural patterns, and learnings from building data platforms at scale. A collection of topics I've explored deeply through hands-on experience.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="knowledge-grid">
+
+            <div class="knowledge-card animate-in" style="--delay: 0.1s">
+              <span class="knowledge-type">Architecture Pattern</span>
+              <h3>Medallion Architecture in Practice</h3>
+              <p>Implementing Bronze → Silver → Gold data layers using dbt with Impala and Spark adapters. How to design Fact/Dimension models and One Big Table patterns for Customer 360 data products in financial services.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">dbt</span>
+                <span class="tag">Data Modeling</span>
+                <span class="tag">Medallion</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.15s">
+              <span class="knowledge-type">Technical Deep-Dive</span>
+              <h3>Lakehouse Table Formats: Hudi vs Iceberg</h3>
+              <p>Practical comparison of Apache Hudi and Apache Iceberg for large-scale data lakehouse implementations. Trade-offs in compaction strategies, time-travel, and partition evolution at 8TB+ daily ingestion scale.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Hudi</span>
+                <span class="tag">Iceberg</span>
+                <span class="tag">Data Lakehouse</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.2s">
+              <span class="knowledge-type">Migration Strategy</span>
+              <h3>On-Prem to Cloud: AI-Assisted Migration</h3>
+              <p>Leveraging AI-assisted tooling to migrate analytics workloads from Cloudera on-prem to cloud platforms. Achieving 55-90% reduction in deployment time and pipeline runtime through intelligent code translation.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Cloud Migration</span>
+                <span class="tag">AI Tooling</span>
+                <span class="tag">Optimization</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.25s">
+              <span class="knowledge-type">Data Governance</span>
+              <h3>Building Data Lineage & PII Compliance</h3>
+              <p>Implementing end-to-end data lineage tracking across Spark and dbt pipelines using Apache Atlas. PII tagging strategies and governance compliance for SEBI regulatory requirements in capital markets.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Apache Atlas</span>
+                <span class="tag">Governance</span>
+                <span class="tag">SEBI</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.3s">
+              <span class="knowledge-type">Performance Engineering</span>
+              <h3>Spark Tuning at Scale</h3>
+              <p>Practical Spark optimization techniques that delivered 10% cost savings on EMR — dynamic partitioning, efficient compaction strategies, memory tuning, and shuffle optimization for PySpark workloads processing terabytes daily.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Spark</span>
+                <span class="tag">Performance</span>
+                <span class="tag">Cost Optimization</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.35s">
+              <span class="knowledge-type">Real-Time Systems</span>
+              <h3>Event-Driven Architecture with Kafka & CDC</h3>
+              <p>Designing real-time data pipelines using Spark Streaming on EMR consuming Kafka topics, AWS DMS for change data capture, and Amazon MSK for managing broker clusters, partition strategies, and consumer group offsets at scale.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Kafka</span>
+                <span class="tag">AWS DMS</span>
+                <span class="tag">Amazon MSK</span>
+                <span class="tag">Spark Streaming</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.4s">
+              <span class="knowledge-type">Data Governance</span>
+              <h3>Centralized Governance: Lake Formation & Unity Catalog</h3>
+              <p>Implementing fine-grained access control with AWS Lake Formation and Databricks Unity Catalog. Patterns for centralized governance across multi-team lakehouse environments, from column-level security to cross-account data sharing.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Lake Formation</span>
+                <span class="tag">Unity Catalog</span>
+                <span class="tag">Access Control</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.45s">
+              <span class="knowledge-type">Architecture Pattern</span>
+              <h3>Delta Lake Medallion Patterns in Production</h3>
+              <p>Implementing Bronze/Silver/Gold data layers on Databricks with Delta Lake. Notebook-based workflows, job orchestration, and Spark cluster tuning for cost-efficient production workloads at scale.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Delta Lake</span>
+                <span class="tag">Databricks</span>
+                <span class="tag">Medallion</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.5s">
+              <span class="knowledge-type">SQL Translation</span>
+              <h3>Impala SQL → BigQuery SQL Migration</h3>
+              <p>Strategies and patterns for translating Impala SQL workloads to BigQuery SQL. Handling syntax differences, UDF translations, and performance optimization that achieved 60% query improvement post-migration.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">SQL</span>
+                <span class="tag">BigQuery</span>
+                <span class="tag">Migration</span>
+              </div>
+            </div>
+
+            <div class="knowledge-card animate-in" style="--delay: 0.5s">
+              <span class="knowledge-type">Domain Knowledge</span>
+              <h3>Capital Markets Data Engineering</h3>
+              <p>Navigating data engineering in the Mutual Funds, PMS, and AIF space. Understanding SEBI regulatory reporting requirements and building executive dashboards for fund management decision-making.</p>
+              <div class="tags" style="margin-top: 12px;">
+                <span class="tag">Capital Markets</span>
+                <span class="tag">Mutual Funds</span>
+                <span class="tag">Regulatory</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2024 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../index.html">Home</a>
+          <a href="experience.html">Experience</a>
+          <a href="projects.html">Projects</a>
+          <a href="skills.html">Skills</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+  </body>
+</html>

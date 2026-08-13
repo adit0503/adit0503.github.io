@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Projects — Aditya Shashank Chavan</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../css/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../index.html">Home</a>
+          <a href="experience.html">Experience</a>
+          <a class="active" href="projects.html">Projects</a>
+          <a href="skills.html">Skills</a>
+          <a href="education.html">Education</a>
+          <a href="knowledge.html">Knowledge</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <a class="btn btn-sm" href="../pdf/Resume_2026.pdf" download>Download CV</a>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <div class="container">
+          <h1 class="animate-in">Projects</h1>
+          <p class="page-desc animate-in" style="--delay: 0.1s">A collection of enterprise-scale data engineering projects across multiple domains — from Capital Markets to Insurance to Real-time Analytics.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <!-- Filters -->
+          <div class="projects-filter animate-in">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="data-platform">Data Platforms</button>
+            <button class="filter-btn" data-filter="etl">ETL/Pipelines</button>
+            <button class="filter-btn" data-filter="cloud-migration">Cloud Migration</button>
+            <button class="filter-btn" data-filter="lakehouse">Lakehouse</button>
+            <button class="filter-btn" data-filter="streaming">Streaming/Real-time</button>
+          </div>
+
+          <!-- Projects Grid -->
+          <div class="projects-grid">
+
+            <div class="project-showcase animate-in" data-category="data-platform etl" style="--delay: 0.1s">
+              <div class="project-header">
+                <span class="tag">Data Platform</span>
+              </div>
+              <h3>SBI Funds DataLakehouse Platform</h3>
+              <p class="project-org">Crisp Analytics → SBI Funds Management</p>
+              <p>Greenfield design of a DataLakehouse on Cloudera On-Premise with ingestion frameworks across Oracle, SQL Server, and MariaDB sources. Dimensional modeling with medallion architecture for Customer 360 and Distributor 360.</p>
+              <div class="project-impact">
+                <span class="impact-item">📊 40TB managed</span>
+                <span class="impact-item">⚡ 90% faster pipelines</span>
+                <span class="impact-item">✅ 95% accuracy</span>
+              </div>
+              <div class="tags">
+                <span class="tag">Cloudera</span>
+                <span class="tag">NiFi</span>
+                <span class="tag">Spark</span>
+                <span class="tag">dbt</span>
+                <span class="tag">Airflow</span>
+                <span class="tag">Atlas</span>
+                <span class="tag">Impala</span>
+              </div>
+            </div>
+
+            <div class="project-showcase animate-in" data-category="data-platform lakehouse etl" style="--delay: 0.15s">
+              <div class="project-header">
+                <span class="tag">Lakehouse</span>
+              </div>
+              <h3>Kotak MF Ingestion Framework</h3>
+              <p class="project-org">Crisp Analytics → Kotak Mutual Fund</p>
+              <p>Scalable ingestion framework processing 8TB+ daily using Oracle GoldenGate for real-time CDC. Apache Iceberg/Hudi on S3 with incremental upserts, schema evolution, and time-travel queries. AWS Lake Formation for governance.</p>
+              <div class="project-impact">
+                <span class="impact-item">📊 8TB+ daily</span>
+                <span class="impact-item">💰 33% cost savings</span>
+                <span class="impact-item">🚀 55% faster deploy</span>
+              </div>
+              <div class="tags">
+                <span class="tag">GoldenGate</span>
+                <span class="tag">PySpark</span>
+                <span class="tag">EMR</span>
+                <span class="tag">Glue</span>
+                <span class="tag">Iceberg</span>
+                <span class="tag">Hudi</span>
+                <span class="tag">Lake Formation</span>
+              </div>
+            </div>
+
+            <div class="project-showcase animate-in" data-category="etl lakehouse" style="--delay: 0.2s">
+              <div class="project-header">
+                <span class="tag">ETL / Lakehouse</span>
+              </div>
+              <h3>Scotts-Miracle Gro — Iceberg ETL Platform</h3>
+              <p class="project-org">Quantiphi → Scotts-Miracle Gro LLC</p>
+              <p>Custom Airflow operators for ETL on EMR & EKS. Spark-Scala ingestion into Apache Iceberg tables with time-travel, schema evolution, and snapshot-based incremental reads. Partition pruning and predicate pushdown for Athena optimization.</p>
+              <div class="project-impact">
+                <span class="impact-item">⚡ 30% runtime improvement</span>
+                <span class="impact-item">🧊 Iceberg tables</span>
+                <span class="impact-item">🧪 Automated testing</span>
+              </div>
+              <div class="tags">
+                <span class="tag">Airflow</span>
+                <span class="tag">EMR</span>
+                <span class="tag">EKS</span>
+                <span class="tag">Athena</span>
+                <span class="tag">Iceberg</span>
+                <span class="tag">Spark-Scala</span>
+              </div>
+            </div>
+
+            <div class="project-showcase animate-in" data-category="cloud-migration" style="--delay: 0.25s">
+              <div class="project-header">
+                <span class="tag">Cloud Migration</span>
+              </div>
+              <h3>Definity Financial — Cloud Migration</h3>
+              <p class="project-org">Quantiphi → Definity Financial Corporation</p>
+              <p>End-to-end migration of Spark-Scala jobs from Cloudera on-prem to GCP Databricks. Data-ingestion framework with Scalaxb for XML/JSON parsing into BigQuery, achieving 80% runtime reduction and 60% SQL optimization.</p>
+              <div class="project-impact">
+                <span class="impact-item">⚡ 80% faster ingestion</span>
+                <span class="impact-item">📈 60% SQL optimization</span>
+              </div>
+              <div class="tags">
+                <span class="tag">Databricks</span>
+                <span class="tag">BigQuery</span>
+                <span class="tag">Scalaxb</span>
+                <span class="tag">Cloud Composer</span>
+                <span class="tag">Spark-Scala</span>
+              </div>
+            </div>
+
+            <div class="project-showcase animate-in" data-category="lakehouse data-platform" style="--delay: 0.3s">
+              <div class="project-header">
+                <span class="tag">Lakehouse</span>
+              </div>
+              <h3>4G-Capital — Databricks Lakehouse</h3>
+              <p class="project-org">Quantiphi → 4G-Capital LLC</p>
+              <p>Delta Lake architectures with medallion patterns (Bronze/Silver/Gold) on Databricks. Unity Catalog for centralized governance and access control. Notebook-based workflows with job orchestration for scheduled ETL.</p>
+              <div class="project-impact">
+                <span class="impact-item">🏗️ Medallion architecture</span>
+                <span class="impact-item">🔐 Unity Catalog</span>
+              </div>
+              <div class="tags">
+                <span class="tag">Databricks</span>
+                <span class="tag">PySpark</span>
+                <span class="tag">Delta Lake</span>
+                <span class="tag">Unity Catalog</span>
+              </div>
+            </div>
+
+            <div class="project-showcase animate-in" data-category="etl data-platform" style="--delay: 0.35s">
+              <div class="project-header">
+                <span class="tag">ETL</span>
+              </div>
+              <h3>Aflac — ETL & Data Processing</h3>
+              <p class="project-org">Quantiphi → Aflac Inc</p>
+              <p>ETL pipelines on AWS Glue and EMR for ingesting, transforming, and storing data in optimized DynamoDB schemas. Spark jobs for large-scale processing with data validation frameworks across 4 environments.</p>
+              <div class="project-impact">
+                <span class="impact-item">🔧 4 environments</span>
+                <span class="impact-item">📋 Data validation</span>
+              </div>
+              <div class="tags">
+                <span class="tag">AWS Glue</span>
+                <span class="tag">EMR</span>
+                <span class="tag">Spark</span>
+                <span class="tag">DynamoDB</span>
+                <span class="tag">Python</span>
+              </div>
+            </div>
+
+            <div class="project-showcase animate-in" data-category="streaming etl" style="--delay: 0.4s">
+              <div class="project-header">
+                <span class="tag">Streaming</span>
+              </div>
+              <h3>Real-time EPP Scoring — Spark Streaming</h3>
+              <p class="project-org">Zineone India Pvt Ltd</p>
+              <p>Spark Streaming jobs on EMR consuming Kafka topics for real-time user event ingestion triggering EPP scoring engines. CDC using AWS DMS for MySQL ingestion into S3-backed Hive tables. Event-driven architecture on Amazon MSK.</p>
+              <div class="project-impact">
+                <span class="impact-item">📡 Real-time streaming</span>
+                <span class="impact-item">🤖 ML scoring</span>
+                <span class="impact-item">📨 Event-driven</span>
+              </div>
+              <div class="tags">
+                <span class="tag">Spark Streaming</span>
+                <span class="tag">Kafka</span>
+                <span class="tag">Amazon MSK</span>
+                <span class="tag">AWS DMS</span>
+                <span class="tag">EMR</span>
+                <span class="tag">Hive</span>
+              </div>
+            </div>
+
+            <div class="project-showcase animate-in" data-category="data-platform" style="--delay: 0.45s">
+              <div class="project-header">
+                <span class="tag">Search & OCR</span>
+              </div>
+              <h3>Inventory Management & Document Search</h3>
+              <p class="project-org">USC Facilities Management Services</p>
+              <p>Searchable inventory management system with automated document processing. OCR pipeline using Tesseract engine with Solr and Lucene for full-text search across extracted invoice data.</p>
+              <div class="project-impact">
+                <span class="impact-item">🔍 Full-text search</span>
+                <span class="impact-item">📄 OCR extraction</span>
+              </div>
+              <div class="tags">
+                <span class="tag">Python</span>
+                <span class="tag">Tesseract</span>
+                <span class="tag">Solr</span>
+                <span class="tag">Lucene</span>
+                <span class="tag">SQL</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2024 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../index.html">Home</a>
+          <a href="experience.html">Experience</a>
+          <a href="skills.html">Skills</a>
+          <a href="education.html">Education</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+  </body>
+</html>
