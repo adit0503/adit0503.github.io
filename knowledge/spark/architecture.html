@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Spark Architecture & Internals — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>Architecture</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Spark Architecture & Internals</h1>
+          <p class="article-desc">Complete breakdown of Spark's distributed execution model — from driver to executors, DAG scheduling, task execution, and the role of each component in the cluster.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#cluster-architecture">Cluster Architecture</a></li>
+            <li><a href="#execution-model">Execution Model — Jobs, Stages & Tasks</a></li>
+            <li><a href="#dag-scheduler">DAG Scheduler & Task Scheduler</a></li>
+            <li><a href="#rdd-internals">RDD Internals & Lineage</a></li>
+            <li><a href="#deploy-modes">Deploy Modes — Client vs Cluster</a></li>
+            <li><a href="#resource-managers">Resource Managers — YARN, K8s, Standalone</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="cluster-architecture">Cluster Architecture</h2>
+
+          <p>A Spark application consists of a <strong>Driver</strong> process and a set of <strong>Executor</strong> processes distributed across the cluster.</p>
+
+          <h3>Driver</h3>
+          <ul>
+            <li>Runs the <code>main()</code> function of the application</li>
+            <li>Creates the <code>SparkSession</code> / <code>SparkContext</code></li>
+            <li>Converts user code into a logical plan → physical plan → DAG of stages</li>
+            <li>Negotiates resources with the cluster manager</li>
+            <li>Distributes tasks to executors and monitors their execution</li>
+            <li>Maintains metadata about the application (accumulator values, broadcast variables)</li>
+          </ul>
+
+          <h3>Executors</h3>
+          <ul>
+            <li>JVM processes that run on worker nodes</li>
+            <li>Execute tasks assigned by the driver</li>
+            <li>Store data in memory/disk for caching (<code>StorageMemory</code>)</li>
+            <li>Report task status and metrics back to the driver</li>
+            <li>Each executor has a fixed number of <strong>cores</strong> (slots for parallel tasks)</li>
+          </ul>
+
+          <h3>Cluster Manager</h3>
+          <p>Responsible for resource allocation. Spark supports:</p>
+          <ul>
+            <li><strong>YARN</strong> — most common in Hadoop/Cloudera environments</li>
+            <li><strong>Kubernetes</strong> — container-native, good for cloud</li>
+            <li><strong>Standalone</strong> — Spark's built-in cluster manager</li>
+            <li><strong>Mesos</strong> — legacy, mostly deprecated</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">spark-submit example</div>
+            <pre><code>spark-submit \
+  --master yarn \
+  --deploy-mode cluster \
+  --num-executors 10 \
+  --executor-memory 8g \
+  --executor-cores 4 \
+  --driver-memory 4g \
+  --conf spark.dynamicAllocation.enabled=true \
+  my_app.py</code></pre>
+          </div>
+
+          <h2 id="execution-model">Execution Model — Jobs, Stages & Tasks</h2>
+
+          <p>Understanding the hierarchy: <strong>Application → Job → Stage → Task</strong></p>
+
+          <h3>Job</h3>
+          <p>A job is triggered by an <strong>action</strong> (e.g., <code>count()</code>, <code>collect()</code>, <code>write()</code>). Each action triggers one job. Transformations (<code>map</code>, <code>filter</code>, <code>join</code>) are lazy — they only build a lineage graph.</p>
+
+          <h3>Stage</h3>
+          <p>A job is divided into stages at <strong>shuffle boundaries</strong>. Within a stage, all operations can be pipelined (narrow dependencies). A shuffle forces a stage boundary (wide dependency).</p>
+          <ul>
+            <li><strong>Narrow dependencies</strong>: <code>map</code>, <code>filter</code>, <code>union</code> — each input partition maps to at most one output partition</li>
+            <li><strong>Wide dependencies</strong>: <code>groupByKey</code>, <code>reduceByKey</code>, <code>join</code> (without broadcast), <code>repartition</code> — data must be shuffled across partitions</li>
+          </ul>
+
+          <h3>Task</h3>
+          <p>A task is the smallest unit of work — one task per partition per stage. If a stage operates on 200 partitions, it generates 200 tasks.</p>
+
+          <div class="callout">
+            <strong>🔑 Key insight for interviews:</strong>
+            <p>The number of tasks = number of partitions in that stage. To control parallelism, you control partitions via <code>spark.sql.shuffle.partitions</code> (default 200) or explicit <code>repartition()</code>/<code>coalesce()</code>.</p>
+          </div>
+
+          <h2 id="dag-scheduler">DAG Scheduler & Task Scheduler</h2>
+
+          <h3>DAG Scheduler</h3>
+          <ul>
+            <li>Receives the logical plan from the driver</li>
+            <li>Builds a DAG of stages based on shuffle boundaries</li>
+            <li>Submits stages in topological order (parent stages first)</li>
+            <li>Handles stage retries on failure</li>
+            <li>Tracks which partitions of which RDDs are cached</li>
+          </ul>
+
+          <h3>Task Scheduler</h3>
+          <ul>
+            <li>Receives a set of tasks from the DAG scheduler (one TaskSet per stage)</li>
+            <li>Assigns tasks to executors based on <strong>data locality</strong>:
+              <ul>
+                <li><code>PROCESS_LOCAL</code> — data is in the same executor's cache</li>
+                <li><code>NODE_LOCAL</code> — data is on the same node (different executor or disk)</li>
+                <li><code>RACK_LOCAL</code> — data is on a different node in the same rack</li>
+                <li><code>ANY</code> — data is remote</li>
+              </ul>
+            </li>
+            <li>Handles speculative execution (<code>spark.speculation=true</code>)</li>
+            <li>Manages task retries (default: 4 attempts)</li>
+          </ul>
+
+          <h2 id="rdd-internals">RDD Internals & Lineage</h2>
+
+          <p>Every RDD stores:</p>
+          <ol>
+            <li><strong>Partitions</strong> — list of partitions that make up the dataset</li>
+            <li><strong>Dependencies</strong> — list of parent RDDs (narrow or wide)</li>
+            <li><strong>Compute function</strong> — how to compute each partition from parents</li>
+            <li><strong>Partitioner</strong> (optional) — for key-value RDDs (HashPartitioner, RangePartitioner)</li>
+            <li><strong>Preferred locations</strong> (optional) — data locality hints</li>
+          </ol>
+
+          <h3>Lineage & Fault Tolerance</h3>
+          <p>Spark achieves fault tolerance through <strong>lineage</strong> — if a partition is lost, Spark recomputes it from the parent partitions using the compute function. This avoids expensive replication (unlike Hadoop MapReduce).</p>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ When lineage gets too long:</strong>
+            <p>Use <code>checkpoint()</code> to truncate the lineage. This writes the RDD to reliable storage (HDFS/S3) and breaks the dependency chain. Useful for iterative algorithms or very long DAGs.</p>
+          </div>
+
+          <h2 id="deploy-modes">Deploy Modes — Client vs Cluster</h2>
+
+          <h3>Client Mode</h3>
+          <ul>
+            <li>Driver runs on the machine that submitted the job</li>
+            <li>Good for interactive development (Jupyter, spark-shell)</li>
+            <li>Driver process dies if the submitting machine goes down</li>
+            <li>Network latency between driver and cluster can be an issue</li>
+          </ul>
+
+          <h3>Cluster Mode</h3>
+          <ul>
+            <li>Driver runs inside the cluster (on a worker node)</li>
+            <li>Standard for production jobs</li>
+            <li>Submitting machine can disconnect after submission</li>
+            <li>Logs are on the cluster (access via YARN UI, Spark History Server)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Key config differences</div>
+            <pre><code># Client mode - driver uses local memory
+--deploy-mode client
+--driver-memory 4g   # on your laptop/edge node
+
+# Cluster mode - driver runs on cluster node
+--deploy-mode cluster
+--driver-memory 4g   # allocated from cluster resources</code></pre>
+          </div>
+
+          <h2 id="resource-managers">Resource Managers — YARN, K8s, Standalone</h2>
+
+          <h3>YARN (Yet Another Resource Negotiator)</h3>
+          <ul>
+            <li>Most mature for on-prem Hadoop/Cloudera clusters</li>
+            <li>Application Master (AM) acts as the driver in cluster mode</li>
+            <li>Supports dynamic allocation — add/remove executors based on load</li>
+            <li>Queue-based resource management (capacity scheduler, fair scheduler)</li>
+          </ul>
+
+          <h3>Kubernetes</h3>
+          <ul>
+            <li>Spark 3.1+ has GA support for K8s</li>
+            <li>Driver and executors run as pods</li>
+            <li>Good for cloud-native environments (EKS, GKE)</li>
+            <li>Supports auto-scaling, pod templates, volumes</li>
+            <li>No need for a pre-existing Hadoop cluster</li>
+          </ul>
+
+          <h3>Standalone</h3>
+          <ul>
+            <li>Spark's built-in cluster manager</li>
+            <li>Simple to set up, good for development</li>
+            <li>Master + Worker architecture</li>
+            <li>Limited resource isolation compared to YARN/K8s</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What happens when you call an action in Spark?</div>
+            <div class="qa-answer">
+              <p>1. The SparkContext creates a job. 2. The DAG Scheduler builds a DAG of stages by analyzing shuffle boundaries. 3. Each stage is submitted as a TaskSet to the Task Scheduler. 4. Tasks are assigned to executor cores based on data locality. 5. Executors run the tasks and return results to the driver. 6. Results are aggregated at the driver (e.g., for <code>collect()</code>) or written to storage (e.g., for <code>write()</code>).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between narrow and wide transformations?</div>
+            <div class="qa-answer">
+              <p><strong>Narrow</strong>: Each input partition contributes to at most one output partition (map, filter, union). Can be pipelined. <strong>Wide</strong>: Input partitions contribute to multiple output partitions (groupBy, join, repartition). Requires a shuffle — data must be written to disk and transferred across the network. Wide transformations create stage boundaries.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Spark achieve fault tolerance without data replication?</div>
+            <div class="qa-answer">
+              <p>Through <strong>lineage</strong>. Each RDD records how it was derived from parent RDDs. If a partition is lost (executor crash), Spark recomputes only that partition by replaying the transformations from the last materialized ancestor. For shuffle outputs, Spark stores shuffle files on disk, so completed map-side outputs don't need recomputation.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you use client mode vs cluster mode?</div>
+            <div class="qa-answer">
+              <p><strong>Client mode</strong>: Interactive development, debugging, Jupyter notebooks — you want to see output locally. <strong>Cluster mode</strong>: Production jobs, scheduled pipelines — driver runs inside the cluster for reliability, and the submitting machine can disconnect. Always use cluster mode for production Airflow/scheduler-triggered jobs.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is speculative execution and when would you enable it?</div>
+            <div class="qa-answer">
+              <p>Spark monitors task completion times. If a task is significantly slower than the median (straggler), it launches a duplicate task on another executor. Whichever finishes first wins. Enable via <code>spark.speculation=true</code>. Useful when cluster has heterogeneous hardware. Disable for non-idempotent operations or when writing to external systems.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Lakehouse & Table Formats — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <span>Lakehouse & Table Formats</span>
+      </div>
+
+      <section style="padding-bottom: 80px;">
+        <div class="kb-cat-header">
+          <span class="kb-cat-icon">🏠</span>
+          <h1>Lakehouse & Table Formats</h1>
+        </div>
+        <p style="color: var(--text-secondary); margin-bottom: 32px; font-size: 1.05rem; line-height: 1.7;">
+          Deep-dive into lakehouse architecture, Apache Iceberg, Delta Lake, Apache Hudi, table maintenance, and schema evolution patterns.
+        </p>
+
+        <div class="kb-article-list">
+          <a href="medallion-architecture.html" class="kb-article-item">
+            <span class="kb-tag">Architecture</span>
+            <span class="kb-article-title">Medallion Architecture (Bronze/Silver/Gold)</span>
+            <span class="kb-read-time">13 min</span>
+          </a>
+          <a href="iceberg-deep-dive.html" class="kb-article-item">
+            <span class="kb-tag">Iceberg</span>
+            <span class="kb-article-title">Apache Iceberg Deep-Dive</span>
+            <span class="kb-read-time">16 min</span>
+          </a>
+          <a href="delta-lake.html" class="kb-article-item">
+            <span class="kb-tag">Delta</span>
+            <span class="kb-article-title">Delta Lake Architecture & Operations</span>
+            <span class="kb-read-time">14 min</span>
+          </a>
+          <a href="hudi.html" class="kb-article-item">
+            <span class="kb-tag">Hudi</span>
+            <span class="kb-article-title">Apache Hudi — COW vs MOR</span>
+            <span class="kb-read-time">12 min</span>
+          </a>
+          <a href="compaction-maintenance.html" class="kb-article-item">
+            <span class="kb-tag">Operations</span>
+            <span class="kb-article-title">Compaction, Vacuum & Table Maintenance</span>
+            <span class="kb-read-time">10 min</span>
+          </a>
+          <a href="schema-evolution.html" class="kb-article-item">
+            <span class="kb-tag">Design</span>
+            <span class="kb-article-title">Schema Evolution & Partition Strategies</span>
+            <span class="kb-read-time">11 min</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

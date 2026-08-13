@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Memory Management & JVM Tuning — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>Memory Management</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Memory Management & JVM Tuning</h1>
+          <p class="article-desc">Deep dive into Spark's Unified Memory Manager, executor memory layout, on-heap vs off-heap allocation, GC tuning strategies, serialization formats, and OOM troubleshooting patterns.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#unified-memory-manager">Unified Memory Manager</a></li>
+            <li><a href="#executor-memory-breakdown">Executor Memory Breakdown</a></li>
+            <li><a href="#on-heap-vs-off-heap">On-Heap vs Off-Heap Memory</a></li>
+            <li><a href="#storage-vs-execution">Storage vs Execution Memory</a></li>
+            <li><a href="#gc-tuning">GC Tuning — G1GC & CMS</a></li>
+            <li><a href="#serialization">Serialization — Kryo vs Java</a></li>
+            <li><a href="#persist-cache-storage-levels">Persist, Cache & Storage Levels</a></li>
+            <li><a href="#oom-troubleshooting">OOM Troubleshooting</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="unified-memory-manager">Unified Memory Manager</h2>
+
+          <p>Since Spark 1.6, the <strong>Unified Memory Manager</strong> (UMM) replaced the older Static Memory Manager. The key difference: storage and execution memory share a unified region and can borrow from each other dynamically.</p>
+
+          <ul>
+            <li><strong>Execution memory</strong> — used for shuffles, joins, sorts, aggregations (intermediate computation buffers)</li>
+            <li><strong>Storage memory</strong> — used for caching RDDs/DataFrames and broadcast variables</li>
+            <li>Either region can borrow from the other when the other is free</li>
+            <li>Execution memory can evict storage memory (cached blocks) if needed, but storage cannot evict execution</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Key insight:</strong>
+            <p>The Unified Memory Manager gives execution memory priority over storage. If a computation needs more memory than its allocated fraction, it can evict cached data. This prevents OOM errors during heavy shuffles at the cost of cache loss (which triggers recomputation).</p>
+          </div>
+
+          <h2 id="executor-memory-breakdown">Executor Memory Breakdown</h2>
+
+          <p>When you set <code>--executor-memory 8g</code>, here's how that maps to the actual JVM and OS-level memory:</p>
+
+          <h3>Total Container Memory</h3>
+          <ul>
+            <li><strong>spark.executor.memory</strong> (8g) — the JVM heap size (<code>-Xmx</code>)</li>
+            <li><strong>spark.executor.memoryOverhead</strong> — off-heap memory for JVM internals, native libraries, container overhead. Default: <code>max(384MB, 0.10 × executor.memory)</code> = 800MB for 8g</li>
+            <li><strong>spark.memory.offHeap.size</strong> — explicit off-heap for Spark operations (if enabled)</li>
+            <li><strong>spark.executor.pyspark.memory</strong> — Python worker memory (PySpark only)</li>
+          </ul>
+
+          <p>Total container request = <code>executor.memory + memoryOverhead + offHeap.size + pyspark.memory</code></p>
+
+          <div class="code-block">
+            <div class="code-block-header">Memory layout for --executor-memory 8g</div>
+            <pre><code>Total Container: ~8.8g (YARN/K8s container)
+├── JVM Heap (8g) — spark.executor.memory
+│   ├── Reserved Memory: 300MB (hardcoded, internal Spark objects)
+│   ├── User Memory: (1 - spark.memory.fraction) × (heap - 300MB)
+│   │   = 0.40 × 7700MB = 3080MB
+│   │   → UDFs, internal metadata, your data structures
+│   └── Unified Memory: spark.memory.fraction × (heap - 300MB)
+│       = 0.60 × 7700MB = 4620MB
+│       ├── Storage Memory: 50% of Unified = 2310MB
+│       │   → cached RDDs, broadcast vars
+│       └── Execution Memory: 50% of Unified = 2310MB
+│           → shuffles, joins, sorts, aggregations
+└── Off-Heap (800MB) — memoryOverhead
+    → JVM overhead, native libs, direct byte buffers, container padding</code></pre>
+          </div>
+
+          <h3>Key Configuration Parameters</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Memory-related configs</div>
+            <pre><code># Core memory settings
+spark.executor.memory=8g              # JVM heap
+spark.executor.memoryOverhead=2g      # Off-heap overhead (increase for PySpark/heavy native libs)
+spark.memory.fraction=0.6             # Fraction of (heap - 300MB) for unified region
+spark.memory.storageFraction=0.5      # Initial split within unified (soft boundary)
+
+# Off-heap (explicit)
+spark.memory.offHeap.enabled=true
+spark.memory.offHeap.size=4g          # Managed off-heap for Spark operations
+
+# Driver memory
+spark.driver.memory=4g
+spark.driver.memoryOverhead=1g</code></pre>
+          </div>
+
+          <h2 id="on-heap-vs-off-heap">On-Heap vs Off-Heap Memory</h2>
+
+          <h3>On-Heap (Default)</h3>
+          <ul>
+            <li>Managed by JVM garbage collector</li>
+            <li>Objects stored as Java objects on the heap</li>
+            <li>Subject to GC pauses — can cause task stalls and executor timeouts</li>
+            <li>Object headers and padding add ~2-5× memory overhead vs raw data</li>
+            <li>Easier to debug (heap dumps, JVM profilers)</li>
+          </ul>
+
+          <h3>Off-Heap</h3>
+          <ul>
+            <li>Allocated via <code>sun.misc.Unsafe</code> / <code>java.nio.DirectByteBuffer</code></li>
+            <li>Not subject to GC — eliminates GC pauses for this memory</li>
+            <li>Data stored in compact binary format (Tungsten encoding)</li>
+            <li>Lower memory overhead (no Java object headers)</li>
+            <li>Harder to debug (no heap dump visibility)</li>
+            <li>Must be explicitly managed — risk of memory leaks if Spark has bugs</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 When to use off-heap:</strong>
+            <p>Enable off-heap when you see long GC pauses (>5s), when working with very large datasets that cause frequent full GC, or when executors have 32g+ heap (large heaps amplify GC overhead). Off-heap is also beneficial for workloads with large broadcast variables.</p>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling off-heap memory</div>
+            <pre><code>spark.memory.offHeap.enabled=true
+spark.memory.offHeap.size=4g
+
+# The unified memory pool becomes:
+# On-heap unified = spark.memory.fraction × (heap - 300MB)
+# Off-heap unified = spark.memory.offHeap.size
+# Total unified = on-heap + off-heap</code></pre>
+          </div>
+
+          <h2 id="storage-vs-execution">Storage vs Execution Memory</h2>
+
+          <h3>Storage Memory</h3>
+          <ul>
+            <li>Used by <code>cache()</code>, <code>persist()</code>, and broadcast variables</li>
+            <li>Blocks are stored here and evicted using LRU when space is needed</li>
+            <li>Can be spilled to disk (depending on storage level)</li>
+            <li>If execution needs more memory, storage blocks can be evicted</li>
+          </ul>
+
+          <h3>Execution Memory</h3>
+          <ul>
+            <li>Used for shuffle buffers, join hash tables, sort buffers, aggregation maps</li>
+            <li>Has priority — cannot be evicted by storage</li>
+            <li>If execution memory is insufficient, it spills to disk (external sort/merge)</li>
+            <li>Spilling is expensive — causes disk I/O and recomputation overhead</li>
+          </ul>
+
+          <h3>Borrowing Rules</h3>
+          <ol>
+            <li>If execution memory is free, storage can borrow it for caching</li>
+            <li>If storage memory is free, execution can borrow it for computation</li>
+            <li>If execution needs memory back and storage borrowed it → storage blocks are evicted</li>
+            <li>If storage needs memory back and execution borrowed it → storage must wait (execution is never evicted)</li>
+          </ol>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Common pitfall:</strong>
+            <p>If you cache too aggressively and your workload has heavy shuffles, the cached data will be evicted anyway (wasting the I/O spent caching). Monitor the "Storage" tab in Spark UI — if cached fractions keep dropping, you're over-caching relative to available memory.</p>
+          </div>
+
+          <h2 id="gc-tuning">GC Tuning — G1GC & CMS</h2>
+
+          <p>Garbage collection is the #1 cause of executor stalls and task stragglers. The JVM heap has generations: Young Gen (short-lived objects) and Old Gen (long-lived objects).</p>
+
+          <h3>G1GC (Recommended for Spark 3.x)</h3>
+          <ul>
+            <li>Default GC for Java 9+ (Spark 3.x typically uses Java 11/17)</li>
+            <li>Region-based — divides heap into equal-sized regions (~2048)</li>
+            <li>Concurrent marking — minimizes stop-the-world pauses</li>
+            <li>Good for heaps > 4GB with target pause times</li>
+            <li>Adapts automatically — less manual tuning needed</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">G1GC configuration</div>
+            <pre><code>spark.executor.extraJavaOptions=-XX:+UseG1GC \
+  -XX:MaxGCPauseMillis=200 \
+  -XX:G1HeapRegionSize=16m \
+  -XX:InitiatingHeapOccupancyPercent=35 \
+  -XX:ConcGCThreads=4 \
+  -XX:+ParallelRefProcEnabled \
+  -verbose:gc \
+  -XX:+PrintGCDetails \
+  -XX:+PrintGCTimeStamps</code></pre>
+          </div>
+
+          <h3>CMS (Legacy — Java 8)</h3>
+          <ul>
+            <li>Concurrent Mark-Sweep — reduces pause times for old gen collection</li>
+            <li>Can suffer from fragmentation (no compaction during concurrent phase)</li>
+            <li>Deprecated in Java 9, removed in Java 14</li>
+            <li>Still relevant for Spark 2.x / Java 8 environments</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">CMS configuration (Java 8)</div>
+            <pre><code>spark.executor.extraJavaOptions=-XX:+UseConcMarkSweepGC \
+  -XX:+UseParNewGC \
+  -XX:CMSInitiatingOccupancyFraction=70 \
+  -XX:+UseCMSInitiatingOccupancyOnly \
+  -XX:NewRatio=2 \
+  -XX:SurvivorRatio=8 \
+  -verbose:gc \
+  -XX:+PrintGCDetails</code></pre>
+          </div>
+
+          <h3>GC Tuning Best Practices</h3>
+          <ol>
+            <li>Increase Young Gen if you see frequent minor GCs with low promotion rates</li>
+            <li>If full GC is frequent, increase <code>spark.memory.fraction</code> or reduce caching</li>
+            <li>Use <code>-XX:+PrintGCDetails -XX:+PrintGCTimeStamps</code> to analyze GC logs</li>
+            <li>Target GC pause time < 200ms for interactive workloads</li>
+            <li>Consider off-heap memory to reduce GC pressure on large heaps</li>
+          </ol>
+
+          <h2 id="serialization">Serialization — Kryo vs Java</h2>
+
+          <p>Serialization affects both memory usage (cached data size) and network transfer speed (shuffle).</p>
+
+          <h3>Java Serialization (Default)</h3>
+          <ul>
+            <li>Uses <code>java.io.Serializable</code> interface</li>
+            <li>Slow and verbose — stores full class metadata with each object</li>
+            <li>Easy to use — works with any <code>Serializable</code> class</li>
+            <li>Produces large serialized objects (2-5× compared to Kryo)</li>
+          </ul>
+
+          <h3>Kryo Serialization (Recommended)</h3>
+          <ul>
+            <li>10× faster than Java serialization</li>
+            <li>Produces compact binary output (often 50-80% smaller)</li>
+            <li>Requires explicit class registration for best performance</li>
+            <li>Not all classes are compatible without registration</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling Kryo serialization</div>
+            <pre><code># Enable Kryo
+spark.serializer=org.apache.spark.serializer.KryoSerializer
+
+# Register classes for optimal performance
+spark.kryo.classesToRegister=com.myapp.MyClass,com.myapp.OtherClass
+
+# Require registration (fails fast if unregistered class found)
+spark.kryo.registrationRequired=true
+
+# Increase buffer if serialized objects are large
+spark.kryoserializer.buffer.max=512m
+spark.kryoserializer.buffer=64k</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 When Kryo matters most:</strong>
+            <p>Kryo gives the biggest gains for shuffle-heavy workloads (less data over network) and when caching large datasets (more fits in memory). For Spark SQL/DataFrames using Tungsten encoding, the internal serialization already uses compact binary format — Kryo mainly helps RDD operations and UDF object serialization.</p>
+          </div>
+
+          <h2 id="persist-cache-storage-levels">Persist, Cache & Storage Levels</h2>
+
+          <h3>cache() vs persist()</h3>
+          <ul>
+            <li><code>cache()</code> = shorthand for <code>persist(StorageLevel.MEMORY_ONLY)</code> for RDDs or <code>MEMORY_AND_DISK</code> for DataFrames</li>
+            <li><code>persist(level)</code> = explicitly choose the storage level</li>
+            <li>Both are lazy — data isn't cached until an action triggers computation</li>
+            <li>Use <code>unpersist()</code> to explicitly free cached data</li>
+          </ul>
+
+          <h3>Storage Levels</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Available storage levels</div>
+            <pre><code>MEMORY_ONLY
+  → Store as deserialized Java objects in JVM heap
+  → Fastest access, highest memory usage
+  → Partitions that don't fit are recomputed on the fly
+
+MEMORY_ONLY_SER
+  → Store as serialized byte arrays (use with Kryo)
+  → More compact (~2-5× less memory), but CPU cost to deserialize
+  → Good when memory is tight but recomputation is expensive
+
+MEMORY_AND_DISK
+  → Spill to disk if memory is full (default for DataFrame.cache())
+  → Prevents recomputation at the cost of disk I/O
+  → Best for expensive computations you can't afford to redo
+
+MEMORY_AND_DISK_SER
+  → Serialized in memory, spill to disk
+  → Best balance of memory efficiency and fault tolerance
+
+DISK_ONLY
+  → Store only on disk — rare, used for very large datasets
+  → Useful when you need to persist but have minimal memory
+
+OFF_HEAP
+  → Store in off-heap memory (Tachyon/Alluxio or Spark's off-heap)
+  → No GC overhead, shared across executors (with external store)
+  → Requires spark.memory.offHeap.enabled=true
+
+*_2 variants (e.g., MEMORY_ONLY_2)
+  → Replicate each partition on 2 nodes
+  → Faster recovery on failure (no recomputation), but 2× memory cost
+  → Use for critical datasets in unstable clusters</code></pre>
+          </div>
+
+          <h3>When to Use persist vs cache</h3>
+          <ol>
+            <li><strong>Multiple actions on same DataFrame</strong> — cache it to avoid recomputation</li>
+            <li><strong>Iterative algorithms (ML)</strong> — persist training data</li>
+            <li><strong>Expensive joins/aggregations reused downstream</strong> — persist the result</li>
+            <li><strong>Memory-constrained</strong> — use <code>MEMORY_AND_DISK_SER</code> instead of default</li>
+            <li><strong>Don't cache</strong> if data is used only once, or if it's cheap to recompute (reading from local Parquet)</li>
+          </ol>
+
+          <h2 id="oom-troubleshooting">OOM Troubleshooting</h2>
+
+          <h3>Common OOM Scenarios</h3>
+
+          <ul>
+            <li><strong>Driver OOM</strong> — <code>collect()</code> on large dataset, large broadcast variables, too many small files creating excessive metadata</li>
+            <li><strong>Executor OOM (heap)</strong> — data skew causing one partition to be huge, too many cached datasets, complex UDFs holding references</li>
+            <li><strong>Executor OOM (off-heap / container killed)</strong> — YARN kills container when total memory exceeds limit. Usually native memory leaks or PySpark memory</li>
+          </ul>
+
+          <h3>Diagnostic Steps</h3>
+          <ol>
+            <li>Check Spark UI → Stages → look for skewed tasks (one task processing 10× more data)</li>
+            <li>Check executor logs for <code>java.lang.OutOfMemoryError: Java heap space</code> vs container killed by YARN</li>
+            <li>Monitor GC logs — if GC takes >50% of task time, you have memory pressure</li>
+            <li>Check <code>peak execution memory</code> and <code>peak storage memory</code> in task metrics</li>
+          </ol>
+
+          <h3>Fixes</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">OOM fixes by scenario</div>
+            <pre><code># Driver OOM — never collect large datasets
+df.write.parquet("output/")   # instead of df.collect()
+spark.driver.memory=8g        # increase if needed
+
+# Executor OOM — data skew
+# Increase partitions to reduce per-partition size
+spark.sql.shuffle.partitions=400   # default 200
+
+# Repartition skewed data
+df.repartition(400, col("skewed_key"))
+
+# Salt the key to distribute skewed partitions
+df.withColumn("salt", (rand() * 10).cast("int"))
+
+# Executor OOM — too much caching
+df.unpersist()   # free what you don't need
+# Use MEMORY_AND_DISK_SER instead of MEMORY_ONLY
+
+# Container killed (memoryOverhead)
+spark.executor.memoryOverhead=4g   # increase for PySpark or native libs
+
+# Broadcast join instead of shuffle join for small tables
+spark.sql.autoBroadcastJoinThreshold=100m   # 100MB threshold</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ The #1 OOM cause in production:</strong>
+            <p>Data skew. One partition has 10GB while others have 100MB. No amount of memory increase fixes this — you need to repartition, salt keys, or use AQE skew join optimization (<code>spark.sql.adaptive.skewJoin.enabled=true</code>).</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How is executor memory divided in Spark?</div>
+            <div class="qa-answer">
+              <p>Executor memory (JVM heap) is divided into: <strong>Reserved Memory</strong> (300MB, hardcoded) for internal Spark objects; <strong>User Memory</strong> = (1 - spark.memory.fraction) × (heap - 300MB) for UDFs and user data structures; <strong>Unified Memory</strong> = spark.memory.fraction × (heap - 300MB), which is further split into Storage Memory (for caching) and Execution Memory (for shuffles/joins/sorts). The storage/execution split is soft — they can borrow from each other, with execution having eviction priority.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What causes OOM in Spark executors and how do you fix it?</div>
+            <div class="qa-answer">
+              <p>Common causes: <strong>1)</strong> Data skew — one partition is disproportionately large. Fix with salting, repartitioning, or AQE skew join. <strong>2)</strong> Over-caching — too many DataFrames cached simultaneously. Fix by unpersisting unused data or using serialized storage levels. <strong>3)</strong> Large shuffle buffers — too few partitions forcing large per-partition data. Fix by increasing <code>spark.sql.shuffle.partitions</code>. <strong>4)</strong> Container killed (not heap OOM) — native memory or PySpark workers exceed memoryOverhead. Fix by increasing <code>spark.executor.memoryOverhead</code>. Always check Spark UI task metrics and GC logs to identify the root cause.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you tune GC for Spark executors?</div>
+            <div class="qa-answer">
+              <p>For Spark 3.x (Java 11+), use <strong>G1GC</strong> with <code>-XX:MaxGCPauseMillis=200</code> and <code>-XX:InitiatingHeapOccupancyPercent=35</code>. Key steps: 1) Enable GC logging to identify pause patterns. 2) If young GC is too frequent, increase young gen or reduce allocation rate. 3) If full GC occurs, you have memory pressure — increase heap, reduce caching, or move to off-heap. 4) For large heaps (32g+), G1GC's region-based approach handles fragmentation better than CMS. 5) Consider off-heap memory to remove cached data from GC's scope entirely.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you use off-heap memory in Spark?</div>
+            <div class="qa-answer">
+              <p>Use off-heap when: <strong>1)</strong> GC pauses exceed acceptable thresholds (>500ms) causing task stragglers. <strong>2)</strong> Executor heap is large (32g+) where GC overhead becomes significant. <strong>3)</strong> Workload involves large broadcast variables or cached datasets that inflate GC roots. <strong>4)</strong> You want predictable latency without GC spikes. Trade-offs: off-heap is harder to debug (not visible in heap dumps), requires explicit size configuration, and can leak if there are Spark bugs. Enable with <code>spark.memory.offHeap.enabled=true</code> and <code>spark.memory.offHeap.size</code>.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between MEMORY_ONLY and MEMORY_AND_DISK_SER, and when would you pick each?</div>
+            <div class="qa-answer">
+              <p><strong>MEMORY_ONLY</strong>: Stores deserialized Java objects in heap. Fastest access (no deserialization), but highest memory footprint and GC pressure. Partitions that don't fit are recomputed. <strong>MEMORY_AND_DISK_SER</strong>: Stores serialized bytes in memory, spills to disk if full. Lower memory usage (~2-5× less with Kryo), no recomputation, but pays CPU for serialization/deserialization. Pick MEMORY_ONLY for small datasets accessed repeatedly in tight loops. Pick MEMORY_AND_DISK_SER for large datasets where recomputation is expensive and memory is constrained — this is the production default for most workloads.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

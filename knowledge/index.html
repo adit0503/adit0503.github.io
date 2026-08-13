@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Knowledge Base — Aditya Shashank Chavan</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../css/styles.css" />
+    <link rel="stylesheet" href="../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../index.html">Home</a>
+          <a href="../pages/experience.html">Experience</a>
+          <a href="../pages/projects.html">Projects</a>
+          <a href="../pages/skills.html">Skills</a>
+          <a class="active" href="index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <a class="btn btn-sm" href="../pdf/Resume_2026.pdf" download>Download CV</a>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-hero">
+        <div class="container">
+          <h1 class="animate-in">Knowledge Base</h1>
+          <p class="page-desc animate-in" style="--delay: 0.1s">Deep-dive reference for data engineering concepts — Spark internals, lakehouse architectures, cloud platforms, and production patterns. Built for interview prep and quick recall.</p>
+        </div>
+      </section>
+
+      <!-- Search & Filter -->
+      <section class="section" style="padding-top: 0;">
+        <div class="container">
+          <div class="kb-search-bar animate-in">
+            <input type="text" id="kb-search" placeholder="Search articles..." autocomplete="off" />
+          </div>
+
+          <!-- Category Cards -->
+          <div class="kb-categories animate-in" style="--delay: 0.1s">
+
+            <a href="spark/index.html" class="kb-category-card">
+              <span class="kb-cat-icon">🔥</span>
+              <h3>Apache Spark</h3>
+              <p>Architecture, internals, tuning, Spark SQL, Structured Streaming, and PySpark patterns</p>
+              <span class="kb-article-count">8 articles</span>
+            </a>
+
+            <a href="lakehouse/index.html" class="kb-category-card">
+              <span class="kb-cat-icon">🏠</span>
+              <h3>Lakehouse & Table Formats</h3>
+              <p>Iceberg, Hudi, Delta Lake, medallion architecture, schema evolution, and compaction</p>
+              <span class="kb-article-count">6 articles</span>
+            </a>
+
+            <a href="aws/index.html" class="kb-category-card">
+              <span class="kb-cat-icon">☁️</span>
+              <h3>AWS Data Engineering</h3>
+              <p>EMR, Glue, Athena, Lake Formation, MSK, DMS, and S3 optimization</p>
+              <span class="kb-article-count">7 articles</span>
+            </a>
+
+            <a href="gcp/index.html" class="kb-category-card">
+              <span class="kb-cat-icon">🌐</span>
+              <h3>GCP & Databricks</h3>
+              <p>BigQuery, Databricks, Unity Catalog, Cloud Composer, and Delta Lake on GCP</p>
+              <span class="kb-article-count">5 articles</span>
+            </a>
+
+            <a href="platform/index.html" class="kb-category-card">
+              <span class="kb-cat-icon">🏗️</span>
+              <h3>Platform & Infrastructure</h3>
+              <p>Data governance, CDC patterns, orchestration, cost optimization, and interview prep</p>
+              <span class="kb-article-count">6 articles</span>
+            </a>
+
+          </div>
+
+          <!-- All Articles Index -->
+          <div class="kb-all-articles animate-in" style="--delay: 0.2s">
+            <h2>All Articles</h2>
+            <div class="kb-article-list" id="kb-article-list">
+
+              <!-- Spark -->
+              <a href="spark/architecture.html" class="kb-article-item" data-tags="spark architecture internals">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">Spark Architecture & Internals</span>
+                <span class="kb-read-time">15 min</span>
+              </a>
+              <a href="spark/memory-management.html" class="kb-article-item" data-tags="spark memory tuning jvm">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">Memory Management & JVM Tuning</span>
+                <span class="kb-read-time">12 min</span>
+              </a>
+              <a href="spark/shuffle-optimization.html" class="kb-article-item" data-tags="spark shuffle partitioning performance">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">Shuffle Deep-Dive & Optimization</span>
+                <span class="kb-read-time">14 min</span>
+              </a>
+              <a href="spark/spark-sql.html" class="kb-article-item" data-tags="spark sql catalyst optimizer tungsten">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">Spark SQL, Catalyst & Tungsten</span>
+                <span class="kb-read-time">13 min</span>
+              </a>
+              <a href="spark/structured-streaming.html" class="kb-article-item" data-tags="spark streaming watermark trigger">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">Structured Streaming Patterns</span>
+                <span class="kb-read-time">11 min</span>
+              </a>
+              <a href="spark/pyspark-best-practices.html" class="kb-article-item" data-tags="spark pyspark python udf pandas">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">PySpark Best Practices & UDFs</span>
+                <span class="kb-read-time">10 min</span>
+              </a>
+              <a href="spark/partitioning-bucketing.html" class="kb-article-item" data-tags="spark partitioning bucketing data skew">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">Partitioning, Bucketing & Data Skew</span>
+                <span class="kb-read-time">12 min</span>
+              </a>
+              <a href="spark/joins.html" class="kb-article-item" data-tags="spark joins broadcast sort merge shuffle hash">
+                <span class="kb-tag">Spark</span>
+                <span class="kb-article-title">Join Strategies & Optimization</span>
+                <span class="kb-read-time">11 min</span>
+              </a>
+
+              <!-- Lakehouse -->
+              <a href="lakehouse/medallion-architecture.html" class="kb-article-item" data-tags="lakehouse medallion bronze silver gold">
+                <span class="kb-tag">Lakehouse</span>
+                <span class="kb-article-title">Medallion Architecture (Bronze/Silver/Gold)</span>
+                <span class="kb-read-time">13 min</span>
+              </a>
+              <a href="lakehouse/iceberg-deep-dive.html" class="kb-article-item" data-tags="lakehouse iceberg table format metadata">
+                <span class="kb-tag">Lakehouse</span>
+                <span class="kb-article-title">Apache Iceberg Deep-Dive</span>
+                <span class="kb-read-time">16 min</span>
+              </a>
+              <a href="lakehouse/delta-lake.html" class="kb-article-item" data-tags="lakehouse delta lake databricks acid">
+                <span class="kb-tag">Lakehouse</span>
+                <span class="kb-article-title">Delta Lake Architecture & Operations</span>
+                <span class="kb-read-time">14 min</span>
+              </a>
+              <a href="lakehouse/hudi.html" class="kb-article-item" data-tags="lakehouse hudi upsert copy-on-write merge-on-read">
+                <span class="kb-tag">Lakehouse</span>
+                <span class="kb-article-title">Apache Hudi — COW vs MOR</span>
+                <span class="kb-read-time">12 min</span>
+              </a>
+              <a href="lakehouse/compaction-maintenance.html" class="kb-article-item" data-tags="lakehouse compaction vacuum optimize small files">
+                <span class="kb-tag">Lakehouse</span>
+                <span class="kb-article-title">Compaction, Vacuum & Table Maintenance</span>
+                <span class="kb-read-time">10 min</span>
+              </a>
+              <a href="lakehouse/schema-evolution.html" class="kb-article-item" data-tags="lakehouse schema evolution partition time-travel">
+                <span class="kb-tag">Lakehouse</span>
+                <span class="kb-article-title">Schema Evolution & Partition Strategies</span>
+                <span class="kb-read-time">11 min</span>
+              </a>
+
+              <!-- AWS -->
+              <a href="aws/emr-deep-dive.html" class="kb-article-item" data-tags="aws emr cluster spark hadoop yarn">
+                <span class="kb-tag">AWS</span>
+                <span class="kb-article-title">EMR Deep-Dive & Cluster Configuration</span>
+                <span class="kb-read-time">14 min</span>
+              </a>
+              <a href="aws/glue-patterns.html" class="kb-article-item" data-tags="aws glue etl crawlers catalog">
+                <span class="kb-tag">AWS</span>
+                <span class="kb-article-title">AWS Glue — ETL Patterns & Optimization</span>
+                <span class="kb-read-time">12 min</span>
+              </a>
+              <a href="aws/athena-optimization.html" class="kb-article-item" data-tags="aws athena query partitioning cost">
+                <span class="kb-tag">AWS</span>
+                <span class="kb-article-title">Athena Query Optimization & Cost Control</span>
+                <span class="kb-read-time">10 min</span>
+              </a>
+              <a href="aws/lake-formation.html" class="kb-article-item" data-tags="aws lake formation governance access control">
+                <span class="kb-tag">AWS</span>
+                <span class="kb-article-title">Lake Formation — Governance & Access Control</span>
+                <span class="kb-read-time">11 min</span>
+              </a>
+              <a href="aws/msk-kafka.html" class="kb-article-item" data-tags="aws msk kafka streaming consumer producer">
+                <span class="kb-tag">AWS</span>
+                <span class="kb-article-title">Amazon MSK & Kafka on AWS</span>
+                <span class="kb-read-time">13 min</span>
+              </a>
+              <a href="aws/dms-cdc.html" class="kb-article-item" data-tags="aws dms cdc migration replication">
+                <span class="kb-tag">AWS</span>
+                <span class="kb-article-title">DMS & CDC Patterns</span>
+                <span class="kb-read-time">10 min</span>
+              </a>
+              <a href="aws/s3-optimization.html" class="kb-article-item" data-tags="aws s3 storage partitioning lifecycle">
+                <span class="kb-tag">AWS</span>
+                <span class="kb-article-title">S3 Storage Optimization & Lifecycle</span>
+                <span class="kb-read-time">9 min</span>
+              </a>
+
+              <!-- GCP -->
+              <a href="gcp/bigquery-internals.html" class="kb-article-item" data-tags="gcp bigquery dremel colossus slots">
+                <span class="kb-tag">GCP</span>
+                <span class="kb-article-title">BigQuery Internals & Optimization</span>
+                <span class="kb-read-time">14 min</span>
+              </a>
+              <a href="gcp/databricks-gcp.html" class="kb-article-item" data-tags="gcp databricks workspace clusters notebooks">
+                <span class="kb-tag">GCP</span>
+                <span class="kb-article-title">Databricks on GCP — Architecture & Patterns</span>
+                <span class="kb-read-time">12 min</span>
+              </a>
+              <a href="gcp/unity-catalog.html" class="kb-article-item" data-tags="gcp databricks unity catalog governance">
+                <span class="kb-tag">GCP</span>
+                <span class="kb-article-title">Unity Catalog — Centralized Governance</span>
+                <span class="kb-read-time">11 min</span>
+              </a>
+              <a href="gcp/cloud-composer.html" class="kb-article-item" data-tags="gcp cloud composer airflow orchestration dag">
+                <span class="kb-tag">GCP</span>
+                <span class="kb-article-title">Cloud Composer & Airflow on GCP</span>
+                <span class="kb-read-time">10 min</span>
+              </a>
+              <a href="gcp/dataproc.html" class="kb-article-item" data-tags="gcp dataproc spark hadoop cluster">
+                <span class="kb-tag">GCP</span>
+                <span class="kb-article-title">Dataproc — Managed Spark on GCP</span>
+                <span class="kb-read-time">9 min</span>
+              </a>
+
+              <!-- Platform -->
+              <a href="platform/data-governance.html" class="kb-article-item" data-tags="platform governance lineage catalog quality">
+                <span class="kb-tag">Platform</span>
+                <span class="kb-article-title">Data Governance — Lineage, Catalogs & Quality</span>
+                <span class="kb-read-time">13 min</span>
+              </a>
+              <a href="platform/cdc-patterns.html" class="kb-article-item" data-tags="platform cdc change data capture debezium dms goldengate">
+                <span class="kb-tag">Platform</span>
+                <span class="kb-article-title">CDC Patterns — DMS, GoldenGate & Debezium</span>
+                <span class="kb-read-time">12 min</span>
+              </a>
+              <a href="platform/orchestration.html" class="kb-article-item" data-tags="platform orchestration airflow dag scheduling">
+                <span class="kb-tag">Platform</span>
+                <span class="kb-article-title">Orchestration — Airflow DAG Patterns</span>
+                <span class="kb-read-time">11 min</span>
+              </a>
+              <a href="platform/cost-optimization.html" class="kb-article-item" data-tags="platform cost optimization spot instances autoscaling">
+                <span class="kb-tag">Platform</span>
+                <span class="kb-article-title">Cost Optimization Strategies</span>
+                <span class="kb-read-time">10 min</span>
+              </a>
+              <a href="platform/data-modeling.html" class="kb-article-item" data-tags="platform data modeling dimensional star snowflake">
+                <span class="kb-tag">Platform</span>
+                <span class="kb-article-title">Data Modeling — Dimensional, Star & OBT</span>
+                <span class="kb-read-time">12 min</span>
+              </a>
+              <a href="platform/interview-questions.html" class="kb-article-item" data-tags="platform interview questions system design">
+                <span class="kb-tag">Platform</span>
+                <span class="kb-article-title">Interview Prep — System Design & Scenarios</span>
+                <span class="kb-read-time">20 min</span>
+              </a>
+
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../index.html">Home</a>
+          <a href="../pages/experience.html">Experience</a>
+          <a href="../pages/projects.html">Projects</a>
+          <a href="../pages/skills.html">Skills</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+    <script src="../js/knowledge.js"></script>
+  </body>
+</html>

@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Join Strategies & Optimization — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>Join Strategies</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Join Strategies & Optimization</h1>
+          <p class="article-desc">Complete breakdown of Spark's five join strategies — when the optimizer picks each, how to influence join selection with hints and thresholds, handling data skew in joins, and practical optimization patterns.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#join-strategies-overview">The Five Join Strategies</a></li>
+            <li><a href="#broadcast-hash-join">Broadcast Hash Join (BHJ)</a></li>
+            <li><a href="#sort-merge-join">Sort Merge Join (SMJ)</a></li>
+            <li><a href="#shuffle-hash-join">Shuffle Hash Join (SHJ)</a></li>
+            <li><a href="#broadcast-nested-loop">Broadcast Nested Loop Join (BNLJ)</a></li>
+            <li><a href="#cartesian-product">Cartesian Product Join</a></li>
+            <li><a href="#join-selection-logic">How Spark Picks a Join Strategy</a></li>
+            <li><a href="#join-hints">Join Hints</a></li>
+            <li><a href="#skew-handling">Skewed Joins & AQE</a></li>
+            <li><a href="#semi-anti-joins">Semi & Anti Joins</a></li>
+            <li><a href="#join-reordering">Join Reordering</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="join-strategies-overview">The Five Join Strategies</h2>
+
+          <p>Spark's Catalyst optimizer selects from five physical join implementations based on data sizes, join type, and join condition:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Join strategy selection hierarchy</div>
+            <pre><code>1. Broadcast Hash Join (BHJ)
+   → One side fits in memory (< autoBroadcastJoinThreshold)
+   → Equi-join only
+   → No shuffle needed
+
+2. Sort Merge Join (SMJ)
+   → Default for large-large equi-joins
+   → Both sides shuffled and sorted by join key
+   → Most common in production
+
+3. Shuffle Hash Join (SHJ)
+   → One side is much smaller (fits in hash table per partition)
+   → Equi-join only
+   → Disabled by default (spark.sql.join.preferSortMergeJoin=true)
+
+4. Broadcast Nested Loop Join (BNLJ)
+   → Non-equi joins where one side is small enough to broadcast
+   → O(N × M) but avoids shuffle for the small side
+
+5. Cartesian Product Join
+   → Cross join / no join condition
+   → O(N × M) — generates all combinations
+   → Use only when intentional (small datasets)</code></pre>
+          </div>
+
+          <h2 id="broadcast-hash-join">Broadcast Hash Join (BHJ)</h2>
+
+          <p>The fastest join strategy — avoids shuffle entirely by broadcasting the smaller table to all executors.</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>The smaller table (build side) is collected to the driver</li>
+            <li>Driver broadcasts it as a hash table to all executors</li>
+            <li>Each executor probes the hash table with rows from the larger table (stream side)</li>
+            <li>No shuffle on either side — fully partition-local after broadcast</li>
+          </ol>
+
+          <h3>Requirements</h3>
+          <ul>
+            <li>Build side must fit in memory: size ≤ <code>spark.sql.autoBroadcastJoinThreshold</code> (default: 10MB)</li>
+            <li>Must be an equi-join (for hash table lookup)</li>
+            <li>Build side can't be the streaming side in a left/right outer join</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Broadcast Hash Join examples</div>
+            <pre><code>from pyspark.sql.functions import broadcast
+
+# Automatic — Spark broadcasts if estimated size < threshold
+spark.conf.set("spark.sql.autoBroadcastJoinThreshold", "100m")  # 100MB
+result = orders.join(products, "product_id")  # products < 100MB → BHJ
+
+# Explicit broadcast hint (overrides threshold check)
+result = orders.join(broadcast(products), "product_id")
+
+# SQL hint syntax
+spark.sql("""
+  SELECT /*+ BROADCAST(p) */ o.*, p.name
+  FROM orders o JOIN products p ON o.product_id = p.id
+""")
+
+# Verify in explain:
+result.explain()
+# == Physical Plan ==
+# BroadcastHashJoin [product_id], [id], Inner, BuildRight
+# :- FileScan parquet [orders]
+# +- BroadcastExchange HashedRelationBroadcastMode
+#    +- FileScan parquet [products]</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Key insight:</strong>
+            <p>The 10MB default threshold is very conservative. In production with executors having 8-16g memory, you can safely increase to 100-500MB. The trade-off: broadcast uses driver memory to collect the table and executor memory to hold the hash table. Watch driver OOM if the table is larger than expected (e.g., after a filter that doesn't reduce size as much as estimated).</p>
+          </div>
+
+          <h2 id="sort-merge-join">Sort Merge Join (SMJ)</h2>
+
+          <p>The <strong>default strategy for large-to-large equi-joins</strong>. Both tables are shuffled by join key and then merge-joined.</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>Both tables are shuffled (Exchange) so that rows with the same key land on the same partition</li>
+            <li>Each partition is sorted by the join key</li>
+            <li>A merge-join algorithm walks both sorted partitions simultaneously (O(N + M) per partition)</li>
+            <li>Extremely memory-efficient — doesn't need to build a hash table for either side</li>
+          </ol>
+
+          <h3>Characteristics</h3>
+          <ul>
+            <li>Requires 2 shuffle stages (one per table) + sort on both sides</li>
+            <li>Works well for very large tables (TB-scale) where hash tables won't fit</li>
+            <li>Supports all equi-join types: inner, left/right/full outer, semi, anti</li>
+            <li>Can be shuffle-free if both tables are pre-bucketed on the join key</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Sort Merge Join in explain plan</div>
+            <pre><code># Physical plan for SMJ:
+# == Physical Plan ==
+# SortMergeJoin [user_id], [user_id], Inner
+# :- Sort [user_id ASC], false, 0
+# :  +- Exchange hashpartitioning(user_id, 200)  ← shuffle
+# :     +- FileScan parquet [events]
+# +- Sort [user_id ASC], false, 0
+#    +- Exchange hashpartitioning(user_id, 200)  ← shuffle
+#       +- FileScan parquet [users]
+
+# Eliminating shuffle with bucketing:
+events.write.bucketBy(256, "user_id").sortBy("user_id").saveAsTable("events_b")
+users.write.bucketBy(256, "user_id").sortBy("user_id").saveAsTable("users_b")
+
+# Now join has NO Exchange nodes:
+spark.table("events_b").join(spark.table("users_b"), "user_id").explain()
+# SortMergeJoin [user_id], [user_id], Inner
+# :- FileScan parquet [events_b]   ← no Exchange!
+# +- FileScan parquet [users_b]    ← no Exchange!</code></pre>
+          </div>
+
+          <h2 id="shuffle-hash-join">Shuffle Hash Join (SHJ)</h2>
+
+          <p>Both tables are shuffled by join key, then the smaller side is built into a hash table per partition.</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>Both tables are shuffled so same keys land on same partition</li>
+            <li>For each partition, the smaller side is loaded into a hash table</li>
+            <li>The larger side probes the hash table for matches</li>
+            <li>No sorting required (unlike SMJ)</li>
+          </ol>
+
+          <h3>When It's Selected</h3>
+          <ul>
+            <li><code>spark.sql.join.preferSortMergeJoin=false</code> (disabled by default)</li>
+            <li>One side is ≤ 3× the broadcast threshold per partition (small enough for per-partition hash table)</li>
+            <li>Can be faster than SMJ when one side is much smaller (avoids sort cost)</li>
+            <li>Risk: per-partition hash table may not fit in memory → OOM</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling Shuffle Hash Join</div>
+            <pre><code># Disabled by default — SMJ is preferred as it's more memory-safe
+spark.sql.join.preferSortMergeJoin=false
+
+# Use hint to force SHJ
+spark.sql("""
+  SELECT /*+ SHUFFLE_HASH(small_table) */ *
+  FROM large_table JOIN small_table ON large_table.key = small_table.key
+""")
+
+# Good when:
+# - One side is significantly smaller per partition
+# - Data is already partially sorted (sort overhead > hash build)
+# - Join keys have high cardinality (sort is expensive)</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ SHJ risks:</strong>
+            <p>Unlike SMJ which can spill to disk during sort, the hash table in SHJ must fit in memory for each partition. If a partition is skewed (one key dominates), the hash table can blow up memory. Prefer SMJ for production workloads unless you've verified partition sizes.</p>
+          </div>
+
+          <h2 id="broadcast-nested-loop">Broadcast Nested Loop Join (BNLJ)</h2>
+
+          <p>Used for <strong>non-equi joins</strong> (e.g., range conditions, inequality joins) when one side is small enough to broadcast.</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>The smaller side is broadcast to all executors (like BHJ)</li>
+            <li>For each row on the stream side, iterate through ALL rows of the broadcast side</li>
+            <li>Apply the join condition (can be any expression, not just equality)</li>
+            <li>O(N × M) complexity — but no shuffle needed</li>
+          </ol>
+
+          <h3>When It's Used</h3>
+          <ul>
+            <li>Non-equi join conditions: <code>a.date BETWEEN b.start AND b.end</code></li>
+            <li>Theta joins: <code>a.value > b.threshold</code></li>
+            <li>One side must be small enough to broadcast</li>
+            <li>Falls back to Cartesian Product if neither side is broadcastable</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Broadcast Nested Loop Join example</div>
+            <pre><code># Non-equi join — range condition
+# "Find all events that fall within each campaign's date range"
+result = events.join(
+    broadcast(campaigns),
+    (events.event_date >= campaigns.start_date) &
+    (events.event_date <= campaigns.end_date)
+)
+
+# Physical plan shows BroadcastNestedLoopJoin:
+# BroadcastNestedLoopJoin BuildRight, Inner,
+#   ((event_date >= start_date) AND (event_date <= end_date))
+# :- FileScan parquet [events]
+# +- BroadcastExchange
+#    +- FileScan parquet [campaigns]
+
+# Optimization: if possible, rewrite as equi-join + filter
+# (e.g., join on date key, then filter range)</code></pre>
+          </div>
+
+          <h2 id="cartesian-product">Cartesian Product Join</h2>
+
+          <p>The <strong>most expensive</strong> join — produces the cross product of all rows from both sides. Only used when there's no join condition or both sides are too large for broadcast in a non-equi join.</p>
+
+          <h3>Characteristics</h3>
+          <ul>
+            <li>Output size = N × M rows</li>
+            <li>No join condition required (or non-equi with both sides too large for broadcast)</li>
+            <li>Spark requires explicit <code>crossJoin</code> or setting <code>spark.sql.crossJoin.enabled=true</code></li>
+            <li>Use only with very small tables or when cross product is intentionally needed</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Cartesian Product Join</div>
+            <pre><code># Explicit cross join
+result = df1.crossJoin(df2)
+
+# SQL syntax
+spark.sql("SELECT * FROM t1 CROSS JOIN t2")
+
+# Accidental cartesian — Spark blocks this by default:
+# spark.sql("SELECT * FROM t1, t2")  # Error without spark.sql.crossJoin.enabled
+
+# Enable if intentional:
+spark.conf.set("spark.sql.crossJoin.enabled", "true")
+
+# Legitimate use cases:
+# - Generating all combinations of small lookup tables
+# - Feature engineering: all pairs for similarity computation (small datasets)
+# - Calendar/dimension table generation</code></pre>
+          </div>
+
+          <h2 id="join-selection-logic">How Spark Picks a Join Strategy</h2>
+
+          <p>The Catalyst optimizer uses this decision tree (simplified):</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Join strategy selection logic</div>
+            <pre><code>IF equi-join:
+  IF one side ≤ autoBroadcastJoinThreshold (or has broadcast hint):
+    → Broadcast Hash Join (BHJ)
+  ELIF preferSortMergeJoin=true (default):
+    → Sort Merge Join (SMJ)
+  ELIF one side is small enough per partition:
+    → Shuffle Hash Join (SHJ)
+  ELSE:
+    → Sort Merge Join (SMJ)
+
+ELIF non-equi join:
+  IF one side ≤ autoBroadcastJoinThreshold (or has broadcast hint):
+    → Broadcast Nested Loop Join (BNLJ)
+  ELSE:
+    → Cartesian Product Join (with join condition as filter)
+
+# Size estimation uses:
+# - Table statistics (ANALYZE TABLE ... COMPUTE STATISTICS)
+# - File sizes from catalog
+# - Estimated output of previous operations
+# - AQE runtime statistics (Spark 3.0+)</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Why statistics matter:</strong>
+            <p>Spark's size estimates can be wildly wrong without table statistics. A 10GB table filtered to 1MB might still be estimated as 10GB (no filter selectivity stats). Run <code>ANALYZE TABLE</code> or rely on AQE's runtime statistics to get accurate join strategy selection. Wrong estimates = wrong join strategy = orders of magnitude performance difference.</p>
+          </div>
+
+          <h2 id="join-hints">Join Hints</h2>
+
+          <p>You can override Spark's join strategy selection using hints:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">All join hints (Spark 3.0+)</div>
+            <pre><code># DataFrame API
+from pyspark.sql.functions import broadcast
+
+# BROADCAST hint — force Broadcast Hash Join
+large_df.join(broadcast(small_df), "key")
+
+# SQL hints (Spark 3.0+)
+SELECT /*+ BROADCAST(t2) */ * FROM t1 JOIN t2 ON t1.key = t2.key
+SELECT /*+ MERGE(t1, t2) */ * FROM t1 JOIN t2 ON t1.key = t2.key
+SELECT /*+ SHUFFLE_HASH(t2) */ * FROM t1 JOIN t2 ON t1.key = t2.key
+SELECT /*+ SHUFFLE_REPLICATE_NL(t2) */ * FROM t1 JOIN t2 ON t1.key = t2.key
+
+# Hint priority (highest to lowest):
+# 1. BROADCAST (broadcastjoin, mapjoin)
+# 2. MERGE (shuffle_merge, mergejoin, sort_merge)
+# 3. SHUFFLE_HASH
+# 4. SHUFFLE_REPLICATE_NL (cartesian product with shuffle)
+
+# Multiple hints — highest priority wins
+SELECT /*+ BROADCAST(t2), MERGE(t1) */ *  → BROADCAST wins
+
+# DataFrame hint API (alternative to broadcast function)
+df2_hinted = df2.hint("broadcast")
+result = df1.join(df2_hinted, "key")</code></pre>
+          </div>
+
+          <h2 id="skew-handling">Skewed Joins & AQE</h2>
+
+          <p>Data skew in joins means one join key has disproportionately more records, creating a single bottleneck task that takes far longer than others.</p>
+
+          <h3>Identifying Skew</h3>
+          <ul>
+            <li>Spark UI → Stage with join → one task has 10-100× more input/shuffle read</li>
+            <li>One task runs for 30 minutes while others finish in 30 seconds</li>
+            <li>OOM on specific tasks (the skewed partition exceeds memory)</li>
+          </ul>
+
+          <h3>AQE Skew Join Optimization (Spark 3.0+)</h3>
+          <p>AQE automatically detects and handles skew at runtime:</p>
+
+          <ol>
+            <li>After shuffle write, AQE checks partition sizes</li>
+            <li>Identifies partitions that are skewed (size > <code>skewedPartitionFactor</code> × median AND > <code>skewedPartitionThresholdInBytes</code>)</li>
+            <li>Splits the skewed partition into multiple sub-partitions</li>
+            <li>Replicates the corresponding partition from the other join side to match</li>
+            <li>Multiple tasks process the sub-partitions in parallel</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">AQE skew join configuration</div>
+            <pre><code># Enable AQE skew join handling
+spark.sql.adaptive.enabled=true
+spark.sql.adaptive.skewJoin.enabled=true
+
+# When is a partition "skewed"?
+# Partition is skewed if BOTH conditions are true:
+spark.sql.adaptive.skewJoin.skewedPartitionFactor=5
+  # partition_size > 5 × median_partition_size
+spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes=256MB
+  # AND partition_size > 256MB
+
+# How to split the skewed partition:
+spark.sql.adaptive.advisoryPartitionSizeInBytes=128MB
+  # Each sub-partition targets ~128MB</code></pre>
+          </div>
+
+          <h3>Manual Skew Handling (When AQE Isn't Enough)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Manual skew handling techniques</div>
+            <pre><code># Technique 1: Key Salting
+# Add random salt to skewed key, replicate other side
+NUM_SALTS = 20
+
+# Identify hot keys
+hot_keys = skewed_df.groupBy("join_key").count() \
+    .filter(col("count") > threshold).select("join_key").collect()
+
+# Salt the skewed side
+salted = skewed_df.withColumn("salt", (rand() * NUM_SALTS).cast("int"))
+
+# Replicate the other side
+replicated = other_df.crossJoin(
+    spark.range(NUM_SALTS).withColumnRenamed("id", "salt"))
+
+# Join on composite key
+result = salted.join(replicated,
+    (salted.join_key == replicated.join_key) &
+    (salted.salt == replicated.salt))
+
+# Technique 2: Isolate Hot Keys
+# Process hot keys separately with broadcast, union results
+hot_key_list = ["key1", "key2"]  # known skewed keys
+
+hot_left = large_df.filter(col("key").isin(hot_key_list))
+normal_left = large_df.filter(~col("key").isin(hot_key_list))
+
+hot_right = small_df.filter(col("key").isin(hot_key_list))
+normal_right = small_df.filter(~col("key").isin(hot_key_list))
+
+# Broadcast join for hot keys, SMJ for normal
+hot_result = hot_left.join(broadcast(hot_right), "key")
+normal_result = normal_left.join(normal_right, "key")
+final = hot_result.union(normal_result)</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 AQE skew join vs manual salting:</strong>
+            <p>Prefer AQE skew join — it's automatic, requires no code changes, and adapts to changing data patterns. Use manual salting only when: AQE doesn't handle your specific pattern (e.g., multi-column skew), you're on Spark < 3.0, or the skew is extreme (single key has 50%+ of data) and you need finer control over the split factor.</p>
+          </div>
+
+          <h2 id="semi-anti-joins">Semi & Anti Joins</h2>
+
+          <h3>Left Semi Join</h3>
+          <ul>
+            <li>Returns rows from the left table that have a match in the right table</li>
+            <li>Only left columns in output (right table used only for filtering)</li>
+            <li>Similar to <code>WHERE EXISTS (subquery)</code> or <code>IN (subquery)</code></li>
+            <li>More efficient than inner join when you don't need right-side columns</li>
+          </ul>
+
+          <h3>Left Anti Join</h3>
+          <ul>
+            <li>Returns rows from the left table that do NOT have a match in the right table</li>
+            <li>Similar to <code>WHERE NOT EXISTS (subquery)</code> or <code>NOT IN (subquery)</code></li>
+            <li>Useful for finding orphaned records or new arrivals</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Semi and Anti join examples</div>
+            <pre><code># Left Semi Join — "users who placed at least one order"
+active_users = users.join(orders, "user_id", "left_semi")
+# Equivalent SQL: SELECT * FROM users WHERE EXISTS
+#   (SELECT 1 FROM orders WHERE orders.user_id = users.user_id)
+
+# Left Anti Join — "users who never placed an order"
+inactive_users = users.join(orders, "user_id", "left_anti")
+# Equivalent SQL: SELECT * FROM users WHERE NOT EXISTS
+#   (SELECT 1 FROM orders WHERE orders.user_id = users.user_id)
+
+# Why semi/anti are faster than inner + distinct:
+# Inner join: shuffles both sides, produces matches, then deduplicates
+# Semi join: stops at first match per left row (no duplicates generated)
+
+# Performance comparison:
+# BAD — inner join + select left columns + distinct
+result = users.join(orders, "user_id", "inner") \
+    .select(users.columns).distinct()
+
+# GOOD — left semi (single pass, no dedup needed)
+result = users.join(orders, "user_id", "left_semi")</code></pre>
+          </div>
+
+          <h2 id="join-reordering">Join Reordering</h2>
+
+          <p>When joining multiple tables, the order of joins significantly affects performance. Spark's Cost-Based Optimizer (CBO) can reorder joins to minimize intermediate data size.</p>
+
+          <h3>Enabling Join Reordering</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Join reordering configuration</div>
+            <pre><code># Enable CBO and join reordering
+spark.sql.cbo.enabled=true
+spark.sql.cbo.joinReorder.enabled=true
+spark.sql.cbo.joinReorder.dp.star.filter=false
+
+# Maximum number of tables in join reorder (default 12)
+spark.sql.cbo.joinReorder.dp.threshold=12
+
+# Requires table and column statistics:
+ANALYZE TABLE orders COMPUTE STATISTICS
+ANALYZE TABLE orders COMPUTE STATISTICS FOR COLUMNS user_id, product_id
+ANALYZE TABLE users COMPUTE STATISTICS
+ANALYZE TABLE products COMPUTE STATISTICS</code></pre>
+          </div>
+
+          <h3>Manual Join Ordering Rules</h3>
+          <ol>
+            <li><strong>Filter first</strong> — apply predicates before joins to reduce table sizes</li>
+            <li><strong>Join small with large first</strong> — smallest result set feeds into next join</li>
+            <li><strong>Broadcast smallest tables</strong> — eliminate shuffles for dimension tables</li>
+            <li><strong>Join on partition key</strong> — if data is bucketed, join bucket-compatible tables first</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">Manual join ordering example</div>
+            <pre><code># BAD: join two large tables first, then filter
+result = orders.join(events, "user_id") \     # huge shuffle
+    .join(broadcast(products), "product_id") \
+    .filter(col("order_date") > "2024-01-01")
+
+# GOOD: filter first, then join with broadcast, then large join
+filtered_orders = orders.filter(col("order_date") > "2024-01-01")
+with_products = filtered_orders.join(broadcast(products), "product_id")
+result = with_products.join(events, "user_id")
+# First join: broadcast (no shuffle), Second join: smaller left side → less shuffle</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ CBO limitations:</strong>
+            <p>Join reordering only works with accurate statistics. If you don't run <code>ANALYZE TABLE</code>, the CBO has no information to optimize. Also, CBO currently only handles inner joins for reordering — outer joins maintain their specified order.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">When does Spark choose Broadcast Hash Join vs Sort Merge Join?</div>
+            <div class="qa-answer">
+              <p>Spark chooses <strong>Broadcast Hash Join</strong> when one side of an equi-join has an estimated size ≤ <code>spark.sql.autoBroadcastJoinThreshold</code> (default 10MB) or when a broadcast hint is provided. The smaller side is broadcast as a hash table to all executors — no shuffle needed. <strong>Sort Merge Join</strong> is chosen when both sides exceed the broadcast threshold — both sides are shuffled by join key, sorted, and merged. BHJ is O(N) with no shuffle; SMJ is O(N log N + M log M) with two shuffles. BHJ is dramatically faster but limited by memory. In production, increase the threshold to 100-500MB and ensure table statistics are accurate.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle data skew in joins?</div>
+            <div class="qa-answer">
+              <p>Three approaches, in order of preference: <strong>1) AQE Skew Join</strong> (Spark 3.0+) — enable <code>spark.sql.adaptive.skewJoin.enabled=true</code>. AQE detects skewed partitions at runtime and automatically splits them, replicating the other side. Zero code changes. <strong>2) Key Salting</strong> — append random salt (0-N) to the skewed key on the large side, replicate the small side N times with all salt values. Distributes the hot key across N partitions. <strong>3) Isolate Hot Keys</strong> — process known skewed keys separately with broadcast join, process remaining keys with normal join, union results. Choose based on: AQE for most cases, salting for extreme skew (single key = 50%+ data), isolation for a few known problematic keys.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is the broadcast threshold and how to change it?</div>
+            <div class="qa-answer">
+              <p><code>spark.sql.autoBroadcastJoinThreshold</code> (default: 10MB) is the maximum estimated size of a table that Spark will automatically broadcast for a join. Change it via: <code>spark.conf.set("spark.sql.autoBroadcastJoinThreshold", "100m")</code> or at submit time with <code>--conf</code>. Set to <code>-1</code> to disable auto-broadcast entirely. The estimate comes from table statistics (catalog), file sizes, or CBO estimates. <strong>Pitfall</strong>: if statistics are stale, Spark may broadcast a table that's grown beyond memory limits, causing driver OOM. Always ensure stats are up to date or use explicit <code>broadcast()</code> hints when you know the table is small.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between left_semi and left_anti joins? When would you use each?</div>
+            <div class="qa-answer">
+              <p><strong>Left Semi</strong>: Returns left-side rows that HAVE a match on the right. No right-side columns in output. Equivalent to <code>WHERE EXISTS</code>. Use for: "find users who have orders." <strong>Left Anti</strong>: Returns left-side rows that have NO match on the right. Equivalent to <code>WHERE NOT EXISTS</code>. Use for: "find users without orders" or "find new records not yet in target table" (incremental loads). Both are more efficient than equivalent inner/left join + filter patterns because: 1) they stop at first match (no duplicate generation), 2) no deduplication step needed, 3) only left columns are shuffled/output.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How can you eliminate shuffle in a join entirely?</div>
+            <div class="qa-answer">
+              <p>Three ways to achieve shuffle-free joins: <strong>1) Broadcast Hash Join</strong> — broadcast the small side. No shuffle on either side. Limited by memory. <strong>2) Bucketing</strong> — pre-partition both tables on the join key with the same bucket count. At join time, Spark recognizes matching partitioners and skips shuffle. Requires writing tables in bucketed format upfront. <strong>3) Co-located data</strong> — if both DataFrames were already shuffled by the same key in a previous stage (same partitioner), the join reuses existing partitioning. Check <code>explain()</code> for <code>Exchange</code> nodes — if none appear under the join, no shuffle occurs.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

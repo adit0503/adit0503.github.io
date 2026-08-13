@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Shuffle Deep-Dive & Optimization — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>Shuffle Optimization</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Shuffle Deep-Dive & Optimization</h1>
+          <p class="article-desc">Complete guide to Spark shuffles — what triggers them, how the sort-based shuffle manager works internally, shuffle spill mechanics, and optimization techniques including AQE, pre-partitioning, broadcast joins, and push-based shuffle.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what-triggers-shuffle">What Triggers a Shuffle</a></li>
+            <li><a href="#shuffle-internals">Shuffle Internals — Write & Read Phases</a></li>
+            <li><a href="#sort-based-shuffle">Sort-Based Shuffle Manager</a></li>
+            <li><a href="#shuffle-files">Shuffle Files & Spill</a></li>
+            <li><a href="#shuffle-partitions">Tuning spark.sql.shuffle.partitions</a></li>
+            <li><a href="#aqe">Adaptive Query Execution (AQE)</a></li>
+            <li><a href="#optimization-techniques">Optimization Techniques</a></li>
+            <li><a href="#push-based-shuffle">Push-Based Shuffle (Spark 3.2+)</a></li>
+            <li><a href="#repartition-vs-coalesce">Repartition vs Coalesce</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what-triggers-shuffle">What Triggers a Shuffle</h2>
+
+          <p>A shuffle occurs whenever data must be redistributed across partitions. This involves writing data to disk on map-side executors, transferring it over the network, and reading it on reduce-side executors.</p>
+
+          <h3>Operations That Trigger Shuffles</h3>
+          <ul>
+            <li><strong>Repartition / repartitionByRange</strong> — explicitly redistributes data</li>
+            <li><strong>groupByKey / reduceByKey / aggregateByKey</strong> — groups data by key across partitions</li>
+            <li><strong>join / cogroup</strong> — unless one side is broadcast</li>
+            <li><strong>distinct</strong> — needs to hash all records to detect duplicates</li>
+            <li><strong>sort / orderBy</strong> — global sort requires range partitioning + shuffle</li>
+            <li><strong>Window functions with partitionBy</strong> — data must be co-located by partition key</li>
+          </ul>
+
+          <h3>Operations That Do NOT Shuffle</h3>
+          <ul>
+            <li><strong>map / flatMap / filter</strong> — narrow transformations, partition-local</li>
+            <li><strong>coalesce (reducing partitions)</strong> — merges partitions without full shuffle</li>
+            <li><strong>Broadcast join</strong> — small table sent to all executors, no shuffle needed for the join</li>
+            <li><strong>Union</strong> — just concatenates partitions (no data movement)</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Key insight:</strong>
+            <p>Shuffle is the most expensive operation in Spark. A single shuffle can account for 90% of job time due to disk I/O (write + read), network transfer, and serialization/deserialization. Every optimization effort should start by minimizing shuffles.</p>
+          </div>
+
+          <h2 id="shuffle-internals">Shuffle Internals — Write & Read Phases</h2>
+
+          <h3>Shuffle Write (Map Side)</h3>
+          <ol>
+            <li>Each map task processes its input partition</li>
+            <li>Output records are partitioned by the reduce-side partitioner (hash or range)</li>
+            <li>Records are serialized and written to an in-memory buffer (<code>ShuffleExternalSorter</code>)</li>
+            <li>When buffer fills, data is sorted by partition ID and spilled to disk</li>
+            <li>At task completion, all spill files are merged into a single <strong>shuffle data file</strong> + <strong>index file</strong></li>
+            <li>The index file stores offsets for each reduce partition within the data file</li>
+          </ol>
+
+          <h3>Shuffle Read (Reduce Side)</h3>
+          <ol>
+            <li>Reduce tasks query the driver's <code>MapOutputTracker</code> to find shuffle file locations</li>
+            <li>Each reduce task fetches its partition's data from all map-side executors</li>
+            <li>Data is fetched in parallel using <code>ShuffleBlockFetcherIterator</code></li>
+            <li>Fetched blocks are buffered in memory (<code>spark.reducer.maxSizeInFlight=48m</code>)</li>
+            <li>If reduce-side aggregation is needed (e.g., <code>reduceByKey</code>), data is merged using an <code>ExternalAppendOnlyMap</code></li>
+            <li>If sorting is needed, an external sorter merges the data</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">Shuffle-related configs</div>
+            <pre><code># Map-side buffer before spill
+spark.shuffle.file.buffer=32k              # Write buffer size per partition
+spark.shuffle.spill.initialMemoryThreshold=5242880  # 5MB initial memory
+
+# Reduce-side fetch
+spark.reducer.maxSizeInFlight=48m          # Max buffer for fetching blocks
+spark.reducer.maxReqsInFlight=128          # Max concurrent fetch requests
+spark.shuffle.maxChunksBeingTransferred=64 # Chunks in flight per connection
+
+# Compression (always enabled for shuffle)
+spark.shuffle.compress=true
+spark.io.compression.codec=lz4            # lz4, snappy, zstd</code></pre>
+          </div>
+
+          <h2 id="sort-based-shuffle">Sort-Based Shuffle Manager</h2>
+
+          <p>Since Spark 2.0, the <strong>SortShuffleManager</strong> is the only shuffle implementation. It replaced the earlier hash-based shuffle manager which created O(M × R) files (M map tasks × R reduce partitions).</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>Map task outputs are written to an in-memory page-based sorter (Tungsten sort)</li>
+            <li>Records are sorted by partition ID (not by key within partition, unless needed)</li>
+            <li>When memory is exhausted, sorted data is spilled to a temporary file</li>
+            <li>After all records are processed, spill files are merged into a single output file</li>
+            <li>One data file + one index file per map task (regardless of reduce partitions)</li>
+          </ol>
+
+          <h3>File Output Per Map Task</h3>
+          <ul>
+            <li><code>shuffle_{shuffleId}_{mapId}_0.data</code> — the sorted shuffle data</li>
+            <li><code>shuffle_{shuffleId}_{mapId}_0.index</code> — byte offsets for each reduce partition</li>
+          </ul>
+
+          <p>Total shuffle files = 2 × number_of_map_tasks (much better than hash-based: 2 × M × R)</p>
+
+          <div class="callout">
+            <strong>🔑 Bypass optimization:</strong>
+            <p>When there are fewer than <code>spark.shuffle.sort.bypassMergeThreshold</code> (default 200) reduce partitions and no map-side aggregation, Spark uses a bypass merge path — it writes one file per partition first, then concatenates them. This avoids the cost of sorting when partition count is low.</p>
+          </div>
+
+          <h2 id="shuffle-files">Shuffle Files & Spill</h2>
+
+          <h3>Shuffle Spill</h3>
+          <p>When in-memory buffers are exhausted during shuffle write or read, data is <strong>spilled</strong> to disk:</p>
+
+          <ul>
+            <li><strong>Spill (Memory)</strong> — amount of data serialized and ready to spill (visible in Spark UI)</li>
+            <li><strong>Spill (Disk)</strong> — actual bytes written to disk (usually smaller due to compression)</li>
+            <li>Large gap between memory spill and disk spill indicates good compression ratio</li>
+            <li>Any spill is a performance hit — indicates memory pressure</li>
+          </ul>
+
+          <h3>Shuffle File Lifecycle</h3>
+          <ol>
+            <li>Shuffle files are written to <code>spark.local.dir</code> (configurable, often multiple SSDs)</li>
+            <li>Files persist until all reduce tasks that depend on them have completed</li>
+            <li>Files are cleaned up by the <code>ContextCleaner</code> (reference-counting GC)</li>
+            <li>If an executor crashes, its shuffle files are lost — dependent stages must be recomputed</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">Monitoring shuffle in Spark UI</div>
+            <pre><code># Key metrics to check in Spark UI → Stages tab:
+# 
+# Shuffle Write:
+#   - Shuffle Write Size: total bytes written
+#   - Shuffle Write Time: time spent writing
+#   - Shuffle Spill (Memory): data size before spill
+#   - Shuffle Spill (Disk): compressed size on disk
+#
+# Shuffle Read:
+#   - Shuffle Read Size: total bytes read
+#   - Shuffle Read Time (fetch wait): time waiting for data
+#   - Records Read: number of records fetched
+#
+# RED FLAGS:
+#   - Spill (Disk) > 0: memory pressure, increase executor memory
+#   - Fetch Wait Time high: network bottleneck or slow map tasks
+#   - Skewed task: one task reads 10x more than median</code></pre>
+          </div>
+
+          <h2 id="shuffle-partitions">Tuning spark.sql.shuffle.partitions</h2>
+
+          <p><code>spark.sql.shuffle.partitions</code> (default: 200) controls the number of output partitions for shuffle operations in Spark SQL/DataFrames.</p>
+
+          <h3>Problems with the Default (200)</h3>
+          <ul>
+            <li><strong>Too few for large data</strong> — each partition becomes huge, causing OOM or spill</li>
+            <li><strong>Too many for small data</strong> — thousands of tiny tasks with scheduling overhead</li>
+            <li>The "right" number depends on data volume: aim for 100MB-200MB per partition after shuffle</li>
+          </ul>
+
+          <h3>Sizing Guideline</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Calculating optimal shuffle partitions</div>
+            <pre><code># Rule of thumb:
+# shuffle_partitions = shuffle_data_size / target_partition_size
+#
+# Example: 100GB shuffle output, target 128MB per partition
+# shuffle_partitions = 100GB / 128MB = 800
+#
+spark.sql.shuffle.partitions=800
+
+# For varying workloads, use AQE instead of static value:
+spark.sql.adaptive.enabled=true
+spark.sql.adaptive.coalescePartitions.enabled=true
+spark.sql.adaptive.coalescePartitions.minPartitionSize=64MB</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Common mistake:</strong>
+            <p>Setting <code>shuffle.partitions=2000</code> globally when some queries shuffle 1TB and others shuffle 1GB. The large query gets good partition sizes, but the small query creates 2000 tiny tasks (500KB each) with massive scheduling overhead. Use AQE or set per-query where possible.</p>
+          </div>
+
+          <h2 id="aqe">Adaptive Query Execution (AQE)</h2>
+
+          <p>AQE (Spark 3.0+) optimizes query plans at <strong>runtime</strong> based on actual shuffle statistics, rather than relying solely on compile-time estimates.</p>
+
+          <h3>Key AQE Features</h3>
+
+          <h4>1. Coalescing Shuffle Partitions</h4>
+          <ul>
+            <li>After shuffle write, AQE checks actual partition sizes</li>
+            <li>Merges small adjacent partitions to reduce task overhead</li>
+            <li>Eliminates the need to manually tune <code>shuffle.partitions</code></li>
+          </ul>
+
+          <h4>2. Switching Join Strategies</h4>
+          <ul>
+            <li>If runtime statistics show one side of a join is smaller than expected, AQE can switch from Sort-Merge Join to Broadcast Hash Join</li>
+            <li>Eliminates an unnecessary shuffle stage</li>
+          </ul>
+
+          <h4>3. Skew Join Optimization</h4>
+          <ul>
+            <li>Detects skewed partitions at runtime (partition size >> median)</li>
+            <li>Splits the skewed partition into smaller sub-partitions</li>
+            <li>Replicates the other side's matching data to each sub-partition</li>
+            <li>Prevents one task from being a bottleneck</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">AQE configuration</div>
+            <pre><code># Enable AQE (default true in Spark 3.2+)
+spark.sql.adaptive.enabled=true
+
+# Coalescing partitions
+spark.sql.adaptive.coalescePartitions.enabled=true
+spark.sql.adaptive.coalescePartitions.initialPartitionNum=2048
+spark.sql.adaptive.coalescePartitions.minPartitionSize=64MB
+spark.sql.adaptive.advisoryPartitionSizeInBytes=128MB
+
+# Dynamic join strategy switching
+spark.sql.adaptive.localShuffleReader.enabled=true
+
+# Skew join handling
+spark.sql.adaptive.skewJoin.enabled=true
+spark.sql.adaptive.skewJoin.skewedPartitionFactor=5       # 5x median
+spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes=256MB</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 AQE is a game-changer:</strong>
+            <p>With AQE enabled, you can set <code>shuffle.partitions</code> to a high number (e.g., 2048) and let AQE coalesce them down after the shuffle. This gives you fine-grained partitions for large shuffles and automatic consolidation for small ones — best of both worlds.</p>
+          </div>
+
+          <h2 id="optimization-techniques">Optimization Techniques</h2>
+
+          <h3>1. Broadcast Joins to Eliminate Shuffle</h3>
+          <p>If one side of a join is small enough to broadcast, no shuffle is needed for the join:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Broadcast join</div>
+            <pre><code>from pyspark.sql.functions import broadcast
+
+# Automatic (if table < autoBroadcastJoinThreshold)
+spark.sql.autoBroadcastJoinThreshold=100m   # default 10MB
+
+# Explicit hint
+result = large_df.join(broadcast(small_df), "key")
+
+# In SQL
+SELECT /*+ BROADCAST(small_table) */ *
+FROM large_table JOIN small_table ON large_table.key = small_table.key</code></pre>
+          </div>
+
+          <h3>2. Pre-Partitioning (Bucketing)</h3>
+          <p>If two tables are frequently joined on the same key, bucket them on that key to avoid shuffle at join time:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Bucketing to avoid shuffle</div>
+            <pre><code># Write bucketed tables
+df.write \
+  .bucketBy(256, "user_id") \
+  .sortBy("user_id") \
+  .saveAsTable("events_bucketed")
+
+df2.write \
+  .bucketBy(256, "user_id") \
+  .sortBy("user_id") \
+  .saveAsTable("users_bucketed")
+
+# Join without shuffle (both bucketed on user_id with same bucket count)
+spark.table("events_bucketed").join(spark.table("users_bucketed"), "user_id")
+
+# Verify no shuffle in explain plan:
+# == Physical Plan ==
+# SortMergeJoin [user_id], [user_id]
+# :- FileScan (no Exchange node = no shuffle)</code></pre>
+          </div>
+
+          <h3>3. Salting for Skew</h3>
+          <p>When one key has disproportionately more records, salt it to distribute across partitions:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Key salting for skew</div>
+            <pre><code>from pyspark.sql.functions import col, lit, rand, explode, array
+
+NUM_SALTS = 10
+
+# Salt the skewed (large) side
+skewed_df = large_df.withColumn("salt", (rand() * NUM_SALTS).cast("int"))
+skewed_df = skewed_df.withColumn("salted_key",
+    concat(col("join_key"), lit("_"), col("salt")))
+
+# Replicate the small side for each salt value
+small_exploded = small_df.withColumn("salt", explode(array(
+    *[lit(i) for i in range(NUM_SALTS)])))
+small_exploded = small_exploded.withColumn("salted_key",
+    concat(col("join_key"), lit("_"), col("salt")))
+
+# Join on salted key — now evenly distributed
+result = skewed_df.join(small_exploded, "salted_key") \
+    .drop("salt", "salted_key")</code></pre>
+          </div>
+
+          <h3>4. Reducing Shuffle Data Volume</h3>
+          <ul>
+            <li><strong>Filter early</strong> — push predicates before joins/aggregations</li>
+            <li><strong>Select only needed columns</strong> — reduces serialization and network bytes</li>
+            <li><strong>Use reduceByKey over groupByKey</strong> — pre-aggregates map-side, reducing shuffle data</li>
+            <li><strong>Compress shuffle data</strong> — use <code>zstd</code> for better compression ratio (vs lz4 speed)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">reduceByKey vs groupByKey</div>
+            <pre><code># BAD: groupByKey — shuffles ALL values, then aggregates
+rdd.groupByKey().mapValues(sum)
+# Shuffles: [("key1", [1,2,3,4,5,...1000])]  → full data transfer
+
+# GOOD: reduceByKey — pre-aggregates on map side
+rdd.reduceByKey(lambda a, b: a + b)
+# Shuffles: [("key1", 500)]  → only partial aggregates transferred
+
+# Same concept in DataFrame API:
+# groupBy().agg() already does partial aggregation (hash aggregate)
+df.groupBy("key").agg(sum("value"))  # optimal by default</code></pre>
+          </div>
+
+          <h2 id="push-based-shuffle">Push-Based Shuffle (Spark 3.2+)</h2>
+
+          <p>Traditional shuffle uses a "pull" model — reduce tasks fetch blocks from map outputs. Push-based shuffle reverses this: map tasks <strong>push</strong> their output to a set of remote shuffle services that pre-merge blocks by partition.</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>Map tasks write shuffle output locally (as before)</li>
+            <li>Additionally, map tasks push blocks to remote shuffle services (one per partition range)</li>
+            <li>Shuffle services merge blocks for the same reduce partition into larger contiguous files</li>
+            <li>Reduce tasks fetch pre-merged data from shuffle services — fewer connections, larger sequential reads</li>
+          </ol>
+
+          <h3>Benefits</h3>
+          <ul>
+            <li><strong>Fewer small reads</strong> — reduce tasks read merged files instead of many small blocks</li>
+            <li><strong>Better disk I/O</strong> — sequential reads of merged files vs random reads of small blocks</li>
+            <li><strong>Reduced network connections</strong> — reduce tasks connect to shuffle services, not every mapper</li>
+            <li><strong>Fault tolerance</strong> — shuffle data persists on external service even if executors die</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Push-based shuffle configuration</div>
+            <pre><code># Requires external shuffle service with push-merge support
+spark.shuffle.push.enabled=true
+spark.shuffle.push.maxBlockSizeToPush=1m
+spark.shuffle.push.maxBlockBatchSize=3m
+
+# External shuffle service must be configured
+spark.shuffle.service.enabled=true
+
+# Currently supported on YARN with external shuffle service
+# LinkedIn's Magnet: production implementation of push-based shuffle</code></pre>
+          </div>
+
+          <h2 id="repartition-vs-coalesce">Repartition vs Coalesce</h2>
+
+          <h3>repartition(n)</h3>
+          <ul>
+            <li>Creates a <strong>full shuffle</strong> — all data is redistributed across n new partitions</li>
+            <li>Uses round-robin or hash partitioning</li>
+            <li>Can increase OR decrease partition count</li>
+            <li>Produces evenly-sized partitions</li>
+            <li>Expensive — involves disk I/O and network transfer</li>
+          </ul>
+
+          <h3>coalesce(n)</h3>
+          <ul>
+            <li><strong>No shuffle</strong> — merges existing partitions locally</li>
+            <li>Can only <strong>decrease</strong> partition count</li>
+            <li>May produce uneven partitions (depends on which partitions merge)</li>
+            <li>Much cheaper than repartition</li>
+            <li>Use after <code>filter()</code> that significantly reduces data</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">When to use each</div>
+            <pre><code># Reducing partitions after filter (cheap)
+df.filter(col("status") == "active") \
+  .coalesce(50) \
+  .write.parquet("output/")
+
+# Increasing partitions for parallelism (requires shuffle)
+df.repartition(400)
+
+# Repartition by key for downstream joins
+df.repartition(200, col("user_id"))
+
+# Writing with specific file count (use coalesce for fewer files)
+df.coalesce(10).write.parquet("output/")  # 10 output files
+
+# WRONG: coalesce to increase partitions (silently does nothing useful)
+df.coalesce(1000)  # if df has 200 partitions, still 200</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ coalesce pitfall:</strong>
+            <p>If upstream partitions are on different executors, <code>coalesce</code> forces some tasks to read from multiple executors (narrow dependency with parent partitions on remote nodes). This can create data locality issues. For very large reductions (1000 → 1), it may be better to repartition to avoid one task pulling all data across the network.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you identify shuffle bottlenecks from the Spark UI?</div>
+            <div class="qa-answer">
+              <p>In the <strong>Stages tab</strong>: Look for stages with high "Shuffle Write" or "Shuffle Read" sizes. Check individual task metrics — if one task has 10× more shuffle read than the median, you have skew. In the <strong>SQL tab</strong>: Look for <code>Exchange</code> nodes in the physical plan and their data sizes. <strong>Key red flags</strong>: 1) Spill (Disk) > 0 indicates memory pressure during shuffle. 2) "Fetch Wait Time" dominating task duration means network bottleneck. 3) One task taking 10× longer than others indicates skewed partition. 4) Large "Shuffle Write Time" with small data may indicate too many partitions (scheduling overhead).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does AQE help with shuffle optimization?</div>
+            <div class="qa-answer">
+              <p>AQE optimizes shuffles in three ways: <strong>1) Coalescing partitions</strong> — after shuffle write completes, AQE inspects actual partition sizes and merges small partitions, eliminating the need to guess the right <code>shuffle.partitions</code> value. <strong>2) Dynamic join switching</strong> — if runtime statistics show one join side is smaller than expected, AQE switches from Sort-Merge Join (2 shuffles) to Broadcast Hash Join (0 shuffles). <strong>3) Skew join handling</strong> — detects partitions that are much larger than the median and splits them into sub-partitions while replicating the other join side. All three happen transparently at query runtime.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between repartition and coalesce?</div>
+            <div class="qa-answer">
+              <p><strong>repartition(n)</strong>: Performs a full shuffle, redistributing data across n partitions. Can increase or decrease partition count. Produces even partitions. Expensive (disk I/O + network). <strong>coalesce(n)</strong>: No shuffle — merges adjacent partitions locally. Can only decrease partition count. Produces potentially uneven partitions. Cheap but limited. Use coalesce when reducing partitions (e.g., after a heavy filter) and repartition when increasing or when you need even distribution (e.g., before writing balanced output files).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does the sort-based shuffle manager work internally?</div>
+            <div class="qa-answer">
+              <p>Each map task: 1) Writes output records to an in-memory page-based sorter (Tungsten). 2) Records are appended with their target partition ID. 3) When memory is exhausted, records are sorted by partition ID and spilled to a temporary disk file. 4) After processing all input, spill files are merge-sorted into a single data file + index file. The index file stores byte offsets for each reduce partition. Result: exactly 2 files per map task regardless of reduce partition count, vs O(M×R) for the old hash-based manager. Reduce tasks use the index to seek directly to their partition's data.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you optimize a Spark job that spends 80% of its time in shuffle?</div>
+            <div class="qa-answer">
+              <p>Systematic approach: <strong>1) Eliminate shuffles</strong> — use broadcast joins for small tables, pre-bucket tables that are joined repeatedly. <strong>2) Reduce shuffle volume</strong> — push down filters/projections before shuffles, use partial aggregation (reduceByKey over groupByKey). <strong>3) Fix skew</strong> — salt keys, use AQE skew join, or isolate and handle hot keys separately. <strong>4) Tune parallelism</strong> — target 128MB per shuffle partition, enable AQE coalescing. <strong>5) Improve I/O</strong> — use SSDs for <code>spark.local.dir</code>, enable zstd compression (<code>spark.io.compression.codec=zstd</code>). <strong>6) Consider push-based shuffle</strong> for very large-scale jobs with thousands of reducers.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>
