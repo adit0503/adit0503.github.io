@@ -14,6 +14,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/styles.css" />
+    <style>
+      /* Prevent FOUC - show content immediately if JS hasn't loaded yet */
+      .animate-in { opacity: 0; transform: translateY(24px); }
+    </style>
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>
+      // Apply theme before render to prevent flash
+      (function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();
+    </script>
   </head>
   <body>
     <header class="site-header">
