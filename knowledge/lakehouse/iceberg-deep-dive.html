@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Apache Iceberg Deep-Dive — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Lakehouse</a>
+        <span>→</span>
+        <span>Iceberg Deep-Dive</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Lakehouse</span>
+            <span class="read-time">16 min read</span>
+          </div>
+          <h1>Apache Iceberg Deep-Dive</h1>
+          <p class="article-desc">A comprehensive exploration of Iceberg's table format — from its metadata tree architecture and snapshot isolation model to schema/partition evolution, time travel, merge-on-read deletes, and production maintenance strategies.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what-iceberg-solves">What Iceberg Solves</a></li>
+            <li><a href="#architecture">Architecture: The Metadata Tree</a></li>
+            <li><a href="#snapshot-isolation">Snapshot Isolation & Concurrency</a></li>
+            <li><a href="#schema-evolution">Schema Evolution</a></li>
+            <li><a href="#partition-evolution">Partition Evolution (Hidden Partitioning)</a></li>
+            <li><a href="#time-travel">Time Travel & Rollback</a></li>
+            <li><a href="#incremental-reads">Incremental Reads</a></li>
+            <li><a href="#table-maintenance">Table Maintenance</a></li>
+            <li><a href="#data-skipping">Data Skipping & File-Level Stats</a></li>
+            <li><a href="#delete-files">Delete Files (Merge-on-Read)</a></li>
+            <li><a href="#iceberg-spark">Iceberg with Spark</a></li>
+            <li><a href="#catalog-choices">Catalog Choices</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what-iceberg-solves">What Iceberg Solves</h2>
+
+          <p>The Hive table format was designed for a simpler era — append-only data on HDFS. As data lakes scaled to petabytes with thousands of partitions, its limitations became painful:</p>
+
+          <h3>Problems with the Hive Table Format</h3>
+
+          <ul>
+            <li><strong>Directory listing at scale</strong>: Hive discovers files by listing directories recursively. With 100K+ partitions, planning a single query requires millions of object store LIST calls (S3 LIST is paginated at 1000 keys). Query planning alone can take minutes.</li>
+            <li><strong>No atomic commits</strong>: Writing to a Hive table involves adding files to a directory. If a writer crashes mid-write, partial data is visible to readers. There's no transaction concept — readers can see inconsistent state.</li>
+            <li><strong>Partition coupling to physical layout</strong>: Partitions ARE the directory structure (<code>/year=2024/month=01/day=15/</code>). Changing partition scheme requires rewriting all historical data. Users must know the exact partition column names and format to query efficiently.</li>
+            <li><strong>No schema evolution</strong>: Adding a column requires ALTER TABLE + hoping all downstream consumers handle the new schema. Column reordering or renaming breaks queries because Hive identifies columns by position (in ORC) or by name (in Parquet, but still fragile with renames).</li>
+            <li><strong>No time travel</strong>: Once data is overwritten, previous versions are gone. No way to audit what data looked like yesterday or roll back a bad write.</li>
+          </ul>
+
+          <h3>Iceberg's Approach</h3>
+
+          <ul>
+            <li><strong>Table-level metadata tracking every data file</strong>: Instead of listing directories, Iceberg maintains a metadata tree that knows exactly which files belong to the table. Planning reads a few metadata files, not the filesystem.</li>
+            <li><strong>Snapshot isolation</strong>: Every write creates an immutable snapshot. Reads always see a complete, consistent view. Writes are atomic — commit or don't, no partial visibility.</li>
+            <li><strong>Decoupled partitioning</strong>: Partition spec is pure metadata. Physical file layout is managed by Iceberg, not exposed to users. Partition schemes can evolve without rewriting data.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Core principle:</strong>
+            <p>Iceberg moves the "source of truth" from the filesystem (directory structure) to a metadata layer. The filesystem becomes dumb storage — Iceberg's metadata tree is the authority on what data exists, how it's organized, and what schema it has.</p>
+          </div>
+
+          <h2 id="architecture">Architecture: The Metadata Tree</h2>
+
+          <p>Iceberg's architecture is a tree of immutable metadata files. Each layer serves a distinct purpose and enables specific optimizations:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Iceberg metadata hierarchy</div>
+            <pre><code>┌─────────────────────────────────────────────────────────────┐
+│                        CATALOG                              │
+│  (Hive Metastore / AWS Glue / Nessie / REST)               │
+│  Stores: table → current metadata file location             │
+│  Purpose: atomic pointer swap to commit new snapshots       │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ points to
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  METADATA FILE (JSON)                        │
+│  Stores: table schema, partition spec, sort order,          │
+│          snapshot list, current-snapshot-id,                 │
+│          snapshot log (history), properties                  │
+│  Purpose: single file describes entire table state          │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ references
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    SNAPSHOT                                  │
+│  Stores: snapshot-id, timestamp, operation type,            │
+│          manifest-list location, summary (added/deleted     │
+│          files count)                                        │
+│  Purpose: immutable point-in-time view of the table         │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ points to
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  MANIFEST LIST (Avro)                        │
+│  Stores: list of manifest files with partition range         │
+│          summaries per manifest                             │
+│  Purpose: enables manifest-level pruning before opening      │
+│           individual manifests                               │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ lists
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  MANIFEST FILES (Avro)                       │
+│  Stores: per-data-file entries with:                        │
+│    - file path, format (Parquet/ORC/Avro)                   │
+│    - partition tuple values                                  │
+│    - record count, file size                                │
+│    - per-column: min, max, null_count, distinct_count       │
+│    - split offsets                                           │
+│  Purpose: file-level pruning using column stats             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ references
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    DATA FILES                                │
+│  Parquet / ORC / Avro files in object storage               │
+│  Iceberg is format-agnostic (Parquet most common)           │
+│  Data files are immutable — never modified in place         │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+          </div>
+
+          <h3>What Each Layer Stores and Why</h3>
+
+          <ul>
+            <li><strong>Catalog</strong>: The only mutable pointer in the entire system. Stores current metadata file location per table. Atomic swap of this pointer is what makes commits atomic. Different catalogs provide this atomicity differently (Hive uses a DB row lock, AWS Glue uses conditional updates, Nessie uses Git-like CAS).</li>
+            <li><strong>Metadata File (JSON)</strong>: Complete description of the table at a point in time — all schemas ever used (with schema IDs), all partition specs (with spec IDs), sort orders, table properties, and the list of all snapshots. Typically 10-100 KB.</li>
+            <li><strong>Snapshot</strong>: An entry within the metadata file linking to a manifest list. Each snapshot is immutable and represents a complete, consistent table state. Operations (append, overwrite, delete) create new snapshots.</li>
+            <li><strong>Manifest List (Avro)</strong>: A file listing all manifest files for a snapshot, with partition range summaries. This allows the planner to skip entire manifests without reading them if the query's partition filter doesn't overlap with a manifest's partition range.</li>
+            <li><strong>Manifest Files (Avro)</strong>: The workhorse of data skipping. Each entry describes one data file with full column-level statistics. A well-organized table might have each manifest cover a specific time range, so temporal queries can skip most manifests entirely.</li>
+            <li><strong>Data Files</strong>: The actual data. Immutable. Never edited. New data creates new files; deletes are tracked via delete files or by creating new snapshots that exclude the old files.</li>
+          </ul>
+
+          <h3>How a Read Works</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Read path: catalog to data files</div>
+            <pre><code>SELECT * FROM orders WHERE order_date = '2024-03-15' AND amount > 1000
+
+Step 1: CATALOG LOOKUP
+  → Ask catalog: "Where is the current metadata file for table 'orders'?"
+  → Get: s3://warehouse/orders/metadata/v42.metadata.json
+
+Step 2: READ METADATA FILE
+  → Parse JSON, find current-snapshot-id = snap-12345
+  → Get manifest-list path: s3://warehouse/orders/metadata/snap-12345-m0.avro
+
+Step 3: READ MANIFEST LIST
+  → Contains 8 manifest files with partition summaries
+  → Partition spec: days(order_date)
+  → Only 1 manifest has partition range containing 2024-03-15
+  → SKIP 7 manifests (partition pruning at manifest level)
+
+Step 4: READ RELEVANT MANIFESTS
+  → The 1 matching manifest has 50 data file entries
+  → Check per-file min/max for 'amount' column
+  → 35 files have max(amount) < 1000 → SKIP
+  → 15 files remain after file-level stats pruning
+
+Step 5: READ DATA FILES
+  → Read only 15 Parquet files (out of potentially thousands)
+  → Parquet row-group stats provide additional row-group pruning
+  → Result: scanned ~0.5% of total table data</code></pre>
+          </div>
+
+          <h3>How a Write Works</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Write path: data files to atomic commit</div>
+            <pre><code>INSERT INTO orders VALUES (...)  -- or MERGE INTO, DELETE, etc.
+
+Step 1: WRITE DATA FILES
+  → Writer produces new Parquet files in the data directory
+  → Files are written with Iceberg's partition spec applied
+  → Files are immutable once written
+
+Step 2: CREATE NEW MANIFEST(S)
+  → For each new data file, record: path, partition values,
+    record count, file size, column stats (min/max/nulls)
+  → May create new manifest or append to existing one
+  → For deletes/overwrites: mark old files as DELETED in manifest
+
+Step 3: CREATE NEW MANIFEST LIST
+  → Reference all manifests (new + unchanged from previous snapshot)
+  → Include partition range summaries for each manifest
+
+Step 4: CREATE NEW SNAPSHOT
+  → New snapshot-id, timestamp, operation type
+  → Points to the new manifest list
+
+Step 5: ATOMIC METADATA POINTER SWAP
+  → Write new metadata JSON (includes new snapshot in snapshot list)
+  → Atomically update catalog pointer: v42.metadata.json → v43.metadata.json
+  → If swap fails (concurrent write detected): RETRY from step 1
+  → If swap succeeds: commit is complete, readers see new snapshot</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Why immutability matters:</strong>
+            <p>Every layer below the catalog pointer is immutable. Old metadata files, manifest lists, manifests, and data files are never modified. This means readers holding a reference to an old snapshot will always see consistent data — no read locks needed. It also means time travel is free: just follow an old snapshot's pointers.</p>
+          </div>
+
+          <h2 id="snapshot-isolation">Snapshot Isolation & Concurrency</h2>
+
+          <p>Iceberg provides serializable snapshot isolation without requiring distributed locks. This is foundational to how it supports concurrent reads and writes safely.</p>
+
+          <h3>Every Commit Creates a New Snapshot</h3>
+
+          <ul>
+            <li>Each write operation (INSERT, DELETE, MERGE, overwrite) creates a new snapshot</li>
+            <li>Snapshots are immutable — once committed, they never change</li>
+            <li>The table's snapshot history forms a linear sequence (each snapshot knows its parent)</li>
+            <li>Old snapshots remain accessible until explicitly expired via maintenance</li>
+          </ul>
+
+          <h3>Readers Always See a Consistent Snapshot</h3>
+
+          <ul>
+            <li>When a reader starts, it resolves the current snapshot from the catalog</li>
+            <li>All subsequent reads for that query use that snapshot — even if new commits happen concurrently</li>
+            <li>No dirty reads, no phantom reads — complete isolation</li>
+            <li>Long-running queries are safe: they read from an immutable snapshot that won't change under them</li>
+          </ul>
+
+          <h3>Optimistic Concurrency Control</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Optimistic concurrency: commit protocol</div>
+            <pre><code># Writer A and Writer B both start writing at the same time
+# Both read current snapshot: snap-100 (metadata v50)
+
+Writer A:                          Writer B:
+  1. Read snap-100                   1. Read snap-100
+  2. Write new data files            2. Write new data files
+  3. Create manifests                3. Create manifests
+  4. Create snapshot snap-101        4. Create snapshot snap-101'
+  5. Write metadata v51              5. Write metadata v51'
+  6. CAS: update catalog             6. CAS: update catalog
+     v50 → v51                          v50 → v51'
+     ✅ SUCCESS (first wins)            ❌ FAILS (v50 already changed)
+
+# Writer B detects conflict:
+Writer B (retry):
+  7. Read NEW current: snap-101 (metadata v51)
+  8. Check for conflicts:
+     - Did Writer A modify the same partitions?
+     - Did Writer A delete files that Writer B read?
+  9a. No conflict → rebase: create snap-102 on top of snap-101
+      Write metadata v52, CAS: v51 → v52 ✅
+  9b. Conflict detected → abort with CommitFailedException
+      (application must retry the entire operation)</code></pre>
+          </div>
+
+          <h3>Conflict Detection Rules</h3>
+
+          <ul>
+            <li><strong>Append + Append</strong>: Never conflicts. Two writers adding new data to different (or same) partitions can both succeed. Their manifests are simply merged.</li>
+            <li><strong>Append + Overwrite</strong>: Conflicts only if the overwrite targets partitions the append wrote to.</li>
+            <li><strong>Overwrite + Overwrite</strong>: Conflicts if both target overlapping partitions.</li>
+            <li><strong>Delete + Delete</strong>: Conflicts if both delete the same files.</li>
+            <li><strong>Read + Write (serializable)</strong>: In serializable isolation, if Writer B's operation depends on reading rows that Writer A modified, it must retry. This prevents write skew.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Retry storms:</strong>
+            <p>Under high write concurrency to the same partitions, multiple writers may repeatedly conflict and retry. Solutions: 1) Design partition schemes to minimize hot partitions. 2) Use MERGE INTO with fine-grained conflict resolution. 3) For streaming, use a single writer per partition. 4) Consider WAP (Write-Audit-Publish) patterns with branches for staging writes.</p>
+          </div>
+
+          <h2 id="schema-evolution">Schema Evolution</h2>
+
+          <p>Iceberg handles schema evolution correctly because it tracks columns by unique field IDs — not by column name or position. This seemingly simple design choice has profound implications.</p>
+
+          <h3>Field-ID Based Tracking</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Schema with field IDs</div>
+            <pre><code># Initial schema:
+# Field ID | Name       | Type
+# ---------|------------|--------
+# 1        | user_id    | long
+# 2        | name       | string
+# 3        | email      | string
+# 4        | created_at | timestamp
+
+# After evolution (rename + add + drop):
+# Field ID | Name          | Type
+# ---------|---------------|--------
+# 1        | user_id       | long
+# 2        | full_name     | string    ← RENAMED (still ID 2)
+# 4        | created_at    | timestamp
+# 5        | phone         | string    ← ADDED (new ID 5)
+#                                       ← email (ID 3) DROPPED
+
+# Old Parquet files still have columns: [1:user_id, 2:name, 3:email, 4:created_at]
+# New reads using current schema:
+#   - ID 2 in old files → mapped to "full_name" (renamed, data preserved)
+#   - ID 3 in old files → ignored (column dropped from schema)
+#   - ID 5 in old files → doesn't exist → projected as NULL</code></pre>
+          </div>
+
+          <h3>Supported Evolution Operations</h3>
+
+          <ul>
+            <li><strong>Add columns</strong>: New field ID assigned. Old data files return NULL for the new column (no rewrite needed).</li>
+            <li><strong>Drop columns</strong>: Column metadata removed from schema. Old data files still contain the data physically, but reads skip it. Reclaim space via compaction.</li>
+            <li><strong>Rename columns</strong>: Only the name mapping changes. Field ID stays the same, so old data files seamlessly provide data under the new name.</li>
+            <li><strong>Reorder columns</strong>: Column order in schema changes. Physical file layout is unchanged — reads use field IDs, not positions.</li>
+            <li><strong>Type promotion</strong>: <code>int → long</code>, <code>float → double</code>, <code>decimal(P,S) → decimal(P',S)</code> where P' > P. Old data is promoted at read time.</li>
+            <li><strong>Nested struct evolution</strong>: Add/drop/rename fields within structs, maps, and lists. Each nested field gets its own field ID.</li>
+          </ul>
+
+          <h3>Why This Matters</h3>
+
+          <ul>
+            <li><strong>No data rewriting</strong>: Schema changes are metadata-only operations. Instant, regardless of table size.</li>
+            <li><strong>Backward compatibility</strong>: Old data files remain readable forever. No migration scripts needed.</li>
+            <li><strong>No broken queries</strong>: Column renames don't break downstream consumers that read by ID (engine-level), though SQL queries using old names will need updating.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Contrast with Hive/Parquet directly:</strong>
+            <p>Parquet identifies columns by name (schema evolution by name) or by position (schema evolution by position). Hive uses position-based mapping for ORC, meaning adding a column in the middle shifts all subsequent columns. Renaming a column in Parquet requires rewriting all files. Iceberg's field-ID approach avoids all of these issues.</p>
+          </div>
+
+          <h2 id="partition-evolution">Partition Evolution (Hidden Partitioning)</h2>
+
+          <p>Iceberg's partitioning model is fundamentally different from Hive's. Partitioning is metadata — not physical directory structure — and it's invisible to users writing queries.</p>
+
+          <h3>Hidden Partitioning</h3>
+
+          <ul>
+            <li>Users query by column values: <code>WHERE order_date = '2024-03-15'</code></li>
+            <li>Iceberg automatically applies the partition transform behind the scenes</li>
+            <li>No "partition column" appears in the table schema — clean separation</li>
+            <li>Users never write <code>WHERE year=2024 AND month=3 AND day=15</code> — that's Hive-style coupling</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Hidden partitioning in action</div>
+            <pre><code># Table definition:
+CREATE TABLE events (
+    event_id     bigint,
+    event_time   timestamp,
+    user_id      bigint,
+    event_type   string,
+    payload      string
+) USING iceberg
+PARTITIONED BY (days(event_time), bucket(16, user_id))
+
+# User writes query:
+SELECT * FROM events
+WHERE event_time BETWEEN '2024-03-01' AND '2024-03-07'
+  AND user_id = 42
+
+# What Iceberg does internally:
+# 1. Applies days() transform to the timestamp filter
+#    → partition value range: [2024-03-01, 2024-03-07] (7 daily partitions)
+# 2. Applies bucket(16, user_id) to user_id = 42
+#    → bucket = hash(42) % 16 = specific bucket number
+# 3. Prunes manifest list + manifests to only matching partition tuples
+# 4. Result: reads only files in those 7 days × 1 bucket = tiny fraction
+
+# The user never knew about the partitioning scheme!
+# Schema shows only: event_id, event_time, user_id, event_type, payload
+# No synthetic partition columns like year/month/day/bucket_id</code></pre>
+          </div>
+
+          <h3>Partition Evolution Without Rewriting</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Changing partition scheme</div>
+            <pre><code># Original: partitioned by day
+ALTER TABLE events SET PARTITION SPEC (days(event_time))
+
+# After growth: switch to hourly (no data rewrite!)
+ALTER TABLE events SET PARTITION SPEC (hours(event_time), bucket(16, user_id))
+
+# What happens:
+# - Old data files retain their daily partition values in manifests
+# - New data files use hourly partition values
+# - Queries spanning both eras work correctly:
+#   - For old data: Iceberg matches daily partitions against the filter
+#   - For new data: Iceberg matches hourly partitions against the filter
+# - No data movement, no downtime, instant operation
+
+# Even works for completely different schemes:
+ALTER TABLE events SET PARTITION SPEC (bucket(32, user_id), months(event_time))
+# Old files: still tracked with their original partition spec
+# New files: use the new spec</code></pre>
+          </div>
+
+          <h3>Available Partition Transforms</h3>
+
+          <ul>
+            <li><strong>identity</strong>: Partition by exact column value (like Hive). Use for low-cardinality columns.</li>
+            <li><strong>bucket(N)</strong>: Hash partition into N buckets. Distributes data evenly. Good for high-cardinality join keys.</li>
+            <li><strong>truncate(L)</strong>: Truncate string/integer to length L. Groups similar values together.</li>
+            <li><strong>year</strong>: Extract year from date/timestamp. One partition per year.</li>
+            <li><strong>month</strong>: Extract year-month. One partition per month.</li>
+            <li><strong>day</strong>: Extract date (year-month-day). One partition per day.</li>
+            <li><strong>hour</strong>: Extract date-hour. One partition per hour.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Why hidden partitioning is a game-changer:</strong>
+            <p>In Hive, users MUST know the partition scheme and include partition columns in WHERE clauses, or queries scan everything. With Iceberg, any predicate on the source column automatically benefits from partition pruning. Analysts write natural queries; Iceberg handles the optimization. When the partition scheme evolves, no queries need updating.</p>
+          </div>
+
+          <h2 id="time-travel">Time Travel & Rollback</h2>
+
+          <p>Since every commit creates an immutable snapshot, accessing historical states is trivial — just follow an older snapshot's metadata pointers.</p>
+
+          <h3>Query As-Of Snapshot or Timestamp</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Time travel queries in Spark</div>
+            <pre><code># By snapshot ID (exact):
+spark.read.format("iceberg") \
+    .option("snapshot-id", 3821550127947089987) \
+    .load("catalog.db.orders")
+
+# By timestamp (finds the latest snapshot as of that time):
+spark.read.format("iceberg") \
+    .option("as-of-timestamp", "1709251200000") \  # epoch millis
+    .load("catalog.db.orders")
+
+# SQL syntax (Spark 3.3+):
+SELECT * FROM orders FOR SYSTEM_TIME AS OF '2024-03-01 00:00:00'
+
+SELECT * FROM orders FOR SYSTEM_VERSION AS OF 3821550127947089987
+
+# List available snapshots:
+SELECT * FROM catalog.db.orders.snapshots
+
+# Output:
+# committed_at          | snapshot_id          | parent_id            | operation
+# 2024-03-15 10:00:00  | 3821550127947089987  | 2891003849273847123  | append
+# 2024-03-14 22:00:00  | 2891003849273847123  | 1982739182739182739  | overwrite
+# ...</code></pre>
+          </div>
+
+          <h3>Rollback</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Rollback operations</div>
+            <pre><code># Rollback to a specific snapshot (instant — no data copy):
+CALL catalog.system.rollback_to_snapshot('db.orders', 2891003849273847123)
+
+# Rollback to a timestamp:
+CALL catalog.system.rollback_to_timestamp('db.orders', TIMESTAMP '2024-03-14 22:00:00')
+
+# What rollback does:
+# 1. Sets current-snapshot-id in metadata to the target snapshot
+# 2. Writes a new metadata file (v44.metadata.json)
+# 3. Atomically swaps catalog pointer to new metadata
+# 4. All readers now see the old snapshot as current
+# 
+# NO data files are copied or moved!
+# The old snapshot's manifests already reference the correct files.
+# This is O(1) — instant regardless of table size.</code></pre>
+          </div>
+
+          <h3>Cherry-Pick</h3>
+
+          <ul>
+            <li>Create a new snapshot from an old snapshot's changes (not its full state)</li>
+            <li>Use case: a bad write happened at snap-102, but snap-103 was good. Cherry-pick snap-103's delta onto snap-101 to skip the bad write.</li>
+            <li><code>CALL catalog.system.cherrypick_snapshot('db.orders', 103_snapshot_id)</code></li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Snapshot expiration:</strong>
+            <p>Time travel only works for snapshots that haven't been expired. Once you run <code>expire_snapshots</code>, old snapshots and their exclusive data files are deleted permanently. Set retention policies carefully — you can't travel to a snapshot that no longer exists.</p>
+          </div>
+
+          <h2 id="incremental-reads">Incremental Reads</h2>
+
+          <p>Iceberg can efficiently identify what changed between two snapshots — enabling CDC-style pipelines without full table scans.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Incremental read between snapshots</div>
+            <pre><code># Read only data ADDED between two snapshots:
+spark.read.format("iceberg") \
+    .option("start-snapshot-id", 1000) \
+    .option("end-snapshot-id", 2000) \
+    .load("catalog.db.orders")
+
+# This returns ONLY the files added in snapshots 1001 through 2000
+# Not a full table scan — just the delta
+
+# For streaming-style incremental processing:
+spark.readStream.format("iceberg") \
+    .option("stream-from-timestamp", "1709251200000") \
+    .load("catalog.db.orders")
+
+# Incremental append scan (only appended data):
+spark.read.format("iceberg") \
+    .option("start-snapshot-id", 1000) \
+    .option("end-snapshot-id", 2000) \
+    .option("incremental", "true") \
+    .load("catalog.db.orders")</code></pre>
+          </div>
+
+          <h3>Use Cases</h3>
+
+          <ul>
+            <li><strong>CDC pipelines</strong>: Downstream systems process only new/changed data since last checkpoint. Store the last-processed snapshot-id and read incrementally from there.</li>
+            <li><strong>Incremental ETL</strong>: Instead of reprocessing entire tables daily, process only files added since the last run. Reduces compute costs by 90%+.</li>
+            <li><strong>Data quality monitoring</strong>: Check only new data for anomalies rather than scanning the full table.</li>
+            <li><strong>Materialized view maintenance</strong>: Refresh aggregated views by processing only the incremental changes.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 How it works internally:</strong>
+            <p>Iceberg's manifest entries are tagged with the snapshot ID that added them. To find data between snapshot A and B, Iceberg reads manifests and returns only entries where <code>added_snapshot_id</code> is in range (A, B]. No need to diff two full table scans — it's a metadata operation.</p>
+          </div>
+
+          <h2 id="table-maintenance">Table Maintenance</h2>
+
+          <p>Iceberg's immutable architecture means old files accumulate over time. Regular maintenance keeps the table performant and controls storage costs.</p>
+
+          <h3>expire_snapshots</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Snapshot expiration</div>
+            <pre><code># Remove snapshots older than 7 days:
+CALL catalog.system.expire_snapshots(
+    table => 'db.orders',
+    older_than => TIMESTAMP '2024-03-08 00:00:00',
+    retain_last => 10  -- always keep at least 10 snapshots
+)
+
+# What it does:
+# 1. Identifies snapshots older than the threshold
+# 2. Finds data files EXCLUSIVELY referenced by expired snapshots
+#    (not referenced by any retained snapshot)
+# 3. Deletes those exclusive data files from storage
+# 4. Removes expired snapshot entries from metadata
+# 5. Removes orphaned manifest files
+#
+# Important: files referenced by ANY retained snapshot are kept!
+# This is safe for concurrent readers — they hold snapshot references.</code></pre>
+          </div>
+
+          <h3>remove_orphan_files</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Orphan file cleanup</div>
+            <pre><code># Find and delete files not referenced by any snapshot:
+CALL catalog.system.remove_orphan_files(
+    table => 'db.orders',
+    older_than => TIMESTAMP '2024-03-10 00:00:00',
+    dry_run => true  -- list files without deleting (safety check)
+)
+
+# Orphan files appear when:
+# - A write job crashes after writing data files but before committing
+# - A compaction job fails partway through
+# - Manual file manipulation
+#
+# Always use dry_run first! Verify the file list before actual deletion.
+# Set older_than conservatively (e.g., 3 days) to avoid deleting files
+# from in-progress writes.</code></pre>
+          </div>
+
+          <h3>rewrite_data_files (Compaction)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Data compaction</div>
+            <pre><code># Merge small files into larger ones (bin-packing):
+CALL catalog.system.rewrite_data_files(
+    table => 'db.orders',
+    strategy => 'binpack',
+    options => map(
+        'target-file-size-bytes', '536870912',     -- 512 MB target
+        'min-file-size-bytes', '67108864',          -- 128 MB minimum (files below this get compacted)
+        'max-file-size-bytes', '805306368',         -- 768 MB max
+        'min-input-files', '5'                      -- only compact groups of 5+ small files
+    )
+)
+
+# Sort-order compaction (reorganize data for better skipping):
+CALL catalog.system.rewrite_data_files(
+    table => 'db.orders',
+    strategy => 'sort',
+    sort_order => 'order_date ASC, user_id ASC',
+    options => map(
+        'target-file-size-bytes', '536870912'
+    )
+)
+
+# Z-order compaction (optimize for multi-column filters):
+CALL catalog.system.rewrite_data_files(
+    table => 'db.orders',
+    strategy => 'sort',
+    sort_order => 'zorder(order_date, user_id, product_id)',
+    options => map('target-file-size-bytes', '536870912')
+)
+
+# Filter to specific partitions:
+CALL catalog.system.rewrite_data_files(
+    table => 'db.orders',
+    where => 'order_date >= "2024-03-01" AND order_date < "2024-04-01"'
+)</code></pre>
+          </div>
+
+          <h3>rewrite_manifests</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Manifest rewriting</div>
+            <pre><code># Consolidate small manifests into fewer, larger ones:
+CALL catalog.system.rewrite_manifests('db.orders')
+
+# Why: many small writes create many small manifests.
+# Planning must read ALL manifests → slower with hundreds of tiny ones.
+# Rewriting consolidates them and improves partition-range alignment.
+#
+# Before: 500 manifest files, 10-50 entries each
+# After:  20 manifest files, ~250 entries each, aligned by partition range
+#
+# This speeds up query planning (fewer files to read + better pruning)</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Maintenance cadence:</strong>
+            <p>For production tables: run compaction daily/hourly depending on write frequency, expire snapshots with 3-7 day retention, run orphan cleanup weekly with a 3-day threshold, and rewrite manifests when manifest count exceeds ~100. Automate via orchestrators (Airflow, Dagster) or use catalog-level auto-maintenance if available.</p>
+          </div>
+
+          <h2 id="data-skipping">Data Skipping & File-Level Stats</h2>
+
+          <p>Iceberg's data skipping is what makes queries over petabyte tables feel fast. It operates at multiple levels, each reducing the scan progressively.</p>
+
+          <h3>Manifest-Level Column Statistics</h3>
+
+          <ul>
+            <li>Each manifest file entry stores per-column: <strong>lower_bound</strong>, <strong>upper_bound</strong>, <strong>null_count</strong>, and optionally <strong>distinct_count</strong></li>
+            <li>Statistics are written at file-write time from Parquet/ORC footer metadata</li>
+            <li>Statistics are stored per data file, per column in the manifest Avro schema</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Data skipping example</div>
+            <pre><code># Table: orders (10,000 data files, 500 GB)
+# Query: SELECT * FROM orders WHERE amount BETWEEN 500 AND 1000
+
+# Manifest entry for each file looks like:
+# ┌──────────────────┬────────────────────────────────────┐
+# │ file_path        │ s3://warehouse/orders/data/0001.parquet │
+# │ record_count     │ 125,000                            │
+# │ file_size_bytes  │ 52,428,800                         │
+# │ partition        │ {order_date: 2024-03-15}           │
+# │ column_stats     │                                    │
+# │   amount:        │                                    │
+# │     lower_bound  │ 12.50                              │
+# │     upper_bound  │ 450.00                             │  ← max < 500 → SKIP!
+# │     null_count   │ 0                                  │
+# │   user_id:       │                                    │
+# │     lower_bound  │ 1001                               │
+# │     upper_bound  │ 9999                               │
+# │     null_count   │ 0                                  │
+# └──────────────────┴────────────────────────────────────┘
+
+# For this file: upper_bound(amount) = 450 < 500
+# → Entire file SKIPPED without reading any Parquet data
+
+# Pruning cascade:
+# Level 1: Partition pruning (manifest list) → skip 80% of manifests
+# Level 2: File-level stats (manifests)      → skip 70% of remaining files
+# Level 3: Parquet row-group stats           → skip 50% of remaining row groups
+# Net: read ~3% of total data for selective queries</code></pre>
+          </div>
+
+          <h3>Configuring Column Metrics</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Column metrics configuration</div>
+            <pre><code># By default, Iceberg tracks stats for the first 100 columns
+# (configurable via write.metadata.metrics.default)
+
+# Table properties for metrics:
+ALTER TABLE orders SET TBLPROPERTIES (
+    -- Default mode for all columns:
+    'write.metadata.metrics.default' = 'truncate(16)',
+    
+    -- Full stats for frequently filtered columns:
+    'write.metadata.metrics.column.amount' = 'full',
+    'write.metadata.metrics.column.order_date' = 'full',
+    
+    -- No stats for large/high-cardinality text columns:
+    'write.metadata.metrics.column.payload' = 'none',
+    'write.metadata.metrics.column.description' = 'none'
+)
+
+# Metrics modes:
+# - 'full'           : store full min/max/null_count/distinct_count
+# - 'truncate(N)'    : store first N bytes of min/max (for strings)
+# - 'counts'         : store only null_count and value_count
+# - 'none'           : no stats (saves manifest size for unused columns)
+
+# Why configure?
+# - Large string columns with unique values produce useless min/max
+# - High-cardinality columns inflate manifest size without pruning benefit
+# - Focus stats on columns actually used in WHERE clauses</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Data skipping effectiveness depends on data organization:</strong>
+            <p>Stats-based pruning works best when data is clustered by the filtered column. If file 1 has amounts [1-1000] and file 2 has amounts [1-1000] (random distribution), no files can be skipped. But if file 1 has [1-500] and file 2 has [501-1000] (sorted/clustered), half the files are skipped. Use sorted compaction (<code>rewrite_data_files</code> with sort strategy) to cluster data by frequently-filtered columns.</p>
+          </div>
+
+          <h2 id="delete-files">Delete Files (Merge-on-Read)</h2>
+
+          <p>Iceberg supports two deletion strategies: Copy-on-Write (COW) and Merge-on-Read (MOR). MOR avoids rewriting large data files by tracking deletes in separate delete files.</p>
+
+          <h3>Positional Delete Files</h3>
+
+          <ul>
+            <li>Store pairs of <code>(file_path, row_position)</code> — exact coordinates of deleted rows</li>
+            <li>Efficient when you know exactly which rows to delete (e.g., after a join identifies specific records)</li>
+            <li>At read time: load delete file, build a bitmap of deleted positions, skip those rows when reading the data file</li>
+            <li>Sorted by (file_path, position) for efficient merge during read</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Positional delete file contents</div>
+            <pre><code># Positional delete file (Parquet format):
+# ┌─────────────────────────────────────────────┬──────────────┐
+# │ file_path                                   │ pos          │
+# ├─────────────────────────────────────────────┼──────────────┤
+# │ s3://warehouse/orders/data/0001.parquet     │ 42           │
+# │ s3://warehouse/orders/data/0001.parquet     │ 1057         │
+# │ s3://warehouse/orders/data/0001.parquet     │ 8923         │
+# │ s3://warehouse/orders/data/0003.parquet     │ 156          │
+# │ s3://warehouse/orders/data/0003.parquet     │ 7841         │
+# └─────────────────────────────────────────────┴──────────────┘
+#
+# Read path for data/0001.parquet:
+# 1. Open positional delete file
+# 2. Extract positions for this file: {42, 1057, 8923}
+# 3. Read data file, skip rows at those positions
+# 4. Return remaining rows</code></pre>
+          </div>
+
+          <h3>Equality Delete Files</h3>
+
+          <ul>
+            <li>Store column values that identify rows to delete (e.g., <code>user_id = 42</code>)</li>
+            <li>More flexible — don't need to know physical row positions</li>
+            <li>Slower at read time: must check every row in every data file against the delete predicates</li>
+            <li>Used when exact positions are unknown (e.g., <code>DELETE FROM orders WHERE user_id = 42</code> without reading all files first)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Equality delete file contents</div>
+            <pre><code># Equality delete file (Parquet format):
+# Schema: only the equality delete columns
+# ┌───────────┬─────────────────────┐
+# │ user_id   │ order_date          │
+# ├───────────┼─────────────────────┤
+# │ 42        │ 2024-03-15          │
+# │ 99        │ 2024-03-15          │
+# │ 42        │ 2024-03-16          │
+# └───────────┴─────────────────────┘
+#
+# Read path for ANY data file in the matching partition:
+# 1. Open equality delete file
+# 2. For each row in data file:
+#    - Check if (user_id, order_date) matches any delete entry
+#    - If match → filter out
+# 3. Return non-matching rows
+#
+# Cost: O(data_rows × delete_entries) unless optimized with bloom filters
+# This is why equality deletes cause read amplification!</code></pre>
+          </div>
+
+          <h3>MOR Trade-offs</h3>
+
+          <ul>
+            <li><strong>Write benefit</strong>: Deletes/updates are fast — just write a small delete file instead of rewriting a 500MB data file</li>
+            <li><strong>Read cost</strong>: Every read must merge delete files with data files. More delete files = slower reads.</li>
+            <li><strong>Resolution via compaction</strong>: <code>rewrite_data_files</code> applies pending deletes and produces clean data files. After compaction, delete files are removed and reads are fast again.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">MOR vs COW trade-off</div>
+            <pre><code># Table property to control:
+ALTER TABLE orders SET TBLPROPERTIES (
+    'write.delete.mode' = 'merge-on-read',   -- or 'copy-on-write'
+    'write.update.mode' = 'merge-on-read',
+    'write.merge.mode' = 'merge-on-read'
+)
+
+# Copy-on-Write (COW):
+# - DELETE rewrites entire affected data files (minus deleted rows)
+# - Writes are slower (must read + rewrite large files)
+# - Reads are fast (no merge needed, data files are always clean)
+# - Good for: batch workloads, infrequent updates
+
+# Merge-on-Read (MOR):
+# - DELETE writes only a small delete file
+# - Writes are fast (small file, no rewrite)
+# - Reads are slower (must apply delete files)
+# - Good for: frequent updates/deletes, streaming upserts
+# - Requires regular compaction to keep read performance acceptable</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Delete file accumulation:</strong>
+            <p>Without compaction, delete files accumulate and read performance degrades significantly. Monitor the ratio of delete files to data files. A good rule: compact when delete files exceed 10% of data files in a partition, or when read latency degrades noticeably. Equality deletes are particularly expensive — prefer positional deletes when possible (engines like Spark internally convert equality to positional during MERGE INTO).</p>
+          </div>
+
+          <h2 id="iceberg-spark">Iceberg with Spark</h2>
+
+          <h3>Table Operations</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">DDL and DML with Spark</div>
+            <pre><code># CREATE TABLE
+spark.sql("""
+    CREATE TABLE catalog.db.orders (
+        order_id    BIGINT,
+        user_id     BIGINT,
+        amount      DECIMAL(10,2),
+        order_date  DATE,
+        status      STRING,
+        items       ARRAY&lt;STRUCT&lt;product_id: BIGINT, quantity: INT, price: DECIMAL(8,2)&gt;&gt;
+    )
+    USING iceberg
+    PARTITIONED BY (days(order_date), bucket(16, user_id))
+    TBLPROPERTIES (
+        'write.format.default' = 'parquet',
+        'write.parquet.compression-codec' = 'zstd',
+        'write.target-file-size-bytes' = '536870912',
+        'write.metadata.metrics.default' = 'truncate(16)',
+        'write.metadata.metrics.column.amount' = 'full'
+    )
+""")
+
+# INSERT
+spark.sql("INSERT INTO catalog.db.orders VALUES (1, 42, 99.99, DATE '2024-03-15', 'shipped', array(struct(101, 2, 49.99)))")
+
+# INSERT OVERWRITE (dynamic — only overwrites partitions with new data)
+spark.sql("""
+    INSERT OVERWRITE catalog.db.orders
+    SELECT * FROM staging_orders
+""")
+
+# MERGE INTO (upsert)
+spark.sql("""
+    MERGE INTO catalog.db.orders t
+    USING updates s
+    ON t.order_id = s.order_id
+    WHEN MATCHED AND s.status = 'cancelled' THEN DELETE
+    WHEN MATCHED THEN UPDATE SET t.status = s.status, t.amount = s.amount
+    WHEN NOT MATCHED THEN INSERT *
+""")
+
+# Schema evolution DDL
+spark.sql("ALTER TABLE catalog.db.orders ADD COLUMNS (shipping_address STRING)")
+spark.sql("ALTER TABLE catalog.db.orders RENAME COLUMN status TO order_status")
+spark.sql("ALTER TABLE catalog.db.orders ALTER COLUMN amount TYPE DECIMAL(12,2)")
+spark.sql("ALTER TABLE catalog.db.orders DROP COLUMN shipping_address")</code></pre>
+          </div>
+
+          <h3>SparkSessionCatalog vs SparkCatalog</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Catalog configuration</div>
+            <pre><code># Option 1: Dedicated Iceberg catalog (recommended for new projects)
+spark.conf.set("spark.sql.catalog.iceberg_catalog", "org.apache.iceberg.spark.SparkCatalog")
+spark.conf.set("spark.sql.catalog.iceberg_catalog.type", "hive")  # or hadoop, glue, rest
+spark.conf.set("spark.sql.catalog.iceberg_catalog.warehouse", "s3://my-warehouse/")
+
+# Access: iceberg_catalog.db.table_name
+# Only manages Iceberg tables — clear separation
+
+# Option 2: Wrap existing session catalog (for migration)
+spark.conf.set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
+spark.conf.set("spark.sql.catalog.spark_catalog.type", "hive")
+
+# Access: db.table_name (same as before)
+# Existing Hive tables remain accessible
+# New tables created with USING iceberg are Iceberg-managed
+# Non-Iceberg tables fall through to the underlying Hive catalog
+
+# Option 3: REST Catalog (multi-engine, vendor-neutral)
+spark.conf.set("spark.sql.catalog.rest_catalog", "org.apache.iceberg.spark.SparkCatalog")
+spark.conf.set("spark.sql.catalog.rest_catalog.type", "rest")
+spark.conf.set("spark.sql.catalog.rest_catalog.uri", "https://catalog.example.com")</code></pre>
+          </div>
+
+          <h3>Reading Options</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Read modes</div>
+            <pre><code># Current snapshot (default):
+df = spark.read.format("iceberg").load("catalog.db.orders")
+
+# Specific snapshot:
+df = spark.read.format("iceberg") \
+    .option("snapshot-id", 3821550127947089987) \
+    .load("catalog.db.orders")
+
+# As-of timestamp:
+df = spark.read.format("iceberg") \
+    .option("as-of-timestamp", "1709251200000") \
+    .load("catalog.db.orders")
+
+# Incremental read (only appended data between snapshots):
+df = spark.read.format("iceberg") \
+    .option("start-snapshot-id", 1000) \
+    .option("end-snapshot-id", 2000) \
+    .load("catalog.db.orders")
+
+# Metadata tables:
+spark.read.format("iceberg").load("catalog.db.orders.snapshots")
+spark.read.format("iceberg").load("catalog.db.orders.manifests")
+spark.read.format("iceberg").load("catalog.db.orders.files")
+spark.read.format("iceberg").load("catalog.db.orders.history")
+spark.read.format("iceberg").load("catalog.db.orders.partitions")</code></pre>
+          </div>
+
+          <h3>Writing Modes</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Write modes</div>
+            <pre><code># Append (add new data, don't touch existing):
+df.writeTo("catalog.db.orders").append()
+# Equivalent SQL: INSERT INTO catalog.db.orders SELECT ...
+
+# Overwrite (replace matching partitions):
+df.writeTo("catalog.db.orders").overwritePartitions()
+# Replaces only partitions present in df — other partitions untouched
+
+# Static overwrite (replace entire table):
+df.writeTo("catalog.db.orders").using("iceberg").replace()
+
+# Dynamic overwrite mode (default for INSERT OVERWRITE):
+spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+# Only overwrites partitions that appear in the DataFrame
+
+# Create or replace:
+df.writeTo("catalog.db.orders").using("iceberg").createOrReplace()
+
+# DataFrame writer v2 with partition spec:
+df.writeTo("catalog.db.orders") \
+    .tableProperty("write.format.default", "parquet") \
+    .partitionedBy(days("order_date"), bucket(16, "user_id")) \
+    .createOrReplace()</code></pre>
+          </div>
+
+          <h2 id="catalog-choices">Catalog Choices</h2>
+
+          <p>The catalog is the critical component that provides atomic commit semantics. Different catalogs suit different environments.</p>
+
+          <h3>Hive Metastore</h3>
+          <ul>
+            <li>Most common for on-premise and existing Hadoop deployments</li>
+            <li>Atomic commit via row-level lock on the metastore DB</li>
+            <li>Well-understood, battle-tested, supported by all engines</li>
+            <li>Limitation: single point of failure, lock contention under high write concurrency</li>
+          </ul>
+
+          <h3>AWS Glue Catalog</h3>
+          <ul>
+            <li>Managed, serverless catalog for AWS environments</li>
+            <li>Atomic commit via conditional update (DynamoDB-backed locking or native Glue locking)</li>
+            <li>Integrates with Athena, EMR, Redshift Spectrum, Lake Formation (permissions)</li>
+            <li>Limitation: API rate limits under extreme write concurrency, eventual consistency edge cases</li>
+          </ul>
+
+          <h3>Nessie (Git-like Branching)</h3>
+          <ul>
+            <li>Multi-table version control with Git semantics (branches, tags, merges)</li>
+            <li>Atomic multi-table commits: change multiple tables in one transaction</li>
+            <li>Feature branches for development: test schema changes without affecting production</li>
+            <li>Use case: data-as-code workflow, safe experimentation, reproducible ML pipelines</li>
+          </ul>
+
+          <h3>REST Catalog</h3>
+          <ul>
+            <li>Vendor-neutral, standardized REST API (Iceberg REST Catalog spec)</li>
+            <li>Enables multi-engine access (Spark, Trino, Flink, Dremio, Snowflake) via single catalog</li>
+            <li>Server-side implementation handles atomicity (can be backed by any storage)</li>
+            <li>Growing adoption: Tabular, Polaris (Snowflake), Unity Catalog (Databricks) implement this spec</li>
+          </ul>
+
+          <h3>Write-Audit-Publish (WAP) Pattern</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">WAP with branches</div>
+            <pre><code># WAP pattern: write to a branch, validate, then publish to main
+
+# 1. Create a branch (Nessie or Iceberg branching)
+CALL catalog.system.create_branch('db.orders', 'audit_branch', 'main')
+
+# 2. Write data to the branch (not visible to production readers)
+spark.conf.set("spark.wap.branch", "audit_branch")
+df.writeTo("catalog.db.orders").append()
+
+# 3. Audit/validate the data on the branch
+validation_df = spark.read.format("iceberg") \
+    .option("branch", "audit_branch") \
+    .load("catalog.db.orders")
+assert validation_df.filter("amount < 0").count() == 0, "Data quality check failed!"
+
+# 4. Publish: fast-forward main to include the branch's commits
+CALL catalog.system.fast_forward('db.orders', 'main', 'audit_branch')
+
+# Alternative: WAP with wap.id (without branches)
+spark.conf.set("spark.wap.id", "job-12345")
+# Write creates a snapshot tagged with wap.id but NOT set as current
+# After validation, publish:
+CALL catalog.system.publish_changes('db.orders', 'job-12345')</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Catalog selection criteria:</strong>
+            <p>Choose based on your environment: Hive Metastore for existing Hadoop clusters, AWS Glue for AWS-native architectures, Nessie for multi-table transactions and Git-like workflows, REST Catalog for multi-engine interoperability. In production, the catalog is your commit coordinator — its availability and performance directly impact write throughput.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Iceberg's metadata architecture enable snapshot isolation?</div>
+            <div class="qa-answer">
+              <p>Iceberg's metadata forms an immutable tree: Catalog → Metadata File → Snapshot → Manifest List → Manifests → Data Files. Every layer below the catalog pointer is immutable once written. When a reader starts a query, it resolves the current snapshot from the catalog and follows that snapshot's pointers throughout the entire read — even if new commits happen concurrently, the reader's snapshot never changes. Writers create entirely new metadata files and snapshots, then atomically swap the catalog pointer (using CAS operations). This means readers never see partial writes and never need locks. The combination of immutable metadata and atomic pointer swap provides full snapshot isolation: every read sees a complete, consistent table state, and concurrent writes don't interfere with reads.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does partition evolution work without rewriting data?</div>
+            <div class="qa-answer">
+              <p>Iceberg separates partition specification from physical data layout. Each data file's manifest entry records the <strong>partition tuple values</strong> computed at write time using the partition spec that was active then. When you change the partition spec (e.g., from <code>days(event_time)</code> to <code>hours(event_time)</code>), old data files retain their daily partition values in their manifest entries — they're never rewritten. New data files are written with hourly partition values using the new spec. At query time, Iceberg evaluates the query filter against BOTH partition specs: for old manifests it applies day-level pruning, for new manifests it applies hour-level pruning. The key insight is that partition values are computed and stored per-file at write time, and Iceberg's planning knows which spec each file was written under. This is possible because partitioning is "hidden" — users filter by the source column, and Iceberg internally maps to the appropriate transform.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are positional vs equality delete files and when is each used?</div>
+            <div class="qa-answer">
+              <p><strong>Positional deletes</strong> store <code>(file_path, row_position)</code> pairs — exact coordinates of deleted rows. At read time, the engine builds a position bitmap and skips those rows. These are efficient because the merge is a simple position lookup — O(1) per row. They're used when the engine knows exact file positions (e.g., after a MERGE INTO scans and identifies specific rows). <strong>Equality deletes</strong> store column values (e.g., <code>user_id = 42</code>). At read time, every row in every matching data file must be checked against the delete predicates — O(rows × deletes). These are used when exact positions are unknown (e.g., <code>DELETE WHERE user_id = 42</code> without pre-scanning). In practice, Spark's MERGE INTO reads data first to determine positions, so it produces positional deletes (more efficient). Direct SQL DELETE without a preceding scan might produce equality deletes. Both types accumulate and degrade read performance — compaction resolves them into clean data files.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Iceberg achieve data skipping without reading data files?</div>
+            <div class="qa-answer">
+              <p>Iceberg achieves data skipping through a multi-level pruning cascade, all operating on metadata before touching any data: <strong>1) Manifest-list level</strong>: Each manifest in the manifest list has a partition range summary. If the query's partition filter doesn't overlap a manifest's range, skip it entirely. <strong>2) Manifest level (partition pruning)</strong>: Within a manifest, each data file entry has partition values. Files whose partitions don't match the query filter are skipped. <strong>3) Manifest level (column stats)</strong>: Each file entry stores per-column min/max/null_count. If a file's max(amount) < query's lower bound, skip it. <strong>4) Data file level</strong>: Parquet row-group statistics provide one more layer of pruning within a file. The effectiveness depends on data clustering — sorted data means non-overlapping min/max ranges across files, enabling more files to be skipped. Configuration via <code>write.metadata.metrics</code> controls which columns track stats (avoid wasting space on high-cardinality string columns).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Apache Iceberg vs Delta Lake vs Apache Hudi.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture</strong>: Iceberg uses a metadata tree (catalog → JSON metadata → Avro manifests → data files). Delta uses a transaction log (_delta_log) with JSON commit files + periodic Parquet checkpoints. Hudi uses timeline metadata in .hoodie/ with commit/deltacommit/compaction instants. <strong>Schema evolution</strong>: Iceberg uses field IDs (most robust — renames/reorders are safe). Delta uses column names (rename requires rewrite or column mapping mode). Hudi uses Avro schema evolution (name-based). <strong>Partition evolution</strong>: Iceberg supports changing partition spec without rewrite (hidden partitioning). Delta requires rewriting data to change partitions (liquid clustering is the evolution path). Hudi doesn't support partition evolution natively. <strong>Concurrency</strong>: Iceberg uses optimistic concurrency with configurable conflict resolution. Delta uses optimistic concurrency with file-level conflict detection. Hudi uses timeline-based concurrency with lock providers. <strong>Engine support</strong>: Iceberg is the most engine-agnostic (Spark, Flink, Trino, Presto, Dremio, Snowflake, BigQuery). Delta is primarily Spark-centric (Trino/Flink support exists but lags). Hudi supports Spark and Flink natively. <strong>Best fit</strong>: Iceberg for multi-engine analytics lakehouse; Delta for Databricks-centric environments; Hudi for streaming-heavy upsert workloads with record-level indexing.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Lakehouse</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

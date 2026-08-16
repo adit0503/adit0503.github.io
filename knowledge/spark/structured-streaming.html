@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Structured Streaming Patterns — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>Structured Streaming</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">11 min read</span>
+          </div>
+          <h1>Structured Streaming Patterns</h1>
+          <p class="article-desc">Production-grade patterns for real-time data processing — micro-batch internals, watermarks, stateful operations, Kafka integration, and exactly-once semantics.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#processing-model">Micro-Batch vs Continuous Processing</a></li>
+            <li><a href="#triggers">Trigger Types</a></li>
+            <li><a href="#watermarks">Watermarks & Late Data</a></li>
+            <li><a href="#output-modes">Output Modes</a></li>
+            <li><a href="#stateful-ops">Stateful Operations</a></li>
+            <li><a href="#checkpointing">Checkpointing & Recovery</a></li>
+            <li><a href="#sources-sinks">Sources & Sinks</a></li>
+            <li><a href="#kafka-integration">Kafka Integration Patterns</a></li>
+            <li><a href="#monitoring">Monitoring & Production Patterns</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="processing-model">Micro-Batch vs Continuous Processing</h2>
+
+          <p>Structured Streaming treats a live data stream as an <strong>unbounded table</strong> that grows with new records. Queries express the same logic as batch DataFrames — Spark handles the incremental execution.</p>
+
+          <h3>Micro-Batch (Default)</h3>
+          <ul>
+            <li>Processes data in small batches at regular intervals (trigger-based)</li>
+            <li>Each micro-batch is a full Spark job — benefits from all Spark optimizations (Catalyst, Tungsten, AQE)</li>
+            <li>Achieves <strong>exactly-once</strong> semantics via checkpointing + idempotent sinks</li>
+            <li>Latency: 100ms — seconds (depends on trigger interval and batch processing time)</li>
+            <li>Supported for all sources, sinks, and stateful operations</li>
+          </ul>
+
+          <h3>Continuous Processing (Experimental)</h3>
+          <ul>
+            <li>Long-running tasks that continuously poll for new data (no batch boundaries)</li>
+            <li>Achieves <strong>at-least-once</strong> semantics (exactly-once requires async checkpointing)</li>
+            <li>Latency: ~1ms end-to-end</li>
+            <li>Very limited operator support — only map-like operations, no aggregations/joins</li>
+            <li>Rarely used in production due to limitations</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Practical guidance:</strong>
+            <p>Use micro-batch for 99% of production streaming workloads. The latency difference (100ms vs 1ms) rarely matters for data engineering pipelines. Micro-batch gives you exactly-once, full SQL support, and all optimizations. Continuous mode is only for ultra-low-latency map-only pipelines.</p>
+          </div>
+
+          <h2 id="triggers">Trigger Types</h2>
+
+          <p>Triggers control when a micro-batch is executed:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Trigger types</div>
+            <pre><code>from pyspark.sql.streaming import Trigger
+
+# 1. ProcessingTime — run batch every N seconds
+query = df.writeStream \
+    .trigger(processingTime="10 seconds") \
+    .start()
+
+# 2. Once — process all available data in ONE batch, then stop
+# Great for "streaming-first" batch jobs and testing
+query = df.writeStream \
+    .trigger(once=True) \
+    .start()
+
+# 3. AvailableNow (Spark 3.3+) — process all available data in
+# MULTIPLE batches (respects maxFilesPerTrigger), then stop
+# Best for scheduled catch-up jobs with rate limiting
+query = df.writeStream \
+    .trigger(availableNow=True) \
+    .start()
+
+# 4. Continuous (experimental) — low-latency continuous processing
+query = df.writeStream \
+    .trigger(continuous="1 second")  # checkpoint interval
+    .start()
+
+# Default: no trigger specified → runs next batch immediately after previous</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Trigger.Once vs AvailableNow:</strong>
+            <p><code>once=True</code> processes ALL available data in a single batch — can cause OOM if there's a massive backlog. <code>availableNow=True</code> processes the same data but respects rate limits like <code>maxFilesPerTrigger</code> or <code>maxOffsetsPerTrigger</code>, splitting into multiple manageable batches. Always prefer <code>availableNow</code> for scheduled catch-up jobs.</p>
+          </div>
+
+          <h2 id="watermarks">Watermarks & Late Data</h2>
+
+          <p>In event-time processing, data can arrive out of order. <strong>Watermarks</strong> define how long to wait for late data before finalizing results and cleaning up state.</p>
+
+          <h3>How Watermarks Work</h3>
+          <ol>
+            <li>Spark tracks the maximum event time seen across all partitions</li>
+            <li>Watermark = <code>max_event_time - threshold</code></li>
+            <li>Data older than the watermark is considered "too late" and may be dropped</li>
+            <li>State for windows that are fully below the watermark is cleaned up (prevents unbounded state growth)</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">Watermark usage</div>
+            <pre><code>from pyspark.sql.functions import window, col
+
+# Define watermark: tolerate up to 10 minutes of late data
+events = spark.readStream.format("kafka")...
+
+windowed_counts = events \
+    .withWatermark("event_time", "10 minutes") \
+    .groupBy(
+        window(col("event_time"), "5 minutes"),  # 5-min tumbling window
+        col("device_id")
+    ) \
+    .count()
+
+# Timeline:
+# max event_time seen = 12:30
+# watermark = 12:30 - 10min = 12:20
+# Window [12:10, 12:15] → finalized, state dropped (end < watermark)
+# Window [12:15, 12:20] → still accepting late data
+# Window [12:25, 12:30] → active, accepting data
+# Event with time 12:15 arriving now → accepted (>= watermark)
+# Event with time 12:05 arriving now → DROPPED (< watermark)</code></pre>
+          </div>
+
+          <h3>Watermark Semantics by Output Mode</h3>
+          <ul>
+            <li><strong>Append mode</strong>: Results emitted only when watermark passes the window end. Guarantees no late updates. State cleaned when watermark crosses window.</li>
+            <li><strong>Update mode</strong>: Results emitted every batch (may update). Watermark only used for state cleanup, not output timing.</li>
+            <li><strong>Complete mode</strong>: All results emitted every batch. Watermark ignored for output but still used for state cleanup.</li>
+          </ul>
+
+          <h2 id="output-modes">Output Modes</h2>
+
+          <h3>Append Mode (Default)</h3>
+          <ul>
+            <li>Only new rows that will never change are written</li>
+            <li>For aggregations with watermark: rows emitted after window is finalized</li>
+            <li>For map/filter operations: new input rows flow through immediately</li>
+            <li><strong>Use when</strong>: Writing to immutable sinks (files, Kafka, append-only tables)</li>
+          </ul>
+
+          <h3>Update Mode</h3>
+          <ul>
+            <li>Only rows that changed since the last batch are written</li>
+            <li>For aggregations: updated aggregates emitted every batch</li>
+            <li><strong>Use when</strong>: Writing to mutable sinks (databases, key-value stores, Delta Lake merge)</li>
+          </ul>
+
+          <h3>Complete Mode</h3>
+          <ul>
+            <li>The entire result table is written every batch</li>
+            <li>Only supported for aggregation queries (full result required)</li>
+            <li><strong>Use when</strong>: Dashboard tables, small aggregation result sets, overwrite-style sinks</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Output mode selection</div>
+            <pre><code># Append — for file sinks, Kafka sinks
+query = aggregated_df.writeStream \
+    .outputMode("append") \
+    .format("parquet") \
+    .option("path", "s3://output/events/") \
+    .option("checkpointLocation", "s3://checkpoints/events/") \
+    .start()
+
+# Update — for database upserts
+query = aggregated_df.writeStream \
+    .outputMode("update") \
+    .foreachBatch(upsert_to_postgres) \
+    .option("checkpointLocation", "s3://checkpoints/agg/") \
+    .start()
+
+# Complete — for small result tables
+query = aggregated_df.writeStream \
+    .outputMode("complete") \
+    .format("memory") \
+    .queryName("live_dashboard") \
+    .start()</code></pre>
+          </div>
+
+          <h2 id="stateful-ops">Stateful Operations</h2>
+
+          <h3>Built-in Stateful Operations</h3>
+          <ul>
+            <li><strong>Windowed aggregations</strong>: <code>groupBy(window(...)).agg(...)</code> — state tracks partial aggregates per window</li>
+            <li><strong>Stream-stream joins</strong>: State buffers both sides within watermark bounds</li>
+            <li><strong>Deduplication</strong>: <code>dropDuplicates()</code> — state tracks seen keys within watermark</li>
+          </ul>
+
+          <h3>Custom Stateful Operations</h3>
+
+          <h4>mapGroupsWithState</h4>
+          <p>Arbitrary stateful processing with exactly-once semantics. Maps each group's events + state → output:</p>
+          <div class="code-block">
+            <div class="code-block-header">mapGroupsWithState example (Scala-style logic)</div>
+            <pre><code># Use case: Track user sessions with timeout
+# State: last_activity_time, session_data
+# Input: user events
+# Output: one session summary per update
+
+from pyspark.sql.streaming import GroupState, GroupStateTimeout
+
+def update_session(key, events, state):
+    """
+    key: user_id
+    events: Iterator of events for this user in this batch
+    state: GroupState holding session data
+    """
+    if state.hasTimedOut:
+        # Session expired — emit final result, remove state
+        session = state.get
+        state.remove()
+        yield SessionOutput(key, session.start, session.count, "closed")
+    else:
+        # Update session with new events
+        existing = state.getOption or Session(start=None, count=0)
+        for event in events:
+            existing.count += 1
+            existing.start = existing.start or event.timestamp
+        state.update(existing)
+        state.setTimeoutDuration("30 minutes")
+        yield SessionOutput(key, existing.start, existing.count, "active")
+
+# Apply:
+sessions = events.groupByKey(lambda r: r.user_id) \
+    .mapGroupsWithState(
+        update_session,
+        outputMode="update",
+        timeoutConf=GroupStateTimeout.ProcessingTimeTimeout
+    )</code></pre>
+          </div>
+
+          <h4>flatMapGroupsWithState</h4>
+          <p>Like mapGroupsWithState but can emit zero, one, or many output rows per group per batch. Required when output cardinality doesn't match input groups (e.g., sessionization with multiple sessions per user).</p>
+
+          <div class="callout">
+            <strong>🔑 State management rule:</strong>
+            <p>Always use watermarks with stateful operations to enable state cleanup. Without a watermark, state grows unbounded — eventually causing OOM. For custom state (mapGroupsWithState), set explicit timeouts. Monitor state size via <code>stateOperator</code> metrics in the streaming query progress.</p>
+          </div>
+
+          <h2 id="checkpointing">Checkpointing & Recovery</h2>
+
+          <h3>What Checkpoints Store</h3>
+          <ul>
+            <li><strong>Offsets</strong>: Which data has been consumed from sources (Kafka offsets, file list)</li>
+            <li><strong>State</strong>: Accumulated state for stateful operations (aggregations, sessions)</li>
+            <li><strong>Commit log</strong>: Which batches have been committed to the sink</li>
+            <li><strong>Metadata</strong>: Query ID, run ID, schema information</li>
+          </ul>
+
+          <h3>Recovery Semantics</h3>
+          <div class="code-block">
+            <div class="code-block-header">Checkpoint directory structure</div>
+            <pre><code>s3://checkpoints/my-query/
+├── metadata          # Query metadata (id, schema)
+├── offsets/          # Offset log per batch
+│   ├── 0            # Batch 0 offsets
+│   ├── 1            # Batch 1 offsets
+│   └── 2            # Batch 2 offsets (latest)
+├── commits/          # Commit log (which batches completed)
+│   ├── 0
+│   └── 1            # Batch 1 committed; batch 2 in progress
+├── state/            # State store snapshots
+│   └── 0/           # Partition 0
+│       ├── 1.delta
+│       └── 2.snapshot
+└── sources/          # Source-specific metadata</code></pre>
+          </div>
+
+          <h3>Exactly-Once Guarantees</h3>
+          <p>Achieved through the combination of:</p>
+          <ol>
+            <li><strong>Replayable sources</strong>: Can re-read data from a given offset (Kafka, files, Delta)</li>
+            <li><strong>Idempotent sinks</strong>: Writing the same data twice produces the same result (Delta MERGE, Kafka with dedup key)</li>
+            <li><strong>Checkpoint WAL</strong>: Offsets committed atomically — if a batch fails mid-way, it replays from the checkpoint</li>
+          </ol>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Checkpoint location rules:</strong>
+            <p>1. Never share a checkpoint between different queries. 2. Never delete a checkpoint for a running query (causes data loss or duplication). 3. Changing query logic (new columns, different aggregation) may require a fresh checkpoint — state schema changes are not backward compatible. 4. Use a reliable, durable filesystem (S3, HDFS, ADLS) — never local disk in production.</p>
+          </div>
+
+          <h2 id="sources-sinks">Sources & Sinks</h2>
+
+          <h3>Sources</h3>
+          <ul>
+            <li><strong>Kafka</strong>: Most common production source. Exactly-once via offset tracking.</li>
+            <li><strong>File source</strong>: Monitors a directory for new files. Supports JSON, CSV, Parquet, ORC, Avro.</li>
+            <li><strong>Delta Lake</strong>: Read changes from a Delta table (Change Data Feed). Supports rate limiting.</li>
+            <li><strong>Rate source</strong>: Generates data at a fixed rate — for testing.</li>
+            <li><strong>Socket source</strong>: TCP socket — for development only (no fault tolerance).</li>
+          </ul>
+
+          <h3>Sinks</h3>
+          <ul>
+            <li><strong>Kafka</strong>: Write to Kafka topics. Key/value/topic columns required.</li>
+            <li><strong>File sink</strong>: Write Parquet/JSON/CSV files. Append mode only. Exactly-once via file commit protocol.</li>
+            <li><strong>Delta Lake</strong>: ACID writes with exactly-once. Supports all output modes with merge.</li>
+            <li><strong>foreach / foreachBatch</strong>: Custom sink logic. foreachBatch gives you a static DataFrame per batch — use for JDBC, API calls, complex writes.</li>
+            <li><strong>Console / Memory</strong>: For debugging only.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">foreachBatch pattern for custom sinks</div>
+            <pre><code>def write_to_multiple_sinks(batch_df, batch_id):
+    """Process each micro-batch as a regular DataFrame."""
+    # Persist to avoid recomputation
+    batch_df.persist()
+
+    # Write to Delta Lake (primary store)
+    batch_df.write.format("delta") \
+        .mode("append") \
+        .save("s3://lake/events/")
+
+    # Write aggregates to Postgres (analytics)
+    agg_df = batch_df.groupBy("event_type").count()
+    agg_df.write.format("jdbc") \
+        .option("url", jdbc_url) \
+        .option("dbtable", "event_counts") \
+        .mode("overwrite") \
+        .save()
+
+    batch_df.unpersist()
+
+query = events.writeStream \
+    .foreachBatch(write_to_multiple_sinks) \
+    .option("checkpointLocation", "s3://checkpoints/multi-sink/") \
+    .trigger(processingTime="30 seconds") \
+    .start()</code></pre>
+          </div>
+
+          <h2 id="kafka-integration">Kafka Integration Patterns</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Reading from Kafka</div>
+            <pre><code># Basic Kafka source
+df = spark.readStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", "broker1:9092,broker2:9092") \
+    .option("subscribe", "events-topic") \
+    .option("startingOffsets", "latest") \  # or "earliest" or JSON offsets
+    .option("maxOffsetsPerTrigger", 100000) \  # rate limiting
+    .option("kafka.group.id", "spark-consumer-group") \
+    .load()
+
+# Kafka DataFrame schema:
+# key: binary, value: binary, topic: string,
+# partition: int, offset: long, timestamp: timestamp
+
+# Parse JSON value with schema
+from pyspark.sql.functions import from_json, col
+from pyspark.sql.types import StructType, StringType, TimestampType
+
+schema = StructType() \
+    .add("user_id", StringType()) \
+    .add("event_type", StringType()) \
+    .add("event_time", TimestampType())
+
+parsed = df.select(
+    from_json(col("value").cast("string"), schema).alias("data"),
+    col("timestamp").alias("kafka_timestamp")
+).select("data.*", "kafka_timestamp")</code></pre>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">Writing to Kafka</div>
+            <pre><code># Write to Kafka — must have 'value' column (key and topic optional)
+output = processed_df.select(
+    col("user_id").cast("string").alias("key"),
+    to_json(struct("*")).alias("value")
+)
+
+query = output.writeStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", "broker1:9092") \
+    .option("topic", "processed-events") \
+    .option("checkpointLocation", "s3://checkpoints/kafka-out/") \
+    .option("kafka.acks", "all") \  # durability
+    .option("kafka.retries", "3") \
+    .start()</code></pre>
+          </div>
+
+          <h3>Schema Registry Integration</h3>
+          <div class="code-block">
+            <div class="code-block-header">Avro with Schema Registry (Confluent)</div>
+            <pre><code># Using the Confluent Avro deserializer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from pyspark.sql.avro.functions import from_avro
+
+schema_registry_conf = {"url": "http://schema-registry:8081"}
+sr_client = SchemaRegistryClient(schema_registry_conf)
+
+# Fetch schema
+schema = sr_client.get_latest_version("events-value").schema.schema_str
+
+# Deserialize Avro (skip first 5 bytes — Confluent wire format)
+parsed = df.select(
+    from_avro(expr("substring(value, 6)"), schema).alias("data")
+).select("data.*")</code></pre>
+          </div>
+
+          <h2 id="monitoring">Monitoring & Production Patterns</h2>
+
+          <h3>StreamingQueryListener</h3>
+          <div class="code-block">
+            <div class="code-block-header">Custom monitoring with StreamingQueryListener</div>
+            <pre><code>from pyspark.sql.streaming import StreamingQueryListener
+
+class MetricsListener(StreamingQueryListener):
+    def onQueryStarted(self, event):
+        print(f"Query started: {event.id}")
+
+    def onQueryProgress(self, event):
+        progress = event.progress
+        print(f"Batch {progress.batchId}:")
+        print(f"  Input rows/sec: {progress.inputRowsPerSecond}")
+        print(f"  Processed rows/sec: {progress.processedRowsPerSecond}")
+        print(f"  Batch duration: {progress.batchDuration}ms")
+        # State metrics (for stateful queries)
+        for state_op in progress.stateOperators:
+            print(f"  State rows: {state_op['numRowsTotal']}")
+            print(f"  State memory: {state_op['memoryUsedBytes']}")
+        # Publish to CloudWatch/Datadog/Prometheus
+        publish_metrics(progress)
+
+    def onQueryTerminated(self, event):
+        print(f"Query terminated: {event.id}, error: {event.exception}")
+
+spark.streams.addListener(MetricsListener())</code></pre>
+          </div>
+
+          <h3>Progress Metrics to Watch</h3>
+          <ul>
+            <li><code>inputRowsPerSecond</code> vs <code>processedRowsPerSecond</code> — if input > processed, you're falling behind</li>
+            <li><code>batchDuration</code> — must be less than trigger interval to avoid backlog</li>
+            <li><code>stateOperators.numRowsTotal</code> — state size growth indicates missing watermark or leak</li>
+            <li><code>sources[].endOffset - startOffset</code> — batch size, lag indicator</li>
+          </ul>
+
+          <h3>Graceful Shutdown</h3>
+          <div class="code-block">
+            <div class="code-block-header">Graceful shutdown pattern</div>
+            <pre><code>import signal
+import sys
+
+query = df.writeStream...start()
+
+def graceful_stop(sig, frame):
+    """Stop after current batch completes — no data loss."""
+    print("Received signal, stopping gracefully...")
+    query.stop()  # Waits for current batch to finish
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, graceful_stop)
+signal.signal(signal.SIGINT, graceful_stop)
+
+# Block until termination
+query.awaitTermination()</code></pre>
+          </div>
+
+          <h3>Backpressure Handling</h3>
+          <div class="code-block">
+            <div class="code-block-header">Rate limiting configuration</div>
+            <pre><code># Kafka: limit offsets per trigger
+.option("maxOffsetsPerTrigger", 50000)
+
+# File source: limit files per trigger
+.option("maxFilesPerTrigger", 100)
+
+# Delta source: limit bytes per trigger
+.option("maxBytesPerTrigger", "10g")
+
+# Monitor: if processedRowsPerSecond < inputRowsPerSecond
+# consistently, increase resources or reduce trigger frequency</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain how watermarks work in Structured Streaming and why they're necessary.</div>
+            <div class="qa-answer">
+              <p>Watermarks solve two problems: (1) <strong>late data handling</strong> — defining how long to wait for out-of-order events, and (2) <strong>state cleanup</strong> — knowing when to discard state for old windows to prevent unbounded memory growth. The watermark is calculated as <code>max_event_time_seen - threshold</code>. Events with timestamps below the watermark are considered "too late" and dropped (in append mode). State for windows whose end time falls below the watermark is garbage collected. Without watermarks, aggregation state grows indefinitely, eventually causing OOM. The watermark threshold should be set based on your data's maximum expected lateness — too aggressive (small) and you lose data, too conservative (large) and you hold too much state and delay output.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Structured Streaming achieve exactly-once semantics?</div>
+            <div class="qa-answer">
+              <p>Exactly-once is achieved through three mechanisms working together: (1) <strong>Replayable sources</strong> — sources like Kafka and files can re-read data from a specific offset if a batch fails. (2) <strong>Checkpointed state</strong> — before processing a batch, Spark writes the batch's offset range to the checkpoint WAL. If the driver fails mid-batch, on restart it reads the last committed batch from the checkpoint and replays from there. (3) <strong>Idempotent sinks</strong> — the sink must produce the same result when the same batch is written twice (e.g., Delta Lake's ACID writes, file sinks with atomic rename, Kafka with exactly-once producers). If any of these three are missing, you get at-least-once. For custom sinks via foreachBatch, you must implement idempotency yourself (e.g., using batch_id as a deduplication key).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you use foreachBatch vs foreach as a sink?</div>
+            <div class="qa-answer">
+              <p><strong>foreachBatch</strong>: Gives you a complete DataFrame for each micro-batch. Use for: writing to multiple sinks from one stream, performing batch-level operations (MERGE, UPSERT), leveraging existing batch write libraries (JDBC, custom connectors). You get the full DataFrame API. <strong>foreach</strong>: Processes one row at a time with open/process/close callbacks. Use for: API calls per record, custom per-record logic, very specific output protocols. <strong>Almost always prefer foreachBatch</strong> — it's more efficient (batch-level writes), gives you DataFrame operations, and is easier to make idempotent. foreach has higher overhead (per-row function calls) and is harder to optimize.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between Trigger.Once and Trigger.AvailableNow?</div>
+            <div class="qa-answer">
+              <p><strong>Trigger.Once</strong>: Processes ALL available data in a <em>single</em> batch, then terminates. Problem: if there's a large backlog (e.g., missed a day of data), the single batch may be enormous — causing OOM or very long processing times. It also ignores rate-limiting options like maxOffsetsPerTrigger. <strong>Trigger.AvailableNow</strong> (Spark 3.3+): Processes all available data but splits it into <em>multiple</em> batches, respecting rate limits. Each batch is manageable size. More predictable resource usage and safer for catch-up scenarios. Use AvailableNow for scheduled streaming jobs (e.g., run every hour, process everything since last run) where you want the streaming semantics (checkpointing, exactly-once) but batch-job-like scheduling.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you handle schema evolution in a production streaming pipeline?</div>
+            <div class="qa-answer">
+              <p>Schema evolution in streaming is challenging because checkpoint state is schema-bound. Strategies: (1) <strong>Forward-compatible schemas</strong>: Design sources with schema registry (Avro/Protobuf) using backward/forward compatibility rules. New optional fields don't break consumers. (2) <strong>Flexible parsing</strong>: Parse JSON with a broad schema and handle missing/new fields with <code>PERMISSIVE</code> mode. (3) <strong>Schema hints at source</strong>: For Kafka Avro, fetch schema dynamically from registry per message. (4) <strong>Stateless queries</strong>: If your query is stateless (map/filter only), you can stop, update the schema in code, delete the checkpoint, and restart — no state to migrate. (5) <strong>Stateful queries</strong>: Breaking changes (remove/rename columns in state) require a new checkpoint and replaying from source. Additive changes (new columns) may be compatible depending on the state format. (6) <strong>Delta Lake</strong> as a buffer: Write raw data to Delta (schema evolution merge), then run a second stream on the Delta table with the new schema.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

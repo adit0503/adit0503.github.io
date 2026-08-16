@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Compaction, Vacuum & Table Maintenance — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Lakehouse</a>
+        <span>→</span>
+        <span>Compaction & Table Maintenance</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Lakehouse</span>
+            <span class="read-time">10 min read</span>
+          </div>
+          <h1>Compaction, Vacuum & Table Maintenance</h1>
+          <p class="article-desc">Essential maintenance operations for lakehouse tables — compaction strategies, vacuum/snapshot expiry, metadata maintenance, scheduling, and monitoring to keep tables performant.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#why-maintenance">Why Table Maintenance Is Critical</a></li>
+            <li><a href="#compaction">Compaction — Merging Small Files</a></li>
+            <li><a href="#sorting">Sorting During Compaction</a></li>
+            <li><a href="#vacuum">Vacuum & Expire Snapshots</a></li>
+            <li><a href="#metadata-maintenance">Metadata Maintenance</a></li>
+            <li><a href="#delta-workflow">Delta OPTIMIZE + VACUUM Workflow</a></li>
+            <li><a href="#iceberg-workflow">Iceberg Maintenance Workflow</a></li>
+            <li><a href="#hudi-workflow">Hudi Compaction + Clean Workflow</a></li>
+            <li><a href="#scheduling">Scheduling & Automation</a></li>
+            <li><a href="#monitoring">Monitoring</a></li>
+            <li><a href="#pitfalls">Common Pitfalls</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="why-maintenance">Why Table Maintenance Is Critical</h2>
+
+          <p>Lakehouse tables degrade over time without active maintenance. The three core problems:</p>
+
+          <h3>Small Files Problem</h3>
+          <ul>
+            <li>Streaming ingestion creates many small files (one per micro-batch per partition)</li>
+            <li>Each file has fixed overhead: metadata reads, file open/close, Parquet footer parsing</li>
+            <li>1000 small files (1MB each) is far slower to read than 8 large files (125MB each)</li>
+            <li>Query planning time scales with file count (manifest scanning, listing)</li>
+          </ul>
+
+          <h3>Dead Files</h3>
+          <ul>
+            <li>UPDATE and DELETE operations mark old files as removed but don't physically delete them</li>
+            <li>These orphaned files consume storage indefinitely</li>
+            <li>Storage costs grow unbounded without cleanup</li>
+          </ul>
+
+          <h3>Metadata Bloat</h3>
+          <ul>
+            <li>Each commit adds to the transaction log / metadata layer</li>
+            <li>Thousands of small manifests (Iceberg) or JSON commits (Delta) slow down query planning</li>
+            <li>Snapshot count grows: each one references manifest lists that reference manifests</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Bottom line:</strong>
+            <p>Without maintenance, query performance degrades linearly with write activity. A table that was fast when first created becomes progressively slower. Maintenance is not optional — it's part of operating a lakehouse.</p>
+          </div>
+
+          <h2 id="compaction">Compaction — Merging Small Files</h2>
+
+          <p>Compaction combines multiple small files into fewer, larger files (target: 128MB–1GB depending on the table and engine).</p>
+
+          <h3>Bin-Packing</h3>
+          <ul>
+            <li>Groups small files and rewrites them into files of target size</li>
+            <li>Preserves existing sort order — doesn't re-sort data</li>
+            <li>Fastest compaction strategy (minimal CPU, mostly I/O bound)</li>
+            <li>Use for general-purpose file consolidation</li>
+          </ul>
+
+          <h3>Target File Size</h3>
+          <ul>
+            <li><strong>128MB – 256MB</strong>: Good for streaming tables with frequent reads, lower latency</li>
+            <li><strong>512MB – 1GB</strong>: Good for batch analytics tables with scan-heavy queries</li>
+            <li>Larger files = fewer files = faster planning, but slower individual file reads for selective queries</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Bin-pack compaction across formats</div>
+            <pre><code>-- Delta Lake: OPTIMIZE (bin-pack)
+OPTIMIZE my_table;
+OPTIMIZE my_table WHERE date = '2025-01-15';
+
+-- Iceberg: rewrite_data_files with binpack strategy
+CALL catalog.system.rewrite_data_files(
+    table => 'db.my_table',
+    strategy => 'binpack',
+    options => map(
+        'target-file-size-bytes', '134217728',   -- 128MB
+        'min-file-size-bytes', '67108864',       -- 64MB (skip files above this)
+        'max-file-size-bytes', '201326592'       -- 192MB
+    )
+);
+
+-- Hudi: compaction (MOR tables only)
+-- Merges log files into base files
+spark.sql("CALL run_compaction(table => 'my_table', op => 'schedule')")
+spark.sql("CALL run_compaction(table => 'my_table', op => 'run')")</code></pre>
+          </div>
+
+          <h2 id="sorting">Sorting During Compaction</h2>
+
+          <p>Beyond just merging files, compaction can also re-sort data to improve data skipping effectiveness.</p>
+
+          <h3>Z-ORDER (Multi-Dimensional Clustering)</h3>
+          <ul>
+            <li>Interleaves bits of multiple sort columns using a Z-curve (Morton code)</li>
+            <li>Each file ends up with tight min/max ranges for all Z-ordered columns</li>
+            <li>Enables file-skipping on any combination of the Z-ordered columns</li>
+            <li>Best for 2-4 high-cardinality columns used together in queries</li>
+          </ul>
+
+          <h3>Hilbert Curves</h3>
+          <ul>
+            <li>Alternative space-filling curve that preserves locality better than Z-curve</li>
+            <li>Better min/max clustering for some data distributions</li>
+            <li>Used in Iceberg's sort-based compaction and some Databricks optimizations</li>
+          </ul>
+
+          <h3>Linear Sort</h3>
+          <ul>
+            <li>Standard sort on one column (most common: timestamp or primary key)</li>
+            <li>Simple but only helps predicates on the sort column</li>
+            <li>Fastest compaction (standard merge-sort) — good when queries always filter on one column</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Sort-based compaction</div>
+            <pre><code>-- Delta: Z-ORDER during OPTIMIZE
+OPTIMIZE my_table ZORDER BY (customer_id, product_category);
+
+-- Iceberg: sort-based compaction
+CALL catalog.system.rewrite_data_files(
+    table => 'db.my_table',
+    strategy => 'sort',
+    sort_order => 'customer_id ASC NULLS LAST, order_date DESC'
+);
+
+-- Iceberg: Z-ORDER via sort with zorder function
+CALL catalog.system.rewrite_data_files(
+    table => 'db.my_table',
+    strategy => 'sort',
+    sort_order => 'zorder(customer_id, product_category)'
+);</code></pre>
+          </div>
+
+          <div class="callout callout-tip">
+            <strong>💡 When to sort vs bin-pack:</strong>
+            <p>Use bin-pack for tables where you just need to reduce file count (streaming ingest cleanup). Use sort-based compaction for analytical tables where query performance on specific filter columns matters. Sort is more expensive (full data shuffle + sort) but gives better read performance.</p>
+          </div>
+
+          <h2 id="vacuum">Vacuum & Expire Snapshots</h2>
+
+          <p>After compaction rewrites files, old files remain on disk. Vacuum (Delta), expire_snapshots (Iceberg), and clean (Hudi) physically delete them.</p>
+
+          <h3>Retention Considerations</h3>
+          <ul>
+            <li><strong>Time travel</strong> — files must be retained for the time-travel window (default: 7 days Delta, configurable for Iceberg)</li>
+            <li><strong>Concurrent readers</strong> — active queries may be reading old snapshots; vacuuming those files causes failures</li>
+            <li><strong>Compliance</strong> — some regulations require data retention; vacuum must respect these</li>
+            <li><strong>Rule of thumb</strong> — retention ≥ max(longest_running_query, time_travel_window, compliance_requirement)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Vacuum/expiry across formats</div>
+            <pre><code>-- Delta: VACUUM
+VACUUM my_table RETAIN 168 HOURS;  -- 7 days
+VACUUM my_table DRY RUN;           -- preview only
+
+-- Iceberg: expire_snapshots + remove_orphan_files
+CALL catalog.system.expire_snapshots(
+    table => 'db.my_table',
+    older_than => TIMESTAMP '2025-01-08 00:00:00',
+    retain_last => 5
+);
+
+CALL catalog.system.remove_orphan_files(
+    table => 'db.my_table',
+    older_than => TIMESTAMP '2025-01-08 00:00:00'
+);
+
+-- Hudi: clean (remove old file slices)
+spark.sql("CALL run_clean(table => 'my_table')")
+-- Config: hoodie.cleaner.commits.retained = 10</code></pre>
+          </div>
+
+          <h2 id="metadata-maintenance">Metadata Maintenance</h2>
+
+          <p>Beyond data files, the metadata layer itself needs maintenance.</p>
+
+          <h3>Iceberg Manifest Rewriting</h3>
+          <ul>
+            <li>Over time, manifests become fragmented (many small manifests from many commits)</li>
+            <li>Rewriting manifests consolidates them, improving query planning speed</li>
+            <li><code>rewrite_manifests</code> creates new, optimally-sized manifests</li>
+          </ul>
+
+          <h3>Delta Checkpoint Optimization</h3>
+          <ul>
+            <li>Checkpoints are auto-created every 10 commits</li>
+            <li>For very active tables, checkpoint files themselves can get large</li>
+            <li>Multi-part checkpoints split large checkpoints into smaller pieces</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Metadata maintenance operations</div>
+            <pre><code>-- Iceberg: rewrite manifests for faster planning
+CALL catalog.system.rewrite_manifests('db.my_table');
+
+-- Iceberg: clean up metadata files
+-- (old metadata.json files accumulate)
+-- Configure: write.metadata.delete-after-commit.enabled = true
+-- Or: write.metadata.previous-versions-max = 100
+
+-- Delta: force checkpoint creation
+-- (automatic every 10 commits, but can be triggered)
+from delta.tables import DeltaTable
+dt = DeltaTable.forPath(spark, "/path/to/table")
+dt.generate("symlink_format_manifest")  -- for Presto/Trino compatibility
+
+-- Hudi: metadata table compaction
+-- Hudi's internal metadata table also needs compaction
+"hoodie.metadata.compact.max.delta.commits": 10</code></pre>
+          </div>
+
+          <h2 id="delta-workflow">Delta OPTIMIZE + VACUUM Workflow</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Complete Delta maintenance workflow</div>
+            <pre><code>-- Step 1: Compact small files
+OPTIMIZE catalog.db.orders
+WHERE order_date >= current_date() - INTERVAL 7 DAYS
+ZORDER BY (customer_id);
+
+-- Step 2: Remove old files
+VACUUM catalog.db.orders RETAIN 168 HOURS;
+
+-- Step 3: Analyze table for statistics (optional, improves CBO)
+ANALYZE TABLE catalog.db.orders COMPUTE STATISTICS FOR ALL COLUMNS;
+
+-- Scheduling: run OPTIMIZE daily, VACUUM weekly
+-- OPTIMIZE on recent partitions (where small files accumulate)
+-- VACUUM on entire table (old files across all partitions)</code></pre>
+          </div>
+
+          <h2 id="iceberg-workflow">Iceberg Maintenance Workflow</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Complete Iceberg maintenance workflow</div>
+            <pre><code>-- Step 1: Compact data files (merge small files + apply deletes)
+CALL catalog.system.rewrite_data_files(
+    table => 'db.orders',
+    strategy => 'binpack',
+    options => map('target-file-size-bytes', '134217728')
+);
+
+-- Step 2: Rewrite manifests for optimal query planning
+CALL catalog.system.rewrite_manifests('db.orders');
+
+-- Step 3: Expire old snapshots
+CALL catalog.system.expire_snapshots(
+    table => 'db.orders',
+    older_than => TIMESTAMP '2025-01-08 00:00:00',
+    retain_last => 3
+);
+
+-- Step 4: Remove orphan files (files not in any snapshot)
+CALL catalog.system.remove_orphan_files(
+    table => 'db.orders',
+    older_than => TIMESTAMP '2025-01-08 00:00:00'
+);
+
+-- ORDER MATTERS:
+-- 1. rewrite_data_files first (creates new clean files)
+-- 2. expire_snapshots (makes old snapshots deletable)
+-- 3. remove_orphan_files last (cleans up physical files)</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Order matters for Iceberg:</strong>
+            <p>Always <code>expire_snapshots</code> before <code>remove_orphan_files</code>. If you remove orphan files while snapshots still reference them, you'll corrupt the table. Expiring snapshots first ensures files are truly unreferenced before deletion.</p>
+          </div>
+
+          <h2 id="hudi-workflow">Hudi Compaction + Clean Workflow</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Complete Hudi maintenance workflow</div>
+            <pre><code># MOR Table: Compaction (merge logs into base files)
+# Option 1: Inline (during writes)
+hudi_options = {
+    "hoodie.compact.inline": "true",
+    "hoodie.compact.inline.max.delta.commits": 5,
+}
+
+# Option 2: Async compaction (separate job)
+spark.sql("""
+    CALL run_compaction(
+        table => 'db.orders',
+        op => 'run',
+        options => map('compaction-strategy',
+            'org.apache.hudi.table.action.compact.strategy.BoundedIOCompactionStrategy')
+    )
+""")
+
+# Clean: remove old file slices
+# Config in write job:
+hudi_clean_options = {
+    "hoodie.cleaner.policy": "KEEP_LATEST_COMMITS",
+    "hoodie.cleaner.commits.retained": 10,
+    "hoodie.clean.automatic": "true",  # clean during writes
+}
+
+# Archive: compress timeline metadata
+# Old timeline entries archived to .hoodie/archived/
+hudi_archive_options = {
+    "hoodie.archive.automatic": "true",
+    "hoodie.keep.min.commits": 20,
+    "hoodie.keep.max.commits": 30,
+}</code></pre>
+          </div>
+
+          <h2 id="scheduling">Scheduling & Automation</h2>
+
+          <h3>When to Run</h3>
+          <ul>
+            <li><strong>Off-peak hours</strong> — maintenance competes with production reads for I/O and compute</li>
+            <li><strong>After heavy write periods</strong> — streaming tables accumulate small files during the day</li>
+            <li><strong>Frequency</strong>: OPTIMIZE daily (hot partitions), VACUUM weekly, manifest rewrite weekly</li>
+          </ul>
+
+          <h3>Automation with Airflow</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Airflow DAG for table maintenance</div>
+            <pre><code>from airflow import DAG
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from datetime import datetime, timedelta
+
+default_args = {
+    "owner": "data-platform",
+    "retries": 2,
+    "retry_delay": timedelta(minutes=10),
+}
+
+with DAG(
+    "lakehouse_maintenance",
+    default_args=default_args,
+    schedule_interval="0 2 * * *",  # 2 AM daily
+    start_date=datetime(2025, 1, 1),
+    catchup=False,
+) as dag:
+
+    optimize_orders = SparkSubmitOperator(
+        task_id="optimize_orders",
+        application="/jobs/maintenance/optimize.py",
+        conf={
+            "spark.sql.shuffle.partitions": "200",
+            "spark.executor.memory": "8g",
+        },
+        application_args=["--table", "silver.orders", "--days-back", "7"],
+    )
+
+    vacuum_orders = SparkSubmitOperator(
+        task_id="vacuum_orders",
+        application="/jobs/maintenance/vacuum.py",
+        application_args=["--table", "silver.orders", "--retain-hours", "168"],
+    )
+
+    optimize_orders >> vacuum_orders</code></pre>
+          </div>
+
+          <h2 id="monitoring">Monitoring</h2>
+
+          <p>Key metrics to track for table health:</p>
+
+          <ul>
+            <li><strong>File count per partition</strong> — alert when > 1000 files in a single partition</li>
+            <li><strong>Average file size</strong> — should be close to target (128MB–1GB); alert when avg < 32MB</li>
+            <li><strong>Metadata size</strong> — manifest count (Iceberg), transaction log size (Delta)</li>
+            <li><strong>Snapshot count</strong> — unbounded growth means expire_snapshots isn't running</li>
+            <li><strong>Compaction lag</strong> (Hudi MOR) — number of uncompacted log files per file group</li>
+            <li><strong>Dead file storage</strong> — total bytes in removed-but-not-vacuumed files</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Monitoring queries</div>
+            <pre><code>-- Iceberg: file count and size stats
+SELECT
+    COUNT(*) AS file_count,
+    SUM(file_size_in_bytes) / (1024*1024*1024) AS total_gb,
+    AVG(file_size_in_bytes) / (1024*1024) AS avg_mb,
+    MIN(file_size_in_bytes) / (1024*1024) AS min_mb,
+    MAX(file_size_in_bytes) / (1024*1024) AS max_mb
+FROM catalog.db.orders.files;
+
+-- Iceberg: snapshot count
+SELECT COUNT(*) AS snapshot_count FROM catalog.db.orders.snapshots;
+
+-- Delta: file stats via DESCRIBE DETAIL
+DESCRIBE DETAIL my_table;
+-- Returns: numFiles, sizeInBytes, ...
+
+-- Delta: check small files
+SELECT
+    input_file_name() AS file_path,
+    COUNT(*) AS row_count
+FROM my_table
+GROUP BY input_file_name()
+HAVING row_count < 1000  -- suspiciously small files</code></pre>
+          </div>
+
+          <h2 id="pitfalls">Common Pitfalls</h2>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Pitfall 1: Vacuuming too aggressively</strong>
+            <p>Setting retention to 0 hours or very short periods breaks time travel and can fail concurrent queries. Always ensure retention > max(longest_query_duration, time_travel_SLA).</p>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Pitfall 2: Compaction during peak reads</strong>
+            <p>Compaction rewrites files, which means concurrent readers may see file-not-found if the old files are removed too quickly. Schedule compaction during low-traffic windows. For Iceberg, readers use snapshot isolation so this is less of a concern — but resource contention (CPU, I/O) still applies.</p>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Pitfall 3: Manifest explosion (Iceberg)</strong>
+            <p>If you write thousands of tiny commits (streaming micro-batches), each creates a new manifest. Manifest count grows linearly with commits. Run <code>rewrite_manifests</code> regularly or increase commits-per-manifest-group setting.</p>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Pitfall 4: Never running maintenance at all</strong>
+            <p>The most common pitfall. Tables that were fast when created become progressively slower over weeks/months. If no one owns maintenance, it doesn't happen. Make it a DAG in your orchestrator and monitor it.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Why is compaction needed in a lakehouse?</div>
+            <div class="qa-answer">
+              <p>Lakehouse tables accumulate small files over time — especially with streaming ingestion (one file per micro-batch per partition) and update-heavy workloads (each MERGE creates new files). Small files degrade read performance because: (1) each file has fixed overhead (open, read footer, close), (2) query planning scans file metadata proportional to file count, (3) parallelism is limited by file count for very small files. Compaction merges small files into larger ones (target 128MB–1GB), dramatically reducing file count and improving both planning time and read throughput.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What happens if you never run VACUUM?</div>
+            <div class="qa-answer">
+              <p>Storage grows indefinitely. Every UPDATE, DELETE, and MERGE creates new data files and logically removes old ones — but the old files remain physically on disk. Without VACUUM: (1) Storage costs increase linearly with write activity (you're paying for current + all historical versions). (2) File listings become slower (more files to enumerate in object storage). (3) Time travel continues to work (the upside). For a table with 1TB of active data and daily full-table updates, you could accumulate 7TB+ of dead files in a week. VACUUM is essential for cost control.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How should you schedule table maintenance in production?</div>
+            <div class="qa-answer">
+              <p>Use your orchestrator (Airflow, Dagster, Prefect) to schedule maintenance as a DAG: (1) <strong>OPTIMIZE/compact</strong> daily during off-peak hours — target partitions with recent writes. (2) <strong>VACUUM/expire_snapshots</strong> weekly with safe retention (7+ days). (3) <strong>Manifest rewrite</strong> (Iceberg) weekly. (4) <strong>ANALYZE TABLE</strong> after major data changes for optimizer statistics. Dependencies: optimize before vacuum (compact first, then clean up old files). Monitor execution time and add alerts for failures. For streaming tables, consider more frequent compaction (every few hours).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is Z-ORDER and how does it improve query performance?</div>
+            <div class="qa-answer">
+              <p>Z-ORDER is a multi-dimensional sorting technique using a space-filling Z-curve (Morton code). It interleaves bits of multiple columns to co-locate data points that are close in any dimension. After Z-ordering by (customer_id, order_date), each Parquet file has tight min/max ranges for <em>both</em> columns. When a query filters on <code>WHERE customer_id = 'X' AND order_date > '2025-01-01'</code>, the engine can skip files whose min/max ranges don't match — even though data can't be perfectly sorted on two columns simultaneously. Z-ORDER gives good (not perfect) clustering for any subset of the Z-ordered columns.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the compaction strategies for streaming tables?</div>
+            <div class="qa-answer">
+              <p>Streaming tables need more frequent maintenance: (1) <strong>Frequent bin-pack compaction</strong> — run every 1-4 hours targeting recent partitions where micro-batch files accumulate. (2) <strong>Trigger-based compaction</strong> — compact when file count in a partition exceeds threshold (e.g., > 100 files). (3) <strong>Hudi MOR async compaction</strong> — run compaction as a separate streaming job that continuously merges logs into base files. (4) <strong>Auto-OPTIMIZE</strong> (Databricks) — automatically compacts after each write (<code>delta.autoOptimize.optimizeWrite = true</code>). (5) <strong>Sorted compaction</strong> less frequently (daily) for data skipping benefits. Key: separate compaction from ingestion to avoid adding latency to the streaming pipeline.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Lakehouse</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

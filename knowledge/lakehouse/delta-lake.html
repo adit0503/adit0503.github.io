@@ -1,0 +1,1293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Delta Lake Architecture & Operations — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Lakehouse</a>
+        <span>→</span>
+        <span>Delta Lake</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Lakehouse</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>Delta Lake Architecture & Operations</h1>
+          <p class="article-desc">A comprehensive guide to Delta Lake internals — transaction log mechanics, optimistic concurrency, MERGE operations, deletion vectors, Z-ORDER clustering, Change Data Feed, and production patterns for building reliable lakehouses on object storage.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what-delta-adds">What Delta Lake Adds on Top of Parquet</a></li>
+            <li><a href="#transaction-log">Transaction Log (_delta_log)</a></li>
+            <li><a href="#optimistic-concurrency">Optimistic Concurrency Control</a></li>
+            <li><a href="#schema-enforcement-evolution">Schema Enforcement vs Evolution</a></li>
+            <li><a href="#merge-into">MERGE INTO Internals</a></li>
+            <li><a href="#change-data-feed">Change Data Feed (CDF)</a></li>
+            <li><a href="#delete-update-internals">DELETE/UPDATE Internals</a></li>
+            <li><a href="#table-optimization">Table Optimization</a></li>
+            <li><a href="#liquid-clustering">Liquid Clustering</a></li>
+            <li><a href="#delta-uniform">Delta UniForm</a></li>
+            <li><a href="#deletion-vectors-deep-dive">Deletion Vectors Deep-Dive</a></li>
+            <li><a href="#delta-spark">Delta with Spark</a></li>
+            <li><a href="#production-patterns">Production Patterns</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what-delta-adds">What Delta Lake Adds on Top of Parquet</h2>
+
+          <p>Parquet is a columnar file format — excellent for analytical reads but fundamentally just files on disk. It has no concept of tables, transactions, or consistency. Delta Lake transforms a directory of Parquet files into a full-fledged table with database-grade reliability:</p>
+
+          <h3>ACID Transactions on Object Storage</h3>
+
+          <ul>
+            <li><strong>Atomicity</strong>: Every write (INSERT, UPDATE, DELETE, MERGE) either fully succeeds or fully fails. No partial writes visible to readers — ever.</li>
+            <li><strong>Consistency</strong>: Schema enforcement rejects bad data before it lands. Table invariants (NOT NULL constraints, CHECK constraints in Databricks) are enforced at write time.</li>
+            <li><strong>Isolation</strong>: Readers see a consistent snapshot. Concurrent writes are serialized via optimistic concurrency control. Writers never block readers.</li>
+            <li><strong>Durability</strong>: Once a commit succeeds (JSON file written to _delta_log), the change is permanent and crash-safe.</li>
+          </ul>
+
+          <h3>Scalable Metadata Handling</h3>
+
+          <ul>
+            <li><strong>Hive's problem</strong>: discovers files via directory listing — millions of LIST calls on S3 for large tables. Query planning alone takes minutes.</li>
+            <li><strong>Delta's solution</strong>: the transaction log IS the file list. No directory listing needed. The log tracks exactly which files belong to the table's current state.</li>
+            <li><strong>Checkpoint files</strong>: Parquet-format snapshots of the log, enabling O(1) state reconstruction regardless of table history length.</li>
+          </ul>
+
+          <h3>Time Travel and Audit History</h3>
+
+          <ul>
+            <li>Every commit is versioned. Query any historical version by version number or timestamp.</li>
+            <li>Full audit trail: who wrote what, when, and which files were added/removed.</li>
+            <li>Rollback a bad write instantly without data movement.</li>
+          </ul>
+
+          <h3>Schema Enforcement and Evolution</h3>
+
+          <ul>
+            <li>Writes that don't match the table schema are rejected by default — catching ETL bugs before data corruption.</li>
+            <li>Schema evolution options allow controlled addition of new columns without breaking existing consumers.</li>
+          </ul>
+
+          <h3>Unified Batch and Streaming</h3>
+
+          <ul>
+            <li>Delta tables serve as both batch sinks and streaming sources/sinks simultaneously.</li>
+            <li>Structured Streaming treats Delta as an exactly-once streaming source — no need for Kafka when the lake itself provides change notification.</li>
+            <li>Batch jobs and streaming jobs write to the same table with full ACID guarantees.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Key insight:</strong>
+            <p>Delta Lake doesn't replace Parquet — it adds a transaction log on top of it. Your data files are still standard Parquet. Any engine that understands the _delta_log protocol can read Delta tables. Without the log, you just see a directory of Parquet files — which is exactly what Spark did before Delta existed.</p>
+          </div>
+
+          <h2 id="transaction-log">Transaction Log (_delta_log)</h2>
+
+          <p>The transaction log is the heart of Delta Lake. It's a directory called <code>_delta_log</code> at the root of every Delta table, containing an ordered sequence of JSON commit files that record every change to the table.</p>
+
+          <h3>Log Structure</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta table directory layout</div>
+            <pre><code>my_table/
+├── _delta_log/
+│   ├── 00000000000000000000.json    ← Commit 0 (table creation)
+│   ├── 00000000000000000001.json    ← Commit 1
+│   ├── 00000000000000000002.json    ← Commit 2
+│   ├── ...
+│   ├── 00000000000000000010.json    ← Commit 10
+│   ├── 00000000000000000010.checkpoint.parquet  ← Checkpoint at commit 10
+│   ├── 00000000000000000011.json    ← Commit 11
+│   ├── ...
+│   ├── 00000000000000000020.checkpoint.parquet  ← Checkpoint at commit 20
+│   ├── _last_checkpoint                         ← Pointer to latest checkpoint
+│   └── ...
+├── part-00000-...snappy.parquet    ← Data files
+├── part-00001-...snappy.parquet
+└── ...</code></pre>
+          </div>
+
+          <h3>JSON Commit Files</h3>
+
+          <p>Each commit file is a sequence of JSON actions (one per line, newline-delimited). These actions describe the atomic changes made in that commit:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Example commit file: 00000000000000000005.json</div>
+            <pre><code>{"commitInfo":{"timestamp":1710500000000,"operation":"WRITE","operationParameters":{"mode":"Append","partitionBy":"[]"},"readVersion":4,"isolationLevel":"WriteSerializable","isBlindAppend":true}}
+{"add":{"path":"part-00000-abc123.snappy.parquet","partitionValues":{},"size":45678,"modificationTime":1710500000000,"dataChange":true,"stats":"{\"numRecords\":1000,\"minValues\":{\"id\":1,\"amount\":10.5},\"maxValues\":{\"id\":1000,\"amount\":9999.99},\"nullCount\":{\"id\":0,\"amount\":3}}"}}
+{"add":{"path":"part-00001-def456.snappy.parquet","partitionValues":{},"size":43210,"modificationTime":1710500000000,"dataChange":true,"stats":"{\"numRecords\":950,\"minValues\":{\"id\":1001,\"amount\":5.0},\"maxValues\":{\"id\":1950,\"amount\":8500.00},\"nullCount\":{\"id\":0,\"amount\":1}}"}}
+</code></pre>
+          </div>
+
+          <h3>Action Types</h3>
+
+          <ul>
+            <li><strong>add</strong>: Marks a data file as part of the table. Contains file path, partition values, size, modification time, and per-column statistics (min, max, null count, record count).</li>
+            <li><strong>remove</strong>: Marks a previously added file as logically deleted from the table. The file still exists on storage until VACUUM cleans it up.</li>
+            <li><strong>metaData</strong>: Changes table schema, partition columns, or table properties. Appears in the commit that alters the table definition.</li>
+            <li><strong>protocol</strong>: Declares minimum reader/writer protocol versions. Controls which features the table uses (e.g., deletion vectors require protocol 3).</li>
+            <li><strong>txn</strong>: Application-level transaction identifier for idempotent writes. Streaming jobs use this to avoid duplicates on restart.</li>
+            <li><strong>commitInfo</strong>: Operational metadata — timestamp, operation type, parameters, metrics. Used for auditing and DESCRIBE HISTORY.</li>
+          </ul>
+
+          <h3>Checkpoint Files</h3>
+
+          <p>Replaying hundreds of JSON files to reconstruct table state would be slow. Checkpoints solve this:</p>
+
+          <ul>
+            <li><strong>Format</strong>: Parquet file containing the complete table state (all active add actions, current metadata, protocol) as of that commit version.</li>
+            <li><strong>Frequency</strong>: Created every 10 commits by default (configurable via <code>delta.checkpointInterval</code>).</li>
+            <li><strong>Content</strong>: Aggregated result of replaying all actions from version 0 through the checkpoint version — effectively a snapshot of the log.</li>
+            <li><strong>Multi-part checkpoints</strong>: For very large tables, checkpoints can be split across multiple Parquet files.</li>
+          </ul>
+
+          <h3>How Reads Assemble Table State</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">State reconstruction algorithm</div>
+            <pre><code># To read the current table state:
+
+Step 1: Read _last_checkpoint file
+  → Contains: {"version": 20, "size": 15000}
+  → This tells us: latest checkpoint is at version 20
+
+Step 2: Load checkpoint Parquet file
+  → Read 00000000000000000020.checkpoint.parquet
+  → This gives us: complete table state as of version 20
+     (all active files, schema, protocol, properties)
+
+Step 3: Replay subsequent JSON commits
+  → Read: 000...21.json, 000...22.json, ..., up to latest
+  → Apply each action:
+     - "add" actions → include file in active set
+     - "remove" actions → exclude file from active set
+     - "metaData" → update schema/properties
+
+Step 4: Result = Current table state
+  → Set of active data files (with stats for data skipping)
+  → Current schema
+  → Current protocol version
+
+# Without checkpoint: would need to replay ALL JSON files from version 0
+# With checkpoint: replay only commits since last checkpoint (max ~10 files)</code></pre>
+          </div>
+
+          <h3>The _last_checkpoint File</h3>
+
+          <ul>
+            <li>Simple JSON file pointing to the latest successful checkpoint.</li>
+            <li>Avoids listing the _delta_log directory to find the latest checkpoint.</li>
+            <li>Contents: <code>{"version":20,"size":15000}</code> — version number and number of actions in the checkpoint.</li>
+            <li>If this file is missing or stale, readers fall back to listing the _delta_log directory.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Why JSON + Parquet hybrid:</strong>
+            <p>JSON commit files are human-readable, easy to debug, and append-only (important for object stores that can't do in-place updates). Parquet checkpoints provide fast bulk reads for state reconstruction. The combination gives you debuggability (read any commit with <code>cat</code>) AND performance (checkpoint for fast startup).</p>
+          </div>
+
+          <h2 id="optimistic-concurrency">Optimistic Concurrency Control</h2>
+
+          <p>Delta Lake uses optimistic concurrency control (OCC) — writers don't acquire locks upfront. Instead, they write optimistically and check for conflicts only at commit time.</p>
+
+          <h3>Commit Protocol</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Optimistic concurrency commit flow</div>
+            <pre><code># Writer workflow:
+1. Read current table version (e.g., version = 5)
+2. Compute changes: determine which files to add/remove
+3. Write new data files to storage (Parquet files)
+4. Attempt to write commit file: 000...00006.json
+   → On object stores: uses atomic PUT-if-absent (S3: PutObject with condition)
+   → On HDFS: uses atomic file creation (create with O_EXCL)
+   
+5a. If write succeeds → COMMIT DONE (version 6 is ours)
+5b. If write fails (file already exists, another writer committed v6):
+    → CONFLICT DETECTED — enter resolution phase
+
+# Conflict resolution:
+6. Read the conflicting commit(s) that happened since our read version
+7. Check if the conflict is resolvable:
+   - Did the concurrent commit touch files we also touched?
+   - Did the concurrent commit change metadata we depend on?
+8a. No real conflict → REBASE our changes on top of new version
+    → Rewrite our commit as version 7 instead
+    → Attempt to commit version 7 (go back to step 4)
+8b. True conflict → ABORT with ConcurrentModificationException
+    → Application must retry the entire operation from scratch</code></pre>
+          </div>
+
+          <h3>Isolation Levels</h3>
+
+          <ul>
+            <li><strong>Serializable</strong>: Strictest level. If your operation read data that a concurrent writer modified, it conflicts. Prevents write skew anomalies. Use for operations where correctness depends on the read set (e.g., conditional deletes).</li>
+            <li><strong>WriteSerializable</strong> (default): Only detects conflicts when writers physically modify the same files. Blind appends (adding new files without reading existing ones) never conflict. Higher throughput than Serializable.</li>
+          </ul>
+
+          <h3>File-Level Conflict Detection</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Conflict scenarios</div>
+            <pre><code># Scenario 1: Two blind appends → NO CONFLICT (WriteSerializable)
+Writer A: adds file-A1.parquet, file-A2.parquet
+Writer B: adds file-B1.parquet, file-B2.parquet
+→ Both succeed. Appends are always safe because they don't read existing data.
+
+# Scenario 2: Append + UPDATE on different partitions → NO CONFLICT
+Writer A: appends to partition date=2024-03-15
+Writer B: updates rows in partition date=2024-03-01
+→ Different files affected. No conflict.
+
+# Scenario 3: UPDATE + UPDATE on same files → CONFLICT
+Writer A: updates rows in file-X.parquet (rewrites as file-X2.parquet)
+Writer B: updates different rows in file-X.parquet (rewrites as file-X3.parquet)
+→ Both try to "remove" file-X.parquet and add a replacement.
+→ Second committer detects conflict: file-X.parquet already removed.
+→ Must retry: re-read the new file-X2.parquet and apply updates there.
+
+# Scenario 4: DELETE + UPDATE on same files → CONFLICT
+Writer A: deletes rows from file-Y.parquet
+Writer B: updates rows in file-Y.parquet
+→ Same conflict pattern: both attempt to rewrite file-Y.parquet.
+
+# Scenario 5: Serializable - read-dependent write
+Writer A: DELETE FROM t WHERE status = 'pending' AND created_at &lt; '2024-01-01'
+Writer B: INSERT INTO t VALUES (..., 'pending', '2023-12-15', ...)
+→ Under Serializable: conflicts! Writer A's result depends on not having
+  new 'pending' rows. Writer B's insert could invalidate Writer A's semantics.
+→ Under WriteSerializable: no conflict (different files).</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Concurrency anti-patterns:</strong>
+            <p>Avoid multiple writers doing UPDATE/DELETE/MERGE on overlapping partitions simultaneously. Each conflict requires a full retry. With N concurrent writers on overlapping data, you get O(N²) retries. Solution: partition your write workload so each writer owns exclusive partitions, or funnel updates through a single writer process.</p>
+          </div>
+
+          <h2 id="schema-enforcement-evolution">Schema Enforcement vs Evolution</h2>
+
+          <p>Delta Lake provides strict schema safety by default with controlled escape hatches for evolution — a deliberate design choice to catch data quality issues early.</p>
+
+          <h3>Schema Enforcement (Default Behavior)</h3>
+
+          <ul>
+            <li>Every write operation validates that incoming data matches the table's current schema.</li>
+            <li>Mismatches are rejected with <code>AnalysisException</code> — the write fails entirely, no partial data lands.</li>
+            <li>Checks: column names must match, data types must be compatible, no extra columns allowed, no missing non-nullable columns.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Schema enforcement in action</div>
+            <pre><code># Table schema: id (long), name (string), email (string)
+
+# This fails — extra column 'phone' not in table schema:
+df_with_phone.write.format("delta").mode("append").save("/data/users")
+# AnalysisException: A schema mismatch detected when writing to the Delta table.
+# To enable schema migration, set 'mergeSchema' = 'true'
+
+# This also fails — wrong data type (string where long expected):
+df_wrong_type.write.format("delta").mode("append").save("/data/users")
+# AnalysisException: Failed to merge fields 'id' and 'id'. 
+# Cannot cast StringType to LongType</code></pre>
+          </div>
+
+          <h3>Schema Evolution with mergeSchema</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling schema evolution</div>
+            <pre><code># Add new columns automatically when writing:
+df_with_phone.write.format("delta") \
+    .mode("append") \
+    .option("mergeSchema", "true") \
+    .save("/data/users")
+# Result: table schema now has 'phone' column.
+# Old data files have NULL for 'phone' (read-time projection).
+
+# Spark SQL equivalent:
+SET spark.databricks.delta.schema.autoMerge.enabled = true;
+INSERT INTO users SELECT * FROM new_data;
+
+# What mergeSchema handles:
+# ✅ New columns (added to schema, old files project NULL)
+# ✅ Widening type promotions (int → long, float → double)
+# ❌ Narrowing conversions (long → int) — still rejected
+# ❌ Column type changes (string → int) — still rejected
+# ❌ Removing columns — use overwriteSchema</code></pre>
+          </div>
+
+          <h3>overwriteSchema: Full Schema Replacement</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Destructive schema replacement</div>
+            <pre><code># Replace the entire table schema (destructive!):
+df_new_schema.write.format("delta") \
+    .mode("overwrite") \
+    .option("overwriteSchema", "true") \
+    .save("/data/users")
+# Old schema is completely replaced. Old data files become 
+# unreadable with the new schema unless columns happen to match.
+
+# Use cases:
+# - Complete table rebuild with different structure
+# - Fixing a schema mistake (wrong types chosen initially)
+# - Major data model refactoring</code></pre>
+          </div>
+
+          <h3>Column Mapping Mode</h3>
+
+          <ul>
+            <li><strong>name-based mapping</strong> (default prior to column mapping): Parquet columns matched by name. Renames require rewriting all files.</li>
+            <li><strong>id-based mapping</strong> (column mapping enabled): Each column gets a unique physical ID. Enables renames and drops without file rewrites.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling column mapping</div>
+            <pre><code># Enable column mapping (one-time, irreversible):
+ALTER TABLE users SET TBLPROPERTIES (
+  'delta.columnMapping.mode' = 'name',
+  'delta.minReaderVersion' = '2',
+  'delta.minWriterVersion' = '5'
+);
+
+# Now you can rename columns without rewriting data:
+ALTER TABLE users RENAME COLUMN name TO full_name;
+-- Instant metadata operation. Physical Parquet files unchanged.
+-- Mapping: logical "full_name" → physical column ID → Parquet column "name"
+
+# Drop columns without rewriting:
+ALTER TABLE users DROP COLUMN email;
+-- Column hidden from schema. Physical data still in files until compaction.</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Design philosophy:</strong>
+            <p>Schema enforcement is the safe default because silent data corruption is worse than a failed write. A failed ETL job is visible and fixable. Silently writing mismatched data creates downstream issues that surface days later. Evolution options exist for legitimate schema changes — but require explicit opt-in.</p>
+          </div>
+
+          <h2 id="merge-into">MERGE INTO Internals</h2>
+
+          <p>MERGE INTO is Delta Lake's most powerful (and complex) DML operation — combining INSERT, UPDATE, and DELETE in a single atomic transaction. Understanding its internals is critical for performance tuning.</p>
+
+          <h3>How MERGE Works Internally</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">MERGE execution flow</div>
+            <pre><code># Example MERGE:
+MERGE INTO target_table t
+USING source_data s
+ON t.id = s.id
+WHEN MATCHED AND s.op = 'delete' THEN DELETE
+WHEN MATCHED THEN UPDATE SET t.amount = s.amount, t.updated_at = s.ts
+WHEN NOT MATCHED THEN INSERT (id, amount, updated_at) VALUES (s.id, s.amount, s.ts)
+
+# Internal execution steps:
+
+Step 1: IDENTIFY TARGET FILES
+  → Scan source data to determine join key ranges
+  → Use Delta's file-level statistics (min/max on join key)
+  → Prune target files that can't possibly match any source row
+  → If merge condition includes partition columns, prune partitions first
+  → Result: subset of target files that MIGHT contain matches
+
+Step 2: INNER JOIN (find matches)
+  → Join source with target data from candidate files on merge condition
+  → Identify: which target rows match (WHEN MATCHED applies)
+  → Identify: which source rows don't match any target (WHEN NOT MATCHED applies)
+
+Step 3: CLASSIFY ACTIONS
+  → For each matched pair: evaluate WHEN MATCHED conditions
+    - Apply UPDATE SET or DELETE based on condition
+  → For each unmatched source row: apply WHEN NOT MATCHED → INSERT
+  → For each unmatched target row (if WHEN NOT MATCHED BY SOURCE exists):
+    - Apply UPDATE or DELETE on orphaned target rows
+
+Step 4: REWRITE AFFECTED FILES (Copy-on-Write)
+  → For every target file containing at least one modified/deleted row:
+    - Read the ENTIRE file
+    - Apply updates/deletes to affected rows
+    - Write a completely new Parquet file with the surviving/updated rows
+    - Log: "remove" old file + "add" new file in commit
+  → For pure inserts (no matching target file): write new Parquet files
+
+Step 5: ATOMIC COMMIT
+  → Write all add/remove actions to the next commit JSON file
+  → If concurrent modification: conflict resolution or retry</code></pre>
+          </div>
+
+          <h3>WHEN Clauses (Delta 2.4+)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">All MERGE clause variants</div>
+            <pre><code>MERGE INTO customers t
+USING daily_updates s
+ON t.customer_id = s.customer_id
+
+-- Multiple MATCHED clauses with conditions (evaluated in order):
+WHEN MATCHED AND s.is_deleted = true THEN DELETE
+WHEN MATCHED AND s.updated_at > t.updated_at THEN 
+  UPDATE SET t.name = s.name, t.email = s.email, t.updated_at = s.updated_at
+WHEN MATCHED THEN UPDATE SET t.last_seen = s.updated_at  -- catch-all
+
+-- Insert new records:
+WHEN NOT MATCHED THEN 
+  INSERT (customer_id, name, email, updated_at) 
+  VALUES (s.customer_id, s.name, s.email, s.updated_at)
+
+-- Delta 2.4+: Handle rows in target that have NO match in source
+WHEN NOT MATCHED BY SOURCE AND t.last_seen &lt; '2024-01-01' THEN DELETE
+WHEN NOT MATCHED BY SOURCE THEN UPDATE SET t.is_active = false</code></pre>
+          </div>
+
+          <h3>Performance Tuning for MERGE</h3>
+
+          <ul>
+            <li><strong>Partition pruning in merge condition</strong>: Include partition columns in the ON clause or add them as filter conditions to limit which target files are scanned.</li>
+            <li><strong>Target file size</strong>: Smaller files mean less data to rewrite per affected row. But too many small files hurts read performance. Aim for 256MB-1GB files.</li>
+            <li><strong>Source data size</strong>: If source is small relative to target, broadcast the source for faster join.</li>
+            <li><strong>Optimize write</strong>: Enable <code>spark.databricks.delta.optimizeWrite.enabled</code> to coalesce output files automatically.</li>
+            <li><strong>Z-ORDER on merge key</strong>: Co-locates rows with similar join keys in fewer files, reducing the number of files that need rewriting.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">MERGE performance optimization</div>
+            <pre><code># Bad: forces scan of entire target table
+MERGE INTO orders t USING updates s ON t.order_id = s.order_id ...
+
+# Better: partition pruning limits target scan
+MERGE INTO orders t USING updates s 
+ON t.order_id = s.order_id 
+AND t.order_date = s.order_date  -- partition column in condition!
+...
+
+# Even better with subquery pushdown:
+MERGE INTO orders t 
+USING updates s 
+ON t.order_id = s.order_id AND t.order_date >= '2024-03-01'
+...</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Full file rewrite cost:</strong>
+            <p>If your MERGE touches 1 row in a 1GB Parquet file, Delta must read and rewrite the entire 1GB file. With 1000 affected files, that's 1TB of I/O for potentially just 1000 row changes. This is why file sizing and data clustering (Z-ORDER) are critical for MERGE-heavy workloads. Co-locate frequently-merged rows in fewer files to minimize rewrite amplification.</p>
+          </div>
+
+          <h2 id="change-data-feed">Change Data Feed (CDF)</h2>
+
+          <p>Change Data Feed captures row-level changes (inserts, updates, deletes) and makes them queryable as a stream — enabling CDC propagation, audit trails, and incremental downstream processing.</p>
+
+          <h3>Enabling CDF</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Enable Change Data Feed</div>
+            <pre><code>-- Enable on existing table:
+ALTER TABLE orders SET TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true');
+
+-- Or at table creation:
+CREATE TABLE orders (
+    order_id BIGINT,
+    amount DECIMAL(10,2),
+    status STRING
+) USING delta
+TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true');</code></pre>
+          </div>
+
+          <h3>How CDF Works Internally</h3>
+
+          <ul>
+            <li>When CDF is enabled, DML operations (UPDATE, DELETE, MERGE) write additional change records to a <code>_change_data</code> directory alongside regular data files.</li>
+            <li>INSERT operations don't write to <code>_change_data</code> — the added files themselves represent the inserts.</li>
+            <li>Change records include three metadata columns: <code>_change_type</code>, <code>_commit_version</code>, <code>_commit_timestamp</code>.</li>
+          </ul>
+
+          <h3>Change Types</h3>
+
+          <ul>
+            <li><strong>insert</strong>: New row added (from INSERT or MERGE NOT MATCHED clause).</li>
+            <li><strong>update_preimage</strong>: Row value BEFORE the update (the old version).</li>
+            <li><strong>update_postimage</strong>: Row value AFTER the update (the new version).</li>
+            <li><strong>delete</strong>: Row that was removed.</li>
+          </ul>
+
+          <h3>Reading Change Data</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Querying CDF — batch and streaming</div>
+            <pre><code># Batch: read changes between specific versions
+changes_df = spark.read.format("delta") \
+    .option("readChangeFeed", "true") \
+    .option("startingVersion", 5) \
+    .option("endingVersion", 10) \
+    .table("orders")
+
+# Batch: read changes since a timestamp
+changes_df = spark.read.format("delta") \
+    .option("readChangeFeed", "true") \
+    .option("startingTimestamp", "2024-03-01 00:00:00") \
+    .table("orders")
+
+# Streaming: continuously consume changes
+stream_df = spark.readStream.format("delta") \
+    .option("readChangeFeed", "true") \
+    .option("startingVersion", 5) \
+    .table("orders")
+
+# Result schema includes change metadata:
+# |order_id|amount|status|_change_type     |_commit_version|_commit_timestamp    |
+# |1001    |99.99 |open  |update_preimage  |7              |2024-03-15 10:00:00  |
+# |1001    |149.99|open  |update_postimage |7              |2024-03-15 10:00:00  |
+# |1002    |50.00 |new   |insert           |8              |2024-03-15 10:05:00  |
+# |1003    |25.00 |done  |delete           |9              |2024-03-15 10:10:00  |</code></pre>
+          </div>
+
+          <h3>CDF Use Cases</h3>
+
+          <ul>
+            <li><strong>CDC propagation</strong>: Replicate changes from a Delta table to downstream systems (data warehouse, search index, cache) without full table scans.</li>
+            <li><strong>Audit trail</strong>: Track exactly what changed, when, and reconstruct any row's history.</li>
+            <li><strong>Incremental ETL</strong>: Silver-to-Gold transformations that only process new/changed records instead of reprocessing the entire table.</li>
+            <li><strong>ML feature stores</strong>: Detect which features changed to trigger selective model retraining.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 CDF vs Time Travel:</strong>
+            <p>Time travel shows you the full table state at a point in time. CDF shows you what CHANGED between two points. For incremental processing, CDF is far more efficient — you get only the deltas, not two full table snapshots to diff. CDF also gives you pre/post images for updates, which time travel alone can't provide without expensive joins.</p>
+          </div>
+
+          <h2 id="delete-update-internals">DELETE/UPDATE Internals</h2>
+
+          <p>Understanding how Delta physically executes DELETE and UPDATE operations reveals why performance varies dramatically based on data organization.</p>
+
+          <h3>Copy-on-Write (Default)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Copy-on-Write execution for DELETE</div>
+            <pre><code># DELETE FROM orders WHERE order_id = 12345
+
+Step 1: Identify affected files
+  → Use file-level stats (min/max on order_id) to find candidate files
+  → Suppose order_id=12345 exists in file-007.parquet (1GB file, 5M rows)
+
+Step 2: Read the entire affected file
+  → Load all 5M rows from file-007.parquet into memory
+
+Step 3: Filter out deleted rows
+  → Remove the 1 row where order_id = 12345
+  → 4,999,999 rows remain
+
+Step 4: Write new file
+  → Write file-007-v2.parquet with 4,999,999 rows (still ~1GB)
+
+Step 5: Commit
+  → Log action: remove file-007.parquet, add file-007-v2.parquet
+  → Total I/O: read 1GB + write 1GB = 2GB for deleting 1 row!
+
+# UPDATE follows the same pattern:
+# Read entire file → modify affected rows → write entire file</code></pre>
+          </div>
+
+          <h3>Deletion Vectors (Databricks Delta / OSS Delta 3.0+)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Deletion Vectors execution for DELETE</div>
+            <pre><code># DELETE FROM orders WHERE order_id = 12345  (with Deletion Vectors enabled)
+
+Step 1: Identify affected files (same as COW)
+  → file-007.parquet contains the target row
+  → Target row is at position (row index) 2847 in the file
+
+Step 2: Write deletion vector
+  → Create/update file: file-007.deletion_vector.bin
+  → Set bit 2847 = 1 (marking that row as deleted)
+  → DV file is tiny: bitmap for 5M rows ≈ 625 KB
+
+Step 3: Commit
+  → Log action: remove old add-action for file-007.parquet,
+    add new add-action for file-007.parquet WITH deletionVector reference
+  → Total I/O: write 625KB (vs 2GB with COW)
+
+# At read time:
+# → Load file-007.parquet
+# → Load file-007.deletion_vector.bin
+# → Skip rows where DV bit = 1
+# → Slight read overhead, massive write savings</code></pre>
+          </div>
+
+          <h3>When to Prefer COW vs Deletion Vectors</h3>
+
+          <ul>
+            <li><strong>COW is better when</strong>: deletes/updates affect a large percentage of rows in each file; read performance is the top priority (no DV scan overhead); workload is primarily append-heavy with rare mutations.</li>
+            <li><strong>Deletion Vectors are better when</strong>: frequent small deletes/updates (GDPR right-to-delete, late-arriving corrections); low-latency mutation is required; write amplification from COW is unacceptable.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling Deletion Vectors</div>
+            <pre><code>-- Enable deletion vectors on a table:
+ALTER TABLE orders SET TBLPROPERTIES (
+  'delta.enableDeletionVectors' = 'true'
+);
+
+-- Requires protocol upgrade:
+-- minReaderVersion = 3, minWriterVersion = 7
+
+-- Check if DVs are being used:
+DESCRIBE DETAIL orders;
+-- Look for 'deletionVectors' in table features</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ DV accumulation:</strong>
+            <p>Deletion vectors accumulate over time. A file with many DVs applied has progressively worse read performance (loading and applying the bitmap adds overhead). Run periodic compaction (OPTIMIZE) to merge DVs into clean files — this rewrites files without deleted rows and removes the DV files. Think of DVs as a write-optimization buffer that eventually needs flushing.</p>
+          </div>
+
+          <h2 id="table-optimization">Table Optimization</h2>
+
+          <p>Delta tables degrade over time: small files accumulate from streaming writes, data becomes unordered from random updates, and old files pile up after mutations. Optimization commands maintain read performance.</p>
+
+          <h3>OPTIMIZE (Compaction / Bin-Packing)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">OPTIMIZE compaction</div>
+            <pre><code>-- Compact all small files in the table:
+OPTIMIZE orders;
+
+-- Compact only a specific partition:
+OPTIMIZE orders WHERE order_date >= '2024-03-01';
+
+-- What OPTIMIZE does:
+-- 1. Identifies files smaller than target size (default 1GB, configurable)
+-- 2. Groups small files within the same partition
+-- 3. Reads small files, merges their contents
+-- 4. Writes new files at target size (~1GB each)
+-- 5. Commits: remove N small files, add M larger files (M &lt;&lt; N)
+
+-- Configure target file size:
+ALTER TABLE orders SET TBLPROPERTIES (
+  'delta.targetFileSize' = '134217728'  -- 128MB (bytes)
+);
+
+-- Idempotent: running OPTIMIZE on already-compacted data is a no-op</code></pre>
+          </div>
+
+          <h3>Z-ORDER (Multi-Dimensional Clustering)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Z-ORDER clustering</div>
+            <pre><code>-- Cluster data by multiple columns for efficient data skipping:
+OPTIMIZE orders ZORDER BY (customer_id, order_date);
+
+-- How Z-ORDER works:
+-- 1. Takes the specified columns' values for each row
+-- 2. Interleaves bits of the column values (Z-curve / Morton code)
+-- 3. Sorts all rows by this interleaved value
+-- 4. Writes files following this order
+-- 
+-- Result: rows with similar (customer_id, order_date) combinations
+-- are co-located in the same files.
+-- 
+-- Effect on data skipping:
+-- Without Z-ORDER: customer_id=42 might appear in ALL 10,000 files
+-- With Z-ORDER: customer_id=42 concentrated in maybe 5-10 files
+-- Query on customer_id=42 skips 9,990+ files using min/max stats!
+
+-- Z-ORDER vs Partitioning:
+-- Partitioning: exact file elimination, but only works for LOW-cardinality
+--   (100 partitions = fine, 1M partitions = too many small files)
+-- Z-ORDER: probabilistic file elimination, works for HIGH-cardinality
+--   (customer_id with 1M values: can't partition, but can Z-ORDER)</code></pre>
+          </div>
+
+          <h3>VACUUM</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">VACUUM stale files</div>
+            <pre><code>-- Delete files no longer referenced by any version within retention:
+VACUUM orders;                    -- uses default retention (7 days)
+VACUUM orders RETAIN 168 HOURS;  -- explicit 7-day retention
+
+-- What VACUUM deletes:
+-- • Data files not referenced by any commit within retention period
+-- • These are files from old versions (before overwrites/compaction)
+-- • Does NOT delete: current active files, transaction log files, checkpoint files
+
+-- Safety check:
+-- Delta prevents vacuuming with retention &lt; 7 days by default
+-- To override (DANGEROUS — can break concurrent readers):
+SET spark.databricks.delta.retentionDurationCheck.enabled = false;
+VACUUM orders RETAIN 0 HOURS;  -- immediate cleanup, breaks time travel!
+
+-- DRY RUN (list files that would be deleted):
+VACUUM orders DRY RUN;</code></pre>
+          </div>
+
+          <h3>ANALYZE TABLE (Statistics Collection)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Collecting table statistics for CBO</div>
+            <pre><code>-- Collect table-level stats (row count, size):
+ANALYZE TABLE orders COMPUTE STATISTICS;
+
+-- Collect column-level stats for cost-based optimizer:
+ANALYZE TABLE orders COMPUTE STATISTICS FOR COLUMNS 
+    order_id, customer_id, amount, order_date;
+
+-- Stats collected: min, max, null count, distinct count, avg length
+-- Used by Spark's CBO to choose optimal join strategies,
+-- filter selectivity estimates, and broadcast decisions.</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Optimization scheduling:</strong>
+            <p>Run OPTIMIZE after bulk writes or streaming micro-batches accumulate small files. Run Z-ORDER on columns that appear most frequently in WHERE clauses and JOIN conditions. Run VACUUM on a schedule (daily/weekly) to reclaim storage. Never VACUUM with retention shorter than your longest-running query's duration — or that query will fail mid-execution when its referenced files disappear.</p>
+          </div>
+
+          <h2 id="liquid-clustering">Liquid Clustering (Databricks)</h2>
+
+          <p>Liquid Clustering is Databricks' replacement for the manual OPTIMIZE + Z-ORDER + partitioning trifecta. It provides automatic, incremental clustering without full-table rewrites.</p>
+
+          <h3>How It Works</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Liquid Clustering setup</div>
+            <pre><code>-- Create table with liquid clustering:
+CREATE TABLE orders (
+    order_id BIGINT,
+    customer_id BIGINT,
+    amount DECIMAL(10,2),
+    order_date DATE,
+    status STRING
+) USING delta
+CLUSTER BY (customer_id, order_date);
+
+-- Alter existing table to use liquid clustering:
+ALTER TABLE orders CLUSTER BY (customer_id, order_date);
+
+-- Change clustering columns (instant metadata operation):
+ALTER TABLE orders CLUSTER BY (order_date, status);
+
+-- Remove clustering:
+ALTER TABLE orders CLUSTER BY NONE;</code></pre>
+          </div>
+
+          <h3>Key Characteristics</h3>
+
+          <ul>
+            <li><strong>Incremental</strong>: Only newly written or modified files are clustered during OPTIMIZE. No full-table rewrite — ever.</li>
+            <li><strong>Automatic</strong>: Databricks jobs trigger clustering automatically during writes (with auto-OPTIMIZE). No manual scheduling needed.</li>
+            <li><strong>Flexible</strong>: Changing clustering columns is a metadata operation. New data clusters by new columns; old data gets progressively re-clustered as it's touched.</li>
+            <li><strong>Replaces partitioning</strong>: No need for PARTITIONED BY. Liquid clustering handles both low and high-cardinality columns efficiently.</li>
+            <li><strong>Hilbert curves</strong>: Uses Hilbert space-filling curves (better data locality than Z-curves) internally for multi-column ordering.</li>
+          </ul>
+
+          <h3>Benefits Over Z-ORDER</h3>
+
+          <ul>
+            <li><strong>No full-table rewrite</strong>: Z-ORDER with OPTIMIZE rewrites all files in affected partitions. Liquid clustering only processes unclustered files.</li>
+            <li><strong>No scheduling</strong>: Z-ORDER requires manual/scheduled OPTIMIZE runs. Liquid clustering happens transparently.</li>
+            <li><strong>Column changes are free</strong>: Changing Z-ORDER columns requires re-running OPTIMIZE on all data. Liquid clustering applies new column choices only to new/modified data.</li>
+            <li><strong>No partition management</strong>: Z-ORDER still requires choosing a partition scheme. Liquid clustering eliminates partitioning entirely.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 When to use Liquid Clustering:</strong>
+            <p>Use it for any table where you previously would have debated "should I partition by X or Z-ORDER by Y?" Liquid clustering handles both scenarios. It's especially valuable for tables with evolving query patterns — just change CLUSTER BY columns as access patterns shift, no expensive data reorganization required.</p>
+          </div>
+
+          <h2 id="delta-uniform">Delta UniForm</h2>
+
+          <p>Delta UniForm enables a single physical table to be readable by both Delta Lake and Apache Iceberg clients — bridging the format divide without data duplication.</p>
+
+          <h3>How UniForm Works</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling UniForm</div>
+            <pre><code>-- Enable UniForm (Iceberg compatibility) at table creation:
+CREATE TABLE orders (
+    order_id BIGINT,
+    amount DECIMAL(10,2),
+    order_date DATE
+) USING delta
+TBLPROPERTIES (
+  'delta.universalFormat.enabledFormats' = 'iceberg'
+);
+
+-- Enable on existing table:
+ALTER TABLE orders SET TBLPROPERTIES (
+  'delta.universalFormat.enabledFormats' = 'iceberg'
+);</code></pre>
+          </div>
+
+          <h3>Internal Mechanism</h3>
+
+          <ul>
+            <li><strong>Dual metadata writes</strong>: On every Delta commit, UniForm asynchronously generates equivalent Iceberg metadata (metadata JSON + manifest list + manifest files).</li>
+            <li><strong>Shared data files</strong>: Both Delta and Iceberg metadata point to the same Parquet data files. No data duplication.</li>
+            <li><strong>Delta is the source of truth</strong>: Delta's transaction log remains the primary commit mechanism. Iceberg metadata is derived (read-only from Iceberg clients' perspective).</li>
+            <li><strong>Iceberg catalog registration</strong>: The generated Iceberg metadata is registered in an Iceberg catalog so Iceberg-native engines (Trino, Snowflake, Dremio) can discover and query the table.</li>
+          </ul>
+
+          <h3>Use Cases</h3>
+
+          <ul>
+            <li><strong>Multi-engine interop</strong>: Write with Databricks (Delta), read with Trino or Snowflake (via Iceberg).</li>
+            <li><strong>Migration path</strong>: Gradually move from Delta to Iceberg without big-bang migration. Start serving Iceberg reads while continuing Delta writes.</li>
+            <li><strong>Vendor flexibility</strong>: Avoid lock-in to a single table format while maintaining Delta's write-side advantages.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ UniForm limitations:</strong>
+            <p>Iceberg metadata generation is asynchronous — there's a small lag between a Delta commit and the corresponding Iceberg metadata availability. Some advanced Delta features (deletion vectors, column mapping) may not have perfect Iceberg equivalents, limiting which operations are reflected in the Iceberg view. Always validate that your specific use case is supported.</p>
+          </div>
+
+          <h2 id="deletion-vectors-deep-dive">Deletion Vectors Deep-Dive</h2>
+
+          <p>Deletion Vectors (DVs) are a fundamental performance optimization for mutation-heavy workloads. They decouple the logical delete from the physical file rewrite.</p>
+
+          <h3>Binary Bitmap Format</h3>
+
+          <ul>
+            <li>A DV is a <strong>RoaringBitmap</strong> stored as a binary file (.dv extension or inline in the commit log).</li>
+            <li>RoaringBitmap is a compressed bitmap format — efficient for both sparse and dense sets of integers.</li>
+            <li>Each bit position corresponds to a row index in the associated data file.</li>
+            <li>Bit = 1 means "this row is deleted"; bit = 0 means "this row is live."</li>
+          </ul>
+
+          <h3>Storage Model</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Deletion Vector file layout</div>
+            <pre><code>my_table/
+├── _delta_log/
+│   └── 000...015.json  ← commit referencing DV
+├── part-00007-abc.snappy.parquet           ← data file (5M rows, unchanged)
+├── deletion_vector_abc.bin                  ← DV for part-00007 (bitmap)
+└── ...
+
+# In the commit JSON, the "add" action for part-00007 includes:
+{"add":{
+  "path": "part-00007-abc.snappy.parquet",
+  "size": 1073741824,
+  "deletionVector": {
+    "storageType": "u",          # "u" = UUID-named file on disk
+    "pathOrInlineDv": "deletion_vector_abc.bin",
+    "offset": 1,
+    "sizeInBytes": 412,
+    "cardinality": 3             # 3 rows marked as deleted
+  },
+  "stats": "{...}"
+}}</code></pre>
+          </div>
+
+          <h3>Read Path with DVs</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">How reads apply Deletion Vectors</div>
+            <pre><code># Reading a file with an associated Deletion Vector:
+
+1. Scan plan identifies part-00007-abc.snappy.parquet as needed
+2. Check add action: deletionVector field is present
+   → Load deletion_vector_abc.bin (412 bytes)
+   → Deserialize RoaringBitmap: {2847, 100231, 4999888}
+
+3. Read Parquet file row-by-row (or batch-by-batch):
+   → For each row at index i:
+     if bitmap.contains(i) → skip row (it's deleted)
+     else → include row in result
+
+4. Optimization: Parquet reads in row-group batches (typically 1M rows)
+   → Pre-filter: check if ANY deleted rows exist in this row-group
+   → If no deleted rows in row-group → zero per-row overhead
+   → If some deleted rows → apply bitmap filter to batch
+
+# Net effect: tiny I/O overhead (read small .bin file) vs
+# massive I/O savings (didn't rewrite 1GB data file)</code></pre>
+          </div>
+
+          <h3>Why Faster Than COW for Small Deletes</h3>
+
+          <ul>
+            <li><strong>Write amplification</strong>: COW rewrites entire file (1GB) for 1 row delete. DV writes ~500 bytes. That's a 2,000,000x reduction in write I/O.</li>
+            <li><strong>Latency</strong>: Writing a 500-byte DV file completes in milliseconds. Rewriting 1GB takes seconds to minutes.</li>
+            <li><strong>Concurrency</strong>: Smaller writes = shorter commit windows = fewer conflicts under concurrent load.</li>
+            <li><strong>Read overhead</strong>: Minimal. Loading a small bitmap and checking bit membership is nanosecond-scale per row. Parquet decoding dominates read time.</li>
+          </ul>
+
+          <h3>Compaction Merges DVs</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">DV compaction during OPTIMIZE</div>
+            <pre><code># Over time, DVs accumulate:
+# part-00007.parquet has DV with 15,000 deleted rows (out of 5M)
+# That's 0.3% of the file — reads still efficient
+
+# But after many deletes:
+# part-00007.parquet has DV with 2,500,000 deleted rows (50%!)
+# Now reads waste 50% effort loading rows just to discard them
+
+# OPTIMIZE handles this:
+OPTIMIZE orders;
+
+# During compaction:
+# 1. Read part-00007.parquet 
+# 2. Apply DV: skip 2.5M deleted rows
+# 3. Write remaining 2.5M rows to new file(s) at target size
+# 4. Commit: remove old file + DV, add new clean file
+# 5. DV file cleaned up by VACUUM
+
+# Heuristic: OPTIMIZE should compact files where DV cardinality 
+# exceeds a threshold (e.g., >10% of file row count)</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 DVs are a write-optimization trade-off:</strong>
+            <p>DVs trade slightly more work at read time (bitmap check) for dramatically less work at write time (no file rewrite). The trade-off is overwhelmingly positive for workloads with frequent small mutations (GDPR deletes, late corrections, real-time updates). For bulk deletes affecting entire partitions, COW (drop and rewrite) may still be simpler and equally fast.</p>
+          </div>
+
+          <h2 id="delta-spark">Delta with Spark</h2>
+
+          <p>Delta Lake integrates deeply with Apache Spark — both DataFrames and Spark SQL provide full DML support, streaming capabilities, and operational commands.</p>
+
+          <h3>Reading and Writing DataFrames</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">DataFrame API basics</div>
+            <pre><code># Reading a Delta table:
+df = spark.read.format("delta").load("/data/orders")
+# Or with catalog:
+df = spark.table("catalog.db.orders")
+
+# Writing — Append mode:
+new_orders.write.format("delta").mode("append").save("/data/orders")
+
+# Writing — Overwrite mode (replaces all data):
+rebuilt_orders.write.format("delta").mode("overwrite").save("/data/orders")
+
+# Writing — Overwrite specific partitions only:
+daily_data.write.format("delta") \
+    .mode("overwrite") \
+    .option("replaceWhere", "order_date = '2024-03-15'") \
+    .save("/data/orders")
+
+# Time travel reads:
+df_v5 = spark.read.format("delta").option("versionAsOf", 5).load("/data/orders")
+df_ts = spark.read.format("delta") \
+    .option("timestampAsOf", "2024-03-01 00:00:00").load("/data/orders")</code></pre>
+          </div>
+
+          <h3>DML Operations</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Spark SQL DML on Delta tables</div>
+            <pre><code>-- INSERT:
+INSERT INTO orders VALUES (1001, 99.99, '2024-03-15', 'new');
+INSERT INTO orders SELECT * FROM staging_orders;
+
+-- UPDATE:
+UPDATE orders SET status = 'shipped', updated_at = current_timestamp()
+WHERE order_id = 1001;
+
+-- DELETE:
+DELETE FROM orders WHERE status = 'cancelled' AND order_date &lt; '2024-01-01';
+
+-- MERGE (upsert):
+MERGE INTO orders t
+USING daily_updates s ON t.order_id = s.order_id
+WHEN MATCHED THEN UPDATE SET *
+WHEN NOT MATCHED THEN INSERT *;</code></pre>
+          </div>
+
+          <h3>Streaming: Delta as Source and Sink</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Structured Streaming with Delta</div>
+            <pre><code># Delta as streaming SOURCE (reads new commits as they arrive):
+stream_df = spark.readStream.format("delta") \
+    .option("maxFilesPerTrigger", 100) \
+    .load("/data/orders")
+
+# Process stream and write to another Delta table (SINK):
+query = stream_df \
+    .filter("amount > 100") \
+    .writeStream \
+    .format("delta") \
+    .outputMode("append") \
+    .option("checkpointLocation", "/checkpoints/high_value_orders") \
+    .start("/data/high_value_orders")
+
+# Streaming with CDF (consume only changes):
+cdf_stream = spark.readStream.format("delta") \
+    .option("readChangeFeed", "true") \
+    .option("startingVersion", 0) \
+    .table("orders")
+
+# foreachBatch for complex streaming logic (MERGE in micro-batches):
+def upsert_to_gold(batch_df, batch_id):
+    batch_df.createOrReplaceTempView("updates")
+    spark.sql("""
+        MERGE INTO gold_orders t
+        USING updates s ON t.order_id = s.order_id
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+    """)
+
+spark.readStream.format("delta").load("/data/silver_orders") \
+    .writeStream.foreachBatch(upsert_to_gold) \
+    .option("checkpointLocation", "/checkpoints/gold_orders") \
+    .start()</code></pre>
+          </div>
+
+          <h3>DESCRIBE HISTORY</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Audit table history</div>
+            <pre><code>-- View commit history:
+DESCRIBE HISTORY orders;
+DESCRIBE HISTORY orders LIMIT 10;
+
+-- Output columns:
+-- version | timestamp           | userId | operation | operationParameters | ...
+-- 15      | 2024-03-15 10:30:00 | user1  | MERGE     | {predicate: ...}    |
+-- 14      | 2024-03-15 09:00:00 | user2  | WRITE     | {mode: Append}      |
+-- 13      | 2024-03-14 22:00:00 | user1  | OPTIMIZE  | {zOrderBy: [...]}   |
+
+-- Programmatic access:
+from delta.tables import DeltaTable
+dt = DeltaTable.forPath(spark, "/data/orders")
+history_df = dt.history()  # returns DataFrame</code></pre>
+          </div>
+
+          <h2 id="production-patterns">Production Patterns</h2>
+
+          <h3>Medallion Architecture (Bronze → Silver → Gold)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Medallion layers with Delta</div>
+            <pre><code># BRONZE: Raw ingestion — append-only, schema-on-read
+# Capture everything, handle late data, preserve raw for audit
+raw_events.write.format("delta") \
+    .mode("append") \
+    .option("mergeSchema", "true") \
+    .save("/lakehouse/bronze/events")
+
+# SILVER: Cleansed, deduplicated, conformed
+# Use MERGE for deduplication, enforce quality
+spark.sql("""
+    MERGE INTO silver.events t
+    USING (
+        SELECT *, ROW_NUMBER() OVER (
+            PARTITION BY event_id ORDER BY event_time DESC
+        ) as rn FROM bronze.events WHERE rn = 1
+    ) s ON t.event_id = s.event_id
+    WHEN MATCHED AND s.event_time > t.event_time THEN UPDATE SET *
+    WHEN NOT MATCHED THEN INSERT *
+""")
+
+# GOLD: Business-level aggregates, feature-ready
+# Aggregated, joined, optimized for BI/ML consumption
+spark.sql("""
+    CREATE OR REPLACE TABLE gold.daily_revenue AS
+    SELECT order_date, region, SUM(amount) as revenue, COUNT(*) as order_count
+    FROM silver.orders
+    GROUP BY order_date, region
+""")</code></pre>
+          </div>
+
+          <h3>Slowly Changing Dimensions (SCD Type 2) with MERGE</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">SCD Type 2 implementation</div>
+            <pre><code>-- SCD Type 2: maintain full history of dimension changes
+-- Schema: customer_id, name, email, is_current, valid_from, valid_to
+
+MERGE INTO dim_customers t
+USING (
+    -- Identify changed records
+    SELECT s.*, 
+           CASE WHEN t.customer_id IS NOT NULL 
+                AND (s.name != t.name OR s.email != t.email) 
+                THEN true ELSE false END as has_changed
+    FROM staging_customers s
+    LEFT JOIN dim_customers t 
+        ON s.customer_id = t.customer_id AND t.is_current = true
+) s
+ON t.customer_id = s.customer_id AND t.is_current = true
+
+-- Close the old record (set end date):
+WHEN MATCHED AND s.has_changed = true THEN 
+    UPDATE SET t.is_current = false, t.valid_to = current_date()
+
+-- Insert new version for changed records + brand new records:
+WHEN NOT MATCHED THEN 
+    INSERT (customer_id, name, email, is_current, valid_from, valid_to)
+    VALUES (s.customer_id, s.name, s.email, true, current_date(), null);
+
+-- Note: the "close old + insert new" requires two passes or
+-- a separate INSERT for the new version of changed records:
+INSERT INTO dim_customers
+SELECT customer_id, name, email, true, current_date(), null
+FROM staging_customers s
+WHERE EXISTS (
+    SELECT 1 FROM dim_customers t 
+    WHERE t.customer_id = s.customer_id 
+    AND t.is_current = false 
+    AND t.valid_to = current_date()
+);</code></pre>
+          </div>
+
+          <h3>Idempotent Writes</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Retry-safe pipeline patterns</div>
+            <pre><code># Pattern 1: replaceWhere for partition-level idempotency
+# If the job fails and retries, it overwrites the same partition cleanly
+daily_data.write.format("delta") \
+    .mode("overwrite") \
+    .option("replaceWhere", "order_date = '2024-03-15'") \
+    .save("/data/orders")
+# Safe to retry: same partition gets replaced, no duplicates
+
+# Pattern 2: MERGE for row-level idempotency
+# Natural deduplication — re-processing the same source data
+# just matches existing rows and (optionally) updates them
+MERGE INTO target t USING source s ON t.id = s.id
+WHEN MATCHED THEN UPDATE SET *
+WHEN NOT MATCHED THEN INSERT *;
+# Safe to retry: duplicate source rows match existing target rows
+
+# Pattern 3: Streaming txn identifiers (exactly-once)
+# Delta's streaming source tracks progress via committed offsets
+# Restart from checkpoint = exactly-once processing
+query = spark.readStream.format("delta").load("/bronze") \
+    .writeStream.format("delta") \
+    .option("checkpointLocation", "/checkpoints/silver") \
+    .start("/silver")
+# Checkpoint ensures: if micro-batch partially committed and
+# job restarts, it replays only uncommitted data</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Production wisdom:</strong>
+            <p>The safest pipelines are designed to be idempotent from the start. Every write should either use replaceWhere (partition-level replay safety) or MERGE (row-level dedup). Avoid bare <code>mode("append")</code> for critical data unless the source guarantees exactly-once delivery. Append is fastest but produces duplicates on retry.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Delta Lake's transaction log provide ACID guarantees on top of object storage?</div>
+            <div class="qa-answer">
+              <p>Delta Lake's <code>_delta_log</code> directory contains an ordered sequence of JSON commit files that record every change atomically. Each commit is a single file (e.g., <code>000...005.json</code>) that contains all add/remove actions for that transaction.</p>
+              <p><strong>Atomicity</strong>: A commit either fully writes the JSON file or doesn't — there's no partial commit. Object stores provide atomic PUT operations for individual files. If a writer crashes mid-operation, no commit file is created, so the partial write is invisible.</p>
+              <p><strong>Consistency</strong>: Schema enforcement validates data before writing. The commit only succeeds if all constraints are satisfied.</p>
+              <p><strong>Isolation</strong>: Readers reconstruct table state by reading the log up to a specific version. They see a consistent snapshot — concurrent writes to newer versions don't affect them. Writers use optimistic concurrency: they attempt to commit the next sequential version number. If another writer claimed that version first (file already exists), the commit fails and the writer must resolve conflicts.</p>
+              <p><strong>Durability</strong>: Once the commit JSON file is successfully written to the object store, the change is durable (object stores replicate data across availability zones). Checkpoint files (Parquet) periodically snapshot the cumulative log state for fast recovery.</p>
+              <p>The key insight is that the commit protocol reduces distributed transactions to a simple problem: "can I atomically create a file with a specific name?" Object stores guarantee this, so Delta gets ACID without distributed coordination.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain optimistic concurrency control in Delta Lake. How does it handle conflicts?</div>
+            <div class="qa-answer">
+              <p>Delta uses optimistic concurrency: writers proceed without locks, detect conflicts at commit time, and retry or fail gracefully.</p>
+              <p><strong>Protocol</strong>: A writer reads the current table version (say v5), computes its changes, writes data files, then attempts to create commit file <code>000...006.json</code>. If another writer already created v6, the attempt fails.</p>
+              <p><strong>Conflict resolution</strong>: The writer reads the conflicting commit(s) and determines if there's a true conflict. Under <strong>WriteSerializable</strong> isolation (default), conflict occurs only when both transactions physically modified the same data files — specifically, if both try to "remove" the same file. Blind appends never conflict because they only add new files. Under <strong>Serializable</strong> isolation, conflicts also occur if the concurrent commit could affect the logical read set of our operation (prevents write skew).</p>
+              <p><strong>Resolution outcomes</strong>: (1) No conflict — the writer rebases its commit on top of the new version and tries again. (2) True conflict — throws <code>ConcurrentModificationException</code>; the application must retry the entire operation from scratch with fresh data.</p>
+              <p><strong>Practical implications</strong>: Design pipelines so concurrent writers target different partitions or files. Use partition pruning in MERGE conditions to minimize the set of files each writer touches. For streaming, assign one writer per partition to eliminate conflicts entirely.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does MERGE INTO work internally in Delta Lake? What are the performance implications?</div>
+            <div class="qa-answer">
+              <p>MERGE INTO executes in several phases:</p>
+              <p><strong>1. Target file pruning</strong>: Delta uses the merge condition + file-level statistics (min/max) to identify which target files could possibly contain matching rows. Files whose stats don't overlap with source key ranges are skipped entirely.</p>
+              <p><strong>2. Join phase</strong>: The source data is joined with the candidate target data on the merge condition. This identifies matched rows (for WHEN MATCHED clauses) and unmatched source rows (for WHEN NOT MATCHED → INSERT).</p>
+              <p><strong>3. Action classification</strong>: Based on the WHEN clauses, each row is classified as: update, delete, or insert.</p>
+              <p><strong>4. File rewrite (Copy-on-Write)</strong>: For every target file containing at least one modified or deleted row, the ENTIRE file is rewritten. This is the key performance bottleneck — even changing 1 row in a 1GB file requires reading and rewriting the full 1GB.</p>
+              <p><strong>5. New file creation</strong>: Inserted rows (from NOT MATCHED) are written to new data files.</p>
+              <p><strong>6. Atomic commit</strong>: All old files are "removed" and new/rewritten files are "added" in a single commit.</p>
+              <p><strong>Performance tuning</strong>: (a) Include partition columns in the ON clause to limit file scanning. (b) Z-ORDER on merge keys to concentrate matchable rows in fewer files. (c) Keep target files at a reasonable size (256MB-1GB) to limit rewrite cost. (d) If source is small, broadcast it for a more efficient join.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are Deletion Vectors and when should you use them over Copy-on-Write?</div>
+            <div class="qa-answer">
+              <p><strong>Deletion Vectors (DVs)</strong> are compressed bitmaps (RoaringBitmap format) that mark individual rows within a data file as deleted without rewriting the file. Each DV is stored as a small binary file associated with a specific data file.</p>
+              <p><strong>How they work</strong>: When a DELETE or UPDATE targets rows in a file, instead of rewriting the entire file (COW), Delta writes a DV file where bit positions correspond to row indices. Bit=1 means "deleted." At read time, the engine loads the DV and skips marked rows. The DV file is typically bytes to kilobytes — orders of magnitude smaller than rewriting the data file.</p>
+              <p><strong>Use DVs when</strong>: (1) Frequent small deletes — GDPR right-to-delete hitting scattered rows across many files. (2) Low-latency mutation requirements. (3) High write concurrency — smaller commits mean fewer conflicts. (4) Random updates that would cause massive write amplification under COW.</p>
+              <p><strong>Use COW when</strong>: (1) Bulk deletes affecting large portions of files (dropping entire partitions). (2) Read performance is paramount and you can't tolerate any per-row DV check overhead. (3) Your workload is primarily append-only with rare mutations.</p>
+              <p><strong>Maintenance</strong>: DVs accumulate over time. When a file has too many deleted rows (>10-20%), read performance degrades because the engine loads rows just to discard them. OPTIMIZE compaction merges DV-heavy files into clean files without deleted rows. Think of DVs as a write buffer that needs periodic flushing via compaction.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Z-ORDER vs Liquid Clustering vs partitioning. When would you choose each?</div>
+            <div class="qa-answer">
+              <p><strong>Partitioning</strong>: Physically separates data into directories by column value. Best for low-cardinality columns (date, region, status) where each partition has substantial data (>1GB ideal). Enables exact file elimination — queries on partition columns skip entire directories. Drawback: too many partitions create small-file problems; changing partition scheme requires full data rewrite; users must know partition columns for efficient queries.</p>
+              <p><strong>Z-ORDER</strong>: Multi-dimensional clustering using Z-curves (Morton codes) that interleaves bits of multiple column values to co-locate related rows in the same files. Best for high-cardinality columns (customer_id, product_id) where partitioning would create millions of tiny files. Enables data skipping via file-level min/max stats — queries on Z-ordered columns scan fewer files. Drawback: requires manual OPTIMIZE runs; OPTIMIZE rewrites all data in affected scope; changing Z-ORDER columns requires re-running OPTIMIZE on entire table.</p>
+              <p><strong>Liquid Clustering</strong> (Databricks): Automatic, incremental clustering using Hilbert curves. Replaces both partitioning and Z-ORDER. Only clusters newly written/modified files — no full-table rewrites. Changing cluster columns is instant (metadata operation). No manual OPTIMIZE scheduling. Best for: any workload that previously needed partition + Z-ORDER decisions; tables with evolving access patterns; teams wanting operational simplicity.</p>
+              <p><strong>Decision framework</strong>: If you're on Databricks → Liquid Clustering for most tables. If on OSS Delta → partition by low-cardinality time column (date) + Z-ORDER by high-cardinality query columns. Never partition by high-cardinality columns. If query patterns are static and predictable, manual partitioning + Z-ORDER gives you fine-grained control. If patterns evolve, Liquid Clustering's flexibility wins.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Lakehouse</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

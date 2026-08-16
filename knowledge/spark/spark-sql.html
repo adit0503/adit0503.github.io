@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Spark SQL, Catalyst & Tungsten — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>Spark SQL</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">13 min read</span>
+          </div>
+          <h1>Spark SQL, Catalyst & Tungsten</h1>
+          <p class="article-desc">The optimizer and execution engine that make Spark SQL fast — from logical plan generation through Catalyst's rule-based and cost-based optimization to Tungsten's whole-stage code generation.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#query-execution-flow">Query Execution Flow</a></li>
+            <li><a href="#catalyst-optimizer">Catalyst Optimizer Internals</a></li>
+            <li><a href="#tungsten-engine">Tungsten Execution Engine</a></li>
+            <li><a href="#whole-stage-codegen">Whole-Stage Code Generation</a></li>
+            <li><a href="#aqe-sql">AQE from SQL Perspective</a></li>
+            <li><a href="#statistics">Statistics & ANALYZE TABLE</a></li>
+            <li><a href="#reading-plans">Reading Physical Plans</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="query-execution-flow">Query Execution Flow</h2>
+
+          <p>Every Spark SQL query (whether written as DataFrame API or SQL string) passes through the same pipeline:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Query execution phases</div>
+            <pre><code>SQL / DataFrame API
+       ↓
+┌─────────────────────────────────────────┐
+│ 1. PARSING                              │
+│    SQL string → Unresolved Logical Plan  │
+│    DataFrame API → Unresolved Logical Plan│
+└─────────────────────────────────────────┘
+       ↓
+┌─────────────────────────────────────────┐
+│ 2. ANALYSIS (Catalog resolution)        │
+│    Resolve table names, column names,   │
+│    data types using the Catalog         │
+│    → Analyzed Logical Plan              │
+└─────────────────────────────────────────┘
+       ↓
+┌─────────────────────────────────────────┐
+│ 3. LOGICAL OPTIMIZATION (Catalyst)      │
+│    Apply rule-based optimizations:      │
+│    predicate pushdown, column pruning,  │
+│    constant folding, filter combining   │
+│    → Optimized Logical Plan             │
+└─────────────────────────────────────────┘
+       ↓
+┌─────────────────────────────────────────┐
+│ 4. PHYSICAL PLANNING                    │
+│    Convert logical ops to physical:     │
+│    Select join strategy, scan method,   │
+│    sort implementation. CBO picks best. │
+│    → Physical Plan (SparkPlan)          │
+└─────────────────────────────────────────┘
+       ↓
+┌─────────────────────────────────────────┐
+│ 5. CODE GENERATION (Tungsten)           │
+│    Whole-stage codegen fuses operators  │
+│    into optimized Java bytecode         │
+│    → Generated code + RDDs              │
+└─────────────────────────────────────────┘
+       ↓
+   EXECUTION on cluster</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Key insight:</strong>
+            <p>The DataFrame API and SQL are semantically identical — both produce the same logical plan. There is zero performance difference between <code>df.filter(col("x") > 5).select("y")</code> and <code>spark.sql("SELECT y FROM t WHERE x > 5")</code>. They go through the same optimizer.</p>
+          </div>
+
+          <h2 id="catalyst-optimizer">Catalyst Optimizer Internals</h2>
+
+          <p>Catalyst is a <strong>rule-based optimizer</strong> with cost-based extensions. It transforms logical plans using pattern-matching rules organized into batches that run iteratively until the plan stabilizes (fixed-point).</p>
+
+          <h3>Rule-Based Optimization (RBO)</h3>
+
+          <p>Rules are applied in batches. Each batch runs repeatedly until no rules produce changes or a max iteration limit is reached:</p>
+
+          <h4>Predicate Pushdown</h4>
+          <ul>
+            <li>Moves filter conditions as close to the data source as possible</li>
+            <li>Pushes predicates below joins, projections, and aggregations</li>
+            <li>Pushes predicates into data sources (Parquet/ORC skip row groups, JDBC adds WHERE clause)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Predicate pushdown example</div>
+            <pre><code># Before optimization:
+# Project [name]
+#   Filter [age > 25]
+#     Join [users.id = orders.user_id]
+#       Scan [users]
+#       Scan [orders]
+
+# After predicate pushdown:
+# Project [name]
+#   Join [users.id = orders.user_id]
+#     Filter [age > 25]      ← pushed below join
+#       Scan [users]         ← further pushed into scan (partition/row-group pruning)
+#     Scan [orders]
+
+# Even pushed to data source level:
+# FileScan parquet [users] PushedFilters: [IsNotNull(age), GreaterThan(age,25)]</code></pre>
+          </div>
+
+          <h4>Column Pruning</h4>
+          <ul>
+            <li>Only reads columns that are actually used downstream</li>
+            <li>Propagates required columns up from the final projection</li>
+            <li>Columnar formats (Parquet, ORC) benefit enormously — skip entire column chunks</li>
+          </ul>
+
+          <h4>Constant Folding</h4>
+          <ul>
+            <li>Evaluates constant expressions at compile time</li>
+            <li><code>WHERE date > '2024-01-01' AND 1=1</code> → <code>WHERE date > '2024-01-01'</code></li>
+            <li><code>SELECT 2 + 3 AS x</code> → <code>SELECT 5 AS x</code></li>
+          </ul>
+
+          <h4>Other Key Rules</h4>
+          <ul>
+            <li><strong>CombineFilters</strong>: merges adjacent filters into one (<code>AND</code>)</li>
+            <li><strong>PushDownPredicatesThrough</strong>: pushes through Union, Join, Aggregate</li>
+            <li><strong>SimplifyConditionals</strong>: simplifies <code>CASE WHEN true THEN x</code> → <code>x</code></li>
+            <li><strong>ReplaceNullWithFalse</strong>: in filter context, NULL evaluates to false</li>
+            <li><strong>EliminateOuterJoin</strong>: converts outer join to inner when null-filtering conditions exist</li>
+            <li><strong>PropagateEmptyRelation</strong>: short-circuits when input is provably empty</li>
+          </ul>
+
+          <h3>Cost-Based Optimization (CBO)</h3>
+
+          <p>CBO uses table and column statistics to make decisions the RBO cannot:</p>
+
+          <ul>
+            <li><strong>Join Reordering</strong>: with N tables, there are N! possible orderings. CBO uses dynamic programming to find the ordering that minimizes intermediate result sizes</li>
+            <li><strong>Build Side Selection</strong>: in broadcast/hash joins, pick the smaller side as build</li>
+            <li><strong>Join Strategy Selection</strong>: choose between BHJ, SMJ, SHJ based on actual estimated sizes</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Enabling CBO</div>
+            <pre><code># Enable CBO
+spark.sql.cbo.enabled=true
+spark.sql.cbo.joinReorder.enabled=true
+
+# Collect statistics
+ANALYZE TABLE orders COMPUTE STATISTICS
+ANALYZE TABLE orders COMPUTE STATISTICS FOR COLUMNS user_id, amount, order_date
+
+# Column stats collected: min, max, num_nulls, distinct_count, avg_col_len, max_col_len
+# Optional histograms (better for skewed data):
+ANALYZE TABLE orders COMPUTE STATISTICS FOR COLUMNS user_id
+-- generates equi-height histogram with 254 buckets by default
+
+# Check statistics
+DESC EXTENDED orders
+-- shows: Statistics: 5.2 GB, 120000000 rows</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Stale statistics:</strong>
+            <p>If you load new data but don't re-run ANALYZE, the CBO will use outdated stats. A table that grew from 100MB to 10GB will still be estimated at 100MB — leading to incorrect broadcast join selection (driver OOM). Schedule ANALYZE as part of your ETL pipeline, or rely on AQE runtime stats.</p>
+          </div>
+
+          <h2 id="tungsten-engine">Tungsten Execution Engine</h2>
+
+          <p>Tungsten (Spark 1.5+) is the execution backend that bypasses JVM object model overhead. It addresses three problems:</p>
+
+          <h3>1. Memory Management — UnsafeRow</h3>
+          <ul>
+            <li>Traditional JVM: each Row object has 16-byte header + field pointers + actual data → 5× overhead</li>
+            <li>UnsafeRow: stores data in a flat binary format on off-heap memory (or on-heap byte arrays)</li>
+            <li>Fixed-length fields stored inline, variable-length (strings) stored with offset+length pointers</li>
+            <li>No garbage collection pressure — memory is explicitly managed by Spark's memory manager</li>
+            <li>Comparison/hashing operates directly on bytes (no deserialization to Java objects)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">UnsafeRow binary layout</div>
+            <pre><code># Row with schema: (int, string, long)
+# 
+# ┌──────────────────────────────────────────────────────┐
+# │ Null Bitmap (8 bytes)  │ Fixed: int(4) │ Fixed: offset+len(8) │ Fixed: long(8) │
+# │ [bit flags for nulls]  │ 42            │ points to var region  │ 1625097600     │
+# ├──────────────────────────────────────────────────────┤
+# │ Variable-length region: "hello world" (UTF-8 bytes)  │
+# └──────────────────────────────────────────────────────┘
+#
+# Total: ~40 bytes vs ~120 bytes for Java Object representation
+# 
+# Key benefits:
+# - No GC (managed memory)
+# - Cache-friendly (contiguous memory)
+# - Direct binary comparison (no boxing/unboxing)</code></pre>
+          </div>
+
+          <h3>2. Cache-Aware Computation</h3>
+          <ul>
+            <li>Algorithms designed to fit within L1/L2 CPU cache lines (64 bytes)</li>
+            <li>Sort algorithms operate on binary key prefixes stored contiguously</li>
+            <li>Hash tables use open addressing with linear probing (cache-friendly vs chaining)</li>
+            <li>Cache miss reduction: 10-100× speedup for sort and hash operations vs Java collections</li>
+          </ul>
+
+          <h3>3. Code Generation</h3>
+          <ul>
+            <li>Instead of interpreting an operator tree (virtual dispatch per row per operator), generate a specialized Java function for the entire pipeline</li>
+            <li>Eliminates virtual function calls, auto-boxing, and unnecessary data movement</li>
+            <li>Generated code is compiled to bytecode by Janino (embedded Java compiler)</li>
+          </ul>
+
+          <h2 id="whole-stage-codegen">Whole-Stage Code Generation</h2>
+
+          <p>Whole-stage codegen (WSCG) is the most impactful Tungsten optimization. It fuses an entire pipeline of operators into a single optimized function.</p>
+
+          <h3>Without Codegen (Volcano Iterator Model)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Traditional execution: virtual calls per row</div>
+            <pre><code># For query: SELECT name FROM users WHERE age > 25
+# 
+# Execution without codegen:
+# 
+# for each row in scan:
+#     row = scan.next()                    ← virtual dispatch
+#     if filter.evaluate(row):             ← virtual dispatch
+#         result = project.evaluate(row)   ← virtual dispatch
+#         output(result)                   ← virtual dispatch
+#
+# 4 virtual function calls per row × millions of rows = massive overhead
+# CPU branch prediction fails, instruction cache thrashed</code></pre>
+          </div>
+
+          <h3>With Whole-Stage CodeGen</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Generated code: tight inner loop</div>
+            <pre><code># Spark generates something like:
+#
+# while (scan.hasNext()) {
+#     UnsafeRow row = scan.next();
+#     int age = row.getInt(1);          // direct field access
+#     if (age > 25) {                   // inlined filter
+#         outputRow.setString(0, row.getString(0)); // inlined projection
+#         append(outputRow);
+#     }
+# }
+#
+# Single tight loop — no virtual dispatch, CPU branch prediction works,
+# fits in instruction cache, SIMD-friendly
+
+# In explain() output, codegen stages marked with asterisk (*):
+# *(1) Filter (age > 25)
+# +- *(1) ColumnarToRow
+#    +- FileScan parquet [name, age]
+#
+# The *(1) means these operators are fused into one codegen stage</code></pre>
+          </div>
+
+          <h3>When Codegen Breaks</h3>
+          <ul>
+            <li><strong>Too many columns</strong>: generated method exceeds 8000 bytes (JIT won't compile) → <code>spark.sql.codegen.hugeMethodLimit=8000</code></li>
+            <li><strong>Complex expressions</strong>: deeply nested CASE/WHEN, very large IN lists</li>
+            <li><strong>Python UDFs</strong>: force a boundary — data must be serialized to Python and back</li>
+            <li><strong>Operations without codegen support</strong>: some external data sources, certain aggregate functions</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Performance impact:</strong>
+            <p>Whole-stage codegen delivers 2-10× performance improvement for CPU-bound queries. It's enabled by default (<code>spark.sql.codegen.wholeStage=true</code>). If you see operators WITHOUT asterisks in <code>explain()</code>, investigate why codegen was disabled — it often means a UDF boundary or unsupported operator.</p>
+          </div>
+
+          <h2 id="aqe-sql">AQE from SQL Perspective</h2>
+
+          <h3>Dynamic Partition Pruning (DPP)</h3>
+          <p>In star-schema queries, the fact table is joined with dimension tables that have filters. DPP propagates the dimension filter to prune fact table partitions at scan time:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Dynamic partition pruning</div>
+            <pre><code># Star schema query:
+SELECT f.amount, d.category
+FROM facts f
+JOIN dim_product d ON f.product_id = d.id
+WHERE d.category = 'Electronics'
+
+# Without DPP: scan ALL fact partitions, then join and filter
+# With DPP: 
+#   1. Spark first executes the dimension filter (small, fast)
+#   2. Collects matching product_ids
+#   3. Pushes them as IN-list filter into the fact table scan
+#   4. Fact table skips partitions that don't contain those product_ids
+
+# Enable:
+spark.sql.optimizer.dynamicPartitionPruning.enabled=true  # default true in 3.0+
+
+# DPP works when:
+# - Fact table is partitioned by the join key
+# - Dimension filter is selective
+# - Dimension side is small enough to broadcast</code></pre>
+          </div>
+
+          <h3>Runtime Filter Insertion</h3>
+          <ul>
+            <li>AQE can insert Bloom filters at runtime based on join-side statistics</li>
+            <li>The filter is pushed to the scan of the larger side, skipping non-matching rows early</li>
+            <li><code>spark.sql.optimizer.runtime.bloomFilter.enabled=true</code></li>
+          </ul>
+
+          <h2 id="statistics">Statistics & ANALYZE TABLE</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Statistics collection</div>
+            <pre><code># Table-level statistics (row count, size in bytes)
+ANALYZE TABLE orders COMPUTE STATISTICS
+
+# Column-level statistics (min, max, nulls, distinct, avg_len)
+ANALYZE TABLE orders COMPUTE STATISTICS FOR COLUMNS
+  user_id, product_id, amount, order_date
+
+# Check what stats exist
+DESCRIBE EXTENDED orders
+DESCRIBE EXTENDED orders user_id
+
+# DataFrame API equivalent
+spark.sql("ANALYZE TABLE orders COMPUTE STATISTICS FOR ALL COLUMNS")
+
+# Statistics are stored in:
+# - Hive Metastore (for managed tables)
+# - Catalog metadata (for Delta/Iceberg tables — auto-collected)
+
+# Column stats collected:
+# ┌─────────────────┬────────────────────────────────────┐
+# │ Stat            │ Used for                           │
+# ├─────────────────┼────────────────────────────────────┤
+# │ distinct_count  │ Join cardinality estimation        │
+# │ min / max       │ Filter selectivity estimation      │
+# │ num_nulls       │ IS NULL filter estimation          │
+# │ avg_col_len     │ Row size estimation                │
+# │ histogram       │ Skew-aware join/filter estimation  │
+# └─────────────────┴────────────────────────────────────┘</code></pre>
+          </div>
+
+          <h2 id="reading-plans">Reading Physical Plans</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">How to read explain() output</div>
+            <pre><code>df.explain(True)  # shows all plan phases
+df.explain("cost")  # shows cost estimates
+df.explain("formatted")  # readable format with stats
+
+# Key operators to recognize:
+# 
+# Exchange         → SHUFFLE (expensive!) — data redistributed across partitions
+# Sort             → Full sort of data — check if needed or can be eliminated
+# HashAggregate    → Partial + final aggregation (efficient)
+# SortMergeJoin    → Both sides shuffled and sorted (large join)
+# BroadcastHashJoin → Small side broadcast (fast, no shuffle)
+# FileScan         → Reading from storage
+#   PushedFilters: → Predicates pushed to data source
+#   PartitionFilters: → Partition pruning applied
+# 
+# *(1) prefix     → Whole-stage codegen active (good!)
+# No * prefix     → Codegen disabled (investigate why)
+#
+# WholeStageCodegen stages are numbered *(1), *(2), etc.
+# Each represents a codegen boundary — fewer is better
+
+# Example plan reading:
+# == Physical Plan ==
+# *(3) HashAggregate(keys=[user_id], functions=[sum(amount)])
+# +- Exchange hashpartitioning(user_id, 200)    ← SHUFFLE (stage boundary)
+#    +- *(2) HashAggregate(keys=[user_id], functions=[partial_sum(amount)])
+#       +- *(2) Project [user_id, amount]
+#          +- *(2) Filter (amount > 100)
+#             +- *(1) ColumnarToRow
+#                +- FileScan parquet [user_id, amount, status]
+#                     PushedFilters: [GreaterThan(amount,100)]
+#
+# Reading bottom-up:
+# 1. FileScan reads only needed columns, pushes filter to Parquet
+# 2. ColumnarToRow converts columnar Parquet batches to rows (codegen stage 1)
+# 3. Filter + Project + partial HashAggregate fused in codegen stage 2
+# 4. Exchange = shuffle by user_id (200 partitions)
+# 5. Final HashAggregate completes the sum in codegen stage 3</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Red flags in physical plans:</strong>
+            <p>1) Multiple <code>Exchange</code> nodes — can you eliminate with broadcast or bucketing? 2) <code>Sort</code> before <code>SortMergeJoin</code> when data is already sorted — consider bucketing. 3) <code>BroadcastNestedLoopJoin</code> — indicates non-equi join, very slow for large data. 4) Missing <code>PushedFilters</code> — your predicate isn't pushing down to the source. 5) No asterisk (*) — codegen disabled, check for UDF boundaries.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the phases of Spark SQL query execution?</div>
+            <div class="qa-answer">
+              <p><strong>1) Parsing</strong>: SQL/DataFrame → Unresolved Logical Plan (AST). <strong>2) Analysis</strong>: Resolve table/column references using the Catalog → Analyzed Logical Plan. <strong>3) Logical Optimization</strong>: Catalyst applies rules (predicate pushdown, column pruning, constant folding, filter combining) iteratively → Optimized Logical Plan. <strong>4) Physical Planning</strong>: Convert logical operators to physical (select join strategy, scan type). CBO picks optimal plan using statistics. <strong>5) Code Generation</strong>: Tungsten's whole-stage codegen fuses operators into compiled Java bytecode. <strong>6) Execution</strong>: Generated code runs as RDD tasks on the cluster. All DataFrame and SQL queries follow the same pipeline — they're semantically equivalent.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does predicate pushdown work in Spark SQL?</div>
+            <div class="qa-answer">
+              <p>Predicate pushdown operates at two levels: <strong>1) Logical level</strong>: The Catalyst optimizer moves filter conditions as close to the source as possible — below joins, through projections, below aggregations (when safe). This reduces the amount of data flowing through the plan. <strong>2) Physical level</strong>: Pushed filters are sent to the data source connector. For Parquet/ORC, this enables row group skipping using min/max statistics and dictionary filtering. For JDBC, it adds WHERE clauses to the SQL pushed to the database. For Delta/Iceberg, it enables data file skipping using manifest-level stats. You can verify pushdown in <code>explain()</code> by checking <code>PushedFilters:</code> in the FileScan node.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is Whole-Stage Code Generation and why is it important?</div>
+            <div class="qa-answer">
+              <p>WSCG fuses multiple physical operators (filter, project, aggregate, etc.) into a single optimized Java function that processes rows in a tight loop. <strong>Without codegen</strong>: the Volcano iterator model calls virtual functions for each operator for each row — millions of virtual dispatches, CPU branch prediction failures, and instruction cache thrashing. <strong>With codegen</strong>: operators are compiled into a single method — no virtual dispatch, the JIT compiler can optimize the loop, CPU pipelines and caches work efficiently. Result: 2-10× speedup for CPU-bound queries. In <code>explain()</code>, codegen stages are marked with <code>*(N)</code>. Boundaries occur at shuffles, Python UDFs, or operators that don't support codegen. Enabled by default via <code>spark.sql.codegen.wholeStage=true</code>.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does CBO differ from rule-based optimization?</div>
+            <div class="qa-answer">
+              <p><strong>Rule-Based (RBO)</strong>: Applies deterministic transformation rules regardless of data characteristics — predicate pushdown always pushes filters down, column pruning always removes unused columns. These are always beneficial. <strong>Cost-Based (CBO)</strong>: Uses collected statistics (table sizes, column cardinalities, histograms) to make data-dependent decisions — which join order minimizes intermediate data, which table should be the broadcast/build side, whether to use BHJ vs SMJ. CBO requires <code>ANALYZE TABLE</code> to collect stats and <code>spark.sql.cbo.enabled=true</code>. Without stats, CBO falls back to file-size estimates which can be wildly inaccurate (e.g., after heavy filtering). AQE partially addresses this by using runtime statistics from completed shuffle stages.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is Dynamic Partition Pruning and when does it apply?</div>
+            <div class="qa-answer">
+              <p>DPP optimizes star-schema queries where a filtered dimension table is joined to a large fact table. Instead of scanning the entire fact table and filtering post-join, Spark: 1) Executes the dimension filter first (fast, small table). 2) Collects the matching join keys. 3) Pushes them as a runtime filter into the fact table scan. 4) The fact table skips entire partitions that don't contain matching keys. <strong>Requirements</strong>: fact table must be partitioned by the join key, dimension filter must be selective, the dimension side must be small enough to broadcast. Enabled by default in Spark 3.0+ (<code>spark.sql.optimizer.dynamicPartitionPruning.enabled=true</code>). This can reduce fact table scan volume by 10-100× for selective dimension filters.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

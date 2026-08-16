@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Apache Hudi — COW vs MOR — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Lakehouse</a>
+        <span>→</span>
+        <span>Apache Hudi — COW vs MOR</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Lakehouse</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Apache Hudi — COW vs MOR</h1>
+          <p class="article-desc">Complete guide to Apache Hudi's storage architecture, table types, indexing, compaction, and incremental processing — with practical guidance on choosing between Copy-on-Write and Merge-on-Read.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#architecture">Hudi Architecture</a></li>
+            <li><a href="#cow">Copy-on-Write (COW)</a></li>
+            <li><a href="#mor">Merge-on-Read (MOR)</a></li>
+            <li><a href="#cow-vs-mor">When to Use COW vs MOR</a></li>
+            <li><a href="#write-operations">Write Operations</a></li>
+            <li><a href="#indexing">Indexing</a></li>
+            <li><a href="#compaction">Compaction in MOR</a></li>
+            <li><a href="#spark-integration">Hudi with Spark</a></li>
+            <li><a href="#incremental-queries">Incremental Queries</a></li>
+            <li><a href="#comparison">Hudi vs Iceberg vs Delta</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="architecture">Hudi Architecture</h2>
+
+          <p>Apache Hudi (Hadoop Upserts Deletes and Incrementals) provides record-level insert, update, and delete capabilities on data lakes. Its architecture revolves around <strong>timelines</strong>, <strong>file groups</strong>, and <strong>file slices</strong>.</p>
+
+          <h3>Core Concepts</h3>
+          <ul>
+            <li><strong>Timeline</strong> — an ordered log of all actions (commits, compactions, cleans) performed on the table. Similar in spirit to Delta's transaction log.</li>
+            <li><strong>File Group</strong> — the unit of parallelism. Each file group is identified by a <code>fileId</code> and contains one or more file slices. A record always belongs to the same file group (determined by the index).</li>
+            <li><strong>File Slice</strong> — a snapshot of a file group at a specific commit time. Contains a base file (Parquet) and optionally log files (Avro) for MOR tables.</li>
+            <li><strong>Metadata Table</strong> — a Hudi-managed table storing file listings, column stats, and bloom filter indexes for faster planning.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Hudi table structure</div>
+            <pre><code>my_hudi_table/
+├── .hoodie/
+│   ├── hoodie.properties                  # table config
+│   ├── 20250115101530.commit              # completed commit
+│   ├── 20250115111530.commit              # completed commit
+│   ├── 20250115121530.compaction.requested
+│   └── metadata/                          # internal metadata table
+├── partition=2025-01-15/
+│   ├── filegroup-001/
+│   │   ├── base-001_20250115101530.parquet   # base file (file slice 1)
+│   │   ├── base-001_20250115111530.parquet   # base file (file slice 2, COW)
+│   │   └── .log-001_20250115111530.log       # log file (MOR only)
+│   └── filegroup-002/
+│       └── base-002_20250115101530.parquet
+└── partition=2025-01-16/
+    └── ...</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Key insight:</strong>
+            <p>Unlike Delta/Iceberg where any file can be affected by an update, Hudi's <strong>indexing</strong> maps each record to a specific file group. This means updates always know exactly which file to modify — no need to scan the entire table to find affected files.</p>
+          </div>
+
+          <h2 id="cow">Copy-on-Write (COW)</h2>
+
+          <p>In COW tables, every write (insert, update, delete) produces a <strong>new version of the entire Parquet file</strong> containing the affected records.</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>Writer receives a batch of records (some new, some updates)</li>
+            <li>Index lookup determines which file group each record belongs to</li>
+            <li>For updated records: read the existing base file, merge with updates, write a new base file (new file slice)</li>
+            <li>For new records in a new file group: write a fresh base file</li>
+            <li>Old file slices are retained for time travel (cleaned up later)</li>
+          </ol>
+
+          <h3>Characteristics</h3>
+          <ul>
+            <li><strong>Read performance</strong>: Excellent — readers always read clean Parquet files, no merge needed at read time</li>
+            <li><strong>Write performance</strong>: Expensive — even a single-row update requires rewriting the entire file (typically 128MB)</li>
+            <li><strong>Storage</strong>: Higher (each update creates a full copy of the file)</li>
+            <li><strong>Latency</strong>: Higher write latency due to full file rewrites</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">COW write — what happens on update</div>
+            <pre><code># Before update:
+# file_group_001: base_001_ts1.parquet (100,000 records)
+
+# Update 5 records in file_group_001:
+# 1. Read base_001_ts1.parquet (all 100,000 records)
+# 2. Apply 5 updates in memory
+# 3. Write base_001_ts2.parquet (100,000 records — full rewrite)
+# 4. Mark base_001_ts1.parquet as older file slice
+
+# After update:
+# file_group_001: base_001_ts2.parquet (100,000 records) ← current
+#                 base_001_ts1.parquet (100,000 records) ← historical</code></pre>
+          </div>
+
+          <h2 id="mor">Merge-on-Read (MOR)</h2>
+
+          <p>In MOR tables, updates are written as <strong>log files (delta logs)</strong> rather than rewriting the entire base file. Reads merge the base file with log files on the fly.</p>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>Writer receives a batch of records</li>
+            <li>For new inserts: may create a new base file or append to a log file</li>
+            <li>For updates: append only the changed records to a log file (Avro format)</li>
+            <li>Reads: merge the base Parquet file with all log files for that file group</li>
+            <li>Compaction: periodically merge log files into the base file (creates a new clean file slice)</li>
+          </ol>
+
+          <h3>Characteristics</h3>
+          <ul>
+            <li><strong>Write performance</strong>: Fast — only append-write small log files (no full file rewrite)</li>
+            <li><strong>Read performance</strong>: Slower — must merge log files with base file at read time</li>
+            <li><strong>Storage</strong>: Lower between compactions (log files are small)</li>
+            <li><strong>Latency</strong>: Much lower write latency — suitable for near-real-time ingestion</li>
+          </ul>
+
+          <h3>Two Query Types on MOR</h3>
+          <ul>
+            <li><strong>Snapshot query</strong> — merges base + logs at read time (sees latest data, slower)</li>
+            <li><strong>Read-optimized query</strong> — reads only base files (faster, but may miss recent updates not yet compacted)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">MOR write — log file appends</div>
+            <pre><code># Before update:
+# file_group_001: base_001_ts1.parquet (100,000 records)
+
+# Update 5 records:
+# 1. Write only the 5 changed records to log_001_ts2.log (Avro, tiny file)
+# 2. Done! No full file rewrite.
+
+# After update:
+# file_group_001: base_001_ts1.parquet (100,000 records) ← base
+#                 log_001_ts2.log (5 records) ← delta log
+
+# Snapshot read: read base + merge with log → 100,000 records (5 updated)
+# Read-optimized: read base only → 100,000 records (stale 5 records)</code></pre>
+          </div>
+
+          <h2 id="cow-vs-mor">When to Use COW vs MOR</h2>
+
+          <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+            <thead>
+              <tr><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Criteria</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">COW</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">MOR</th></tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Read/Write ratio</td><td style="padding:8px;border-bottom:1px solid var(--border)">Read-heavy</td><td style="padding:8px;border-bottom:1px solid var(--border)">Write-heavy</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Write latency</td><td style="padding:8px;border-bottom:1px solid var(--border)">Higher (full rewrite)</td><td style="padding:8px;border-bottom:1px solid var(--border)">Lower (log append)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Read latency</td><td style="padding:8px;border-bottom:1px solid var(--border)">Lower (clean files)</td><td style="padding:8px;border-bottom:1px solid var(--border)">Higher (merge on read)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Update frequency</td><td style="padding:8px;border-bottom:1px solid var(--border)">Low-to-medium</td><td style="padding:8px;border-bottom:1px solid var(--border)">High (streaming/CDC)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Ingestion latency</td><td style="padding:8px;border-bottom:1px solid var(--border)">Minutes to hours</td><td style="padding:8px;border-bottom:1px solid var(--border)">Seconds to minutes</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Compaction needed</td><td style="padding:8px;border-bottom:1px solid var(--border)">No</td><td style="padding:8px;border-bottom:1px solid var(--border)">Yes (critical for read perf)</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout callout-tip">
+            <strong>💡 Rule of thumb:</strong>
+            <p>If your table gets updated frequently (CDC, streaming) and read latency tolerance is minutes → MOR. If your table is batch-updated once/twice daily and read performance is critical (BI dashboards) → COW.</p>
+          </div>
+
+          <h2 id="write-operations">Write Operations</h2>
+
+          <ul>
+            <li><strong>insert</strong> — adds new records. Uses index to check for duplicates (rejects if key exists in strict mode).</li>
+            <li><strong>upsert</strong> — insert new records and update existing ones (based on record key). The most common operation.</li>
+            <li><strong>delete</strong> — removes records matching a condition. Produces empty records with delete markers.</li>
+            <li><strong>bulk_insert</strong> — optimized for first-time loads. Skips index lookup for speed. Use for initial table population.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Hudi write operations with Spark</div>
+            <pre><code>hudi_options = {
+    "hoodie.table.name": "orders",
+    "hoodie.datasource.write.table.type": "COPY_ON_WRITE",
+    "hoodie.datasource.write.operation": "upsert",
+    "hoodie.datasource.write.recordkey.field": "order_id",
+    "hoodie.datasource.write.precombine.field": "updated_at",
+    "hoodie.datasource.write.partitionpath.field": "order_date",
+    "hoodie.upsert.shuffle.parallelism": 200,
+}
+
+# Upsert
+df.write.format("hudi") \
+    .options(**hudi_options) \
+    .mode("append") \
+    .save("/data/hudi/orders")
+
+# Delete
+delete_df.write.format("hudi") \
+    .options(**{**hudi_options,
+        "hoodie.datasource.write.operation": "delete"}) \
+    .mode("append") \
+    .save("/data/hudi/orders")
+
+# Bulk insert (initial load — no index lookup)
+df.write.format("hudi") \
+    .options(**{**hudi_options,
+        "hoodie.datasource.write.operation": "bulk_insert",
+        "hoodie.bulkinsert.sort.mode": "GLOBAL_SORT"}) \
+    .mode("overwrite") \
+    .save("/data/hudi/orders")</code></pre>
+          </div>
+
+          <h2 id="indexing">Indexing</h2>
+
+          <p>Hudi's index maps a record key to a file group — this is what makes upserts efficient (no full-table scan to find the target file).</p>
+
+          <h3>Index Types</h3>
+          <ul>
+            <li><strong>Bloom Filter Index</strong> (default) — stores bloom filters in file footers. On upsert, checks bloom filters to identify candidate files, then does exact lookup. Good for most workloads.</li>
+            <li><strong>Simple Index</strong> — joins incoming records against all base files. Works for any key type but expensive for large tables.</li>
+            <li><strong>HBase Index</strong> — stores record-key → file-group mapping in an external HBase instance. Sub-second lookups for massive tables. Requires HBase infrastructure.</li>
+            <li><strong>Bucket Index</strong> — hash-based file group assignment. Consistent hashing on the record key determines the file group. No index lookup needed — O(1) routing. Good for large-scale workloads with known key distribution.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Index configuration</div>
+            <pre><code># Bloom filter index (default)
+"hoodie.index.type": "BLOOM"
+"hoodie.bloom.index.parallelism": 200
+"hoodie.bloom.index.prune.by.ranges": "true"
+
+# Bucket index (no lookup overhead)
+"hoodie.index.type": "BUCKET"
+"hoodie.bucket.index.num.buckets": 256
+"hoodie.bucket.index.hash.field": "order_id"
+
+# HBase index (external store)
+"hoodie.index.type": "HBASE"
+"hoodie.index.hbase.zkquorum": "zk1:2181,zk2:2181"
+"hoodie.index.hbase.table": "hudi_index"</code></pre>
+          </div>
+
+          <h2 id="compaction">Compaction in MOR</h2>
+
+          <p>Compaction merges log files into base files, creating clean Parquet files. Critical for maintaining read performance in MOR tables.</p>
+
+          <h3>Compaction Strategies</h3>
+          <ul>
+            <li><strong>Inline compaction</strong> — runs within the same write job. Simpler but increases write latency.</li>
+            <li><strong>Async compaction</strong> — separate job runs compaction independently. Better for production (doesn't delay writes).</li>
+            <li><strong>Scheduled compaction</strong> — Hudi creates compaction plans on the timeline; a separate process executes them.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Compaction configuration</div>
+            <pre><code># Inline compaction (runs during write)
+"hoodie.compact.inline": "true"
+"hoodie.compact.inline.max.delta.commits": 5  # compact every 5 commits
+
+# Async compaction (separate job)
+"hoodie.compact.inline": "false"
+
+# Run compaction as a separate Spark job:
+from hudi import HoodieCompactor
+spark.sql("CALL run_compaction(table => 'hudi_table', op => 'run')")
+
+# Compaction strategy
+"hoodie.compaction.strategy": "org.apache.hudi.table.action.compact.strategy.BoundedIOCompactionStrategy"
+"hoodie.compaction.target.io": "512000"  # target IO in KB per compaction</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Compaction lag:</strong>
+            <p>If compaction falls behind writes, log files accumulate and read performance degrades significantly. Monitor the number of log files per file group and compaction lag. Set alerts when log file count exceeds a threshold (e.g., > 10 logs per file group).</p>
+          </div>
+
+          <h2 id="spark-integration">Hudi with Spark</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Complete Hudi Spark configuration</div>
+            <pre><code>from pyspark.sql import SparkSession
+
+spark = SparkSession.builder \
+    .appName("HudiApp") \
+    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+    .config("spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.hudi.catalog.HoodieCatalog") \
+    .config("spark.sql.extensions",
+            "org.apache.spark.sql.hudi.HoodieSparkSessionExtension") \
+    .config("spark.jars.packages",
+            "org.apache.hudi:hudi-spark3.4-bundle_2.12:0.14.0") \
+    .getOrCreate()
+
+# Read Hudi table
+orders = spark.read.format("hudi").load("/data/hudi/orders")
+
+# Read with time travel
+orders_v1 = spark.read.format("hudi") \
+    .option("as.of.instant", "20250115101530") \
+    .load("/data/hudi/orders")
+
+# Spark SQL
+spark.sql("CREATE TABLE orders USING hudi ...")
+spark.sql("INSERT INTO orders SELECT ...")
+spark.sql("UPDATE orders SET status = 'shipped' WHERE order_id = 'X'")</code></pre>
+          </div>
+
+          <h2 id="incremental-queries">Incremental Queries</h2>
+
+          <p>Hudi's killer feature: pull only records that changed since a given commit — perfect for ETL pipelines that process deltas.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Incremental query pattern</div>
+            <pre><code># Read only changes since a specific commit
+incremental_df = spark.read.format("hudi") \
+    .option("hoodie.datasource.query.type", "incremental") \
+    .option("hoodie.datasource.read.begin.instanttime", "20250115101530") \
+    .option("hoodie.datasource.read.end.instanttime", "20250115121530") \
+    .load("/data/hudi/orders")
+
+# In streaming: use Hudi as a streaming source
+stream_df = spark.readStream.format("hudi") \
+    .option("hoodie.datasource.query.type", "incremental") \
+    .option("hoodie.datasource.read.begin.instanttime", "20250115000000") \
+    .load("/data/hudi/orders")
+
+# Process incremental changes and write to downstream
+incremental_df.filter("_hoodie_is_deleted = false") \
+    .write.format("hudi") \
+    .options(**downstream_options) \
+    .mode("append") \
+    .save("/data/hudi/silver_orders")</code></pre>
+          </div>
+
+          <h2 id="comparison">Hudi vs Iceberg vs Delta</h2>
+
+          <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+            <thead>
+              <tr><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Feature</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Hudi</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Iceberg</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Delta</th></tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Record-level index</td><td style="padding:8px;border-bottom:1px solid var(--border)">Built-in (Bloom, Bucket)</td><td style="padding:8px;border-bottom:1px solid var(--border)">No (file-level stats)</td><td style="padding:8px;border-bottom:1px solid var(--border)">No (file-level stats)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Table types</td><td style="padding:8px;border-bottom:1px solid var(--border)">COW + MOR</td><td style="padding:8px;border-bottom:1px solid var(--border)">Single (with delete files)</td><td style="padding:8px;border-bottom:1px solid var(--border)">Single (with deletion vectors)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Incremental pull</td><td style="padding:8px;border-bottom:1px solid var(--border)">Native (first-class)</td><td style="padding:8px;border-bottom:1px solid var(--border)">Snapshot range reads</td><td style="padding:8px;border-bottom:1px solid var(--border)">CDF (Change Data Feed)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Streaming upserts</td><td style="padding:8px;border-bottom:1px solid var(--border)">Strong (designed for this)</td><td style="padding:8px;border-bottom:1px solid var(--border)">Supported via MERGE</td><td style="padding:8px;border-bottom:1px solid var(--border)">Supported via foreachBatch</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Schema evolution</td><td style="padding:8px;border-bottom:1px solid var(--border)">Supported</td><td style="padding:8px;border-bottom:1px solid var(--border)">Best (column IDs)</td><td style="padding:8px;border-bottom:1px solid var(--border)">mergeSchema/overwriteSchema</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Partition evolution</td><td style="padding:8px;border-bottom:1px solid var(--border)">Limited</td><td style="padding:8px;border-bottom:1px solid var(--border)">Full (metadata-only)</td><td style="padding:8px;border-bottom:1px solid var(--border)">Liquid clustering (Databricks)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Multi-engine</td><td style="padding:8px;border-bottom:1px solid var(--border)">Spark, Flink, Presto</td><td style="padding:8px;border-bottom:1px solid var(--border)">Spark, Flink, Trino, Dremio</td><td style="padding:8px;border-bottom:1px solid var(--border)">Spark-centric (+ UniForm)</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">Community/Adoption</td><td style="padding:8px;border-bottom:1px solid var(--border)">Strong in CDC/streaming</td><td style="padding:8px;border-bottom:1px solid var(--border)">Growing fastest</td><td style="padding:8px;border-bottom:1px solid var(--border)">Dominant in Databricks</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the trade-offs between COW and MOR in Hudi?</div>
+            <div class="qa-answer">
+              <p><strong>COW (Copy-on-Write)</strong>: Every update rewrites the entire Parquet file containing the record. Reads are fast (always clean Parquet) but writes are expensive (O(file_size) per update). Best for read-heavy workloads with infrequent updates. <strong>MOR (Merge-on-Read)</strong>: Updates append to small log files (Avro). Writes are fast (O(update_size)) but reads must merge base files with logs (slower). Requires compaction to maintain read performance. Best for write-heavy, streaming/CDC workloads where write latency matters more than read latency.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Hudi indexing work?</div>
+            <div class="qa-answer">
+              <p>Hudi's index maps each record key to a specific <strong>file group</strong>. On upsert, the index tells the writer exactly which file(s) to update — no full-table scan. <strong>Bloom Filter</strong> (default): stores bloom filters in Parquet footers; during upsert, checks filters to identify candidate files, then does point lookup. <strong>Bucket Index</strong>: uses consistent hashing on the record key — O(1) routing with no lookup. <strong>HBase Index</strong>: stores key→file-group mapping in external HBase for sub-second lookups on billion-record tables. The index is what makes Hudi uniquely efficient at record-level upserts compared to Delta/Iceberg.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you choose Hudi over Iceberg or Delta?</div>
+            <div class="qa-answer">
+              <p>Choose Hudi when: (1) You have a <strong>high-frequency upsert workload</strong> (CDC from OLTP databases with thousands of updates/sec) — Hudi's MOR + index makes this efficient. (2) You need <strong>near-real-time incremental processing</strong> — Hudi's incremental query is first-class. (3) You're on AWS (EMR/Glue have strong Hudi support). Choose Iceberg for multi-engine environments and partition evolution. Choose Delta for Databricks-centric environments and tight Spark integration.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is compaction in MOR and why is it critical?</div>
+            <div class="qa-answer">
+              <p>Compaction in MOR tables merges accumulated <strong>log files</strong> (Avro deltas) back into <strong>base files</strong> (Parquet), producing a clean new file slice. Without compaction, log files grow unbounded and read performance degrades because every read must merge base + all logs. Compaction can be inline (during writes — simpler but adds latency), async (separate job — recommended for production), or scheduled (Hudi plans compaction on the timeline; a separate executor runs it). Monitor compaction lag — if it falls behind, reads slow down dramatically.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do incremental queries work in Hudi?</div>
+            <div class="qa-answer">
+              <p>Hudi's timeline tracks every commit with a timestamp. An <strong>incremental query</strong> reads only records that were committed between two timestamps (<code>begin.instanttime</code> and optionally <code>end.instanttime</code>). This returns only changed records (inserts, updates, deletes) — not the full table. It's implemented by scanning the timeline for commits in the range, then reading only the file slices (base + logs) created in those commits. This is the foundation for efficient ETL: each pipeline run pulls only what's new, processes it, and advances the checkpoint. Much cheaper than re-scanning the full table.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Lakehouse</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

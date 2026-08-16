@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Medallion Architecture (Bronze/Silver/Gold) — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Lakehouse</a>
+        <span>→</span>
+        <span>Medallion Architecture</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Lakehouse</span>
+            <span class="read-time">13 min read</span>
+          </div>
+          <h1>Medallion Architecture (Bronze/Silver/Gold)</h1>
+          <p class="article-desc">A layered data design pattern that incrementally improves data quality as it flows through Bronze (raw), Silver (cleaned), and Gold (business-level) layers in a lakehouse.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what-is-medallion">What Is Medallion Architecture</a></li>
+            <li><a href="#bronze-layer">Bronze Layer — Raw Ingestion</a></li>
+            <li><a href="#silver-layer">Silver Layer — Cleaned & Conformed</a></li>
+            <li><a href="#gold-layer">Gold Layer — Business Aggregates</a></li>
+            <li><a href="#implementation">Implementation with Delta Lake / Iceberg</a></li>
+            <li><a href="#data-quality">Data Quality at Each Layer</a></li>
+            <li><a href="#obt-vs-star">OBT vs Star Schema at Gold Layer</a></li>
+            <li><a href="#incremental-processing">Incremental Processing Patterns</a></li>
+            <li><a href="#real-example">Real Example: E-Commerce Pipeline</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what-is-medallion">What Is Medallion Architecture</h2>
+
+          <p>Medallion architecture is a data design pattern used in lakehouse platforms that organizes data into multiple layers (typically three) based on <strong>quality and refinement level</strong>. Each layer serves a distinct purpose and enables separation of concerns, independent reprocessing, and clear data lineage.</p>
+
+          <h3>Why It Exists</h3>
+          <ul>
+            <li><strong>Separation of concerns</strong> — ingestion logic is decoupled from business logic and analytics</li>
+            <li><strong>Reprocessing</strong> — if transformation logic changes, you can re-derive Silver/Gold from Bronze without re-ingesting from source</li>
+            <li><strong>Data quality</strong> — quality improves progressively; raw data is always preserved as the source of truth</li>
+            <li><strong>Debugging</strong> — when analytics look wrong, you can trace back through layers to find where data diverged</li>
+            <li><strong>Team boundaries</strong> — data engineers own Bronze→Silver, analytics engineers own Silver→Gold</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Core principle:</strong>
+            <p>Bronze is append-only and preserves raw data exactly as received. You never lose data — even if business rules change, you can always go back to Bronze and recompute everything downstream.</p>
+          </div>
+
+          <h2 id="bronze-layer">Bronze Layer — Raw Ingestion</h2>
+
+          <p>The Bronze layer is the <strong>landing zone</strong> for all raw data entering the lakehouse. Data arrives in its original format with minimal or no transformations applied.</p>
+
+          <h3>Characteristics</h3>
+          <ul>
+            <li><strong>Schema-on-read</strong> — store data as-is; apply schema during consumption</li>
+            <li><strong>Append-only</strong> — never update or delete; each batch/stream appends new records</li>
+            <li><strong>No transformations</strong> — no business logic, no data type casting, no joins</li>
+            <li><strong>Source metadata preserved</strong> — include ingestion timestamp, source system name, batch ID, filename</li>
+            <li><strong>Full fidelity</strong> — retain all columns from source, even those you don't currently need</li>
+            <li><strong>Deduplication deferred</strong> — duplicates from source are acceptable here; handled in Silver</li>
+          </ul>
+
+          <h3>Common File Formats</h3>
+          <ul>
+            <li>JSON (semi-structured API responses, event streams)</li>
+            <li>Avro (Kafka consumers)</li>
+            <li>Parquet (batch extracts from databases)</li>
+            <li>CSV (legacy flat-file feeds)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Bronze ingestion with metadata columns</div>
+            <pre><code>from pyspark.sql import functions as F
+
+raw_df = (
+    spark.readStream
+    .format("kafka")
+    .option("subscribe", "orders")
+    .option("startingOffsets", "earliest")
+    .load()
+)
+
+bronze_df = raw_df.select(
+    F.col("key").cast("string").alias("kafka_key"),
+    F.col("value").cast("string").alias("raw_payload"),
+    F.col("topic"),
+    F.col("partition").alias("kafka_partition"),
+    F.col("offset").alias("kafka_offset"),
+    F.col("timestamp").alias("kafka_timestamp"),
+    F.current_timestamp().alias("ingested_at"),
+    F.lit("kafka-orders-prod").alias("source_system")
+)
+
+bronze_df.writeStream \
+    .format("delta") \
+    .outputMode("append") \
+    .option("checkpointLocation", "/checkpoints/bronze_orders") \
+    .toTable("bronze.orders")</code></pre>
+          </div>
+
+          <h2 id="silver-layer">Silver Layer — Cleaned & Conformed</h2>
+
+          <p>The Silver layer contains <strong>enterprise-conforming data</strong>. This is where you clean, deduplicate, standardize schemas, and apply business keys — but not business aggregations.</p>
+
+          <h3>Transformations Applied</h3>
+          <ul>
+            <li><strong>Parsing</strong> — extract structured fields from raw JSON/Avro payloads</li>
+            <li><strong>Deduplication</strong> — remove duplicates using business keys + event timestamps</li>
+            <li><strong>Data type casting</strong> — enforce correct types (string dates → timestamp, string amounts → decimal)</li>
+            <li><strong>Standardization</strong> — normalize field names (camelCase → snake_case), apply consistent null handling</li>
+            <li><strong>Business key assignment</strong> — generate surrogate keys, map natural keys</li>
+            <li><strong>SCD Type 2</strong> — maintain historical dimension records with effective dates</li>
+            <li><strong>Filtering</strong> — remove corrupt, test, or invalid records (quarantine to a separate table)</li>
+            <li><strong>Conforming</strong> — align data from multiple sources to a single schema</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Silver layer — parse, deduplicate, conform</div>
+            <pre><code>from pyspark.sql import functions as F
+from pyspark.sql.window import Window
+
+# Read from Bronze
+bronze_orders = spark.readStream.table("bronze.orders")
+
+# Parse JSON payload
+parsed_df = bronze_orders.select(
+    F.from_json(
+        F.col("raw_payload"),
+        "order_id STRING, customer_id STRING, amount DOUBLE, status STRING, order_date STRING"
+    ).alias("data"),
+    F.col("kafka_offset"),
+    F.col("ingested_at")
+).select("data.*", "kafka_offset", "ingested_at")
+
+# Cast types
+typed_df = parsed_df.withColumn(
+    "order_date", F.to_timestamp("order_date", "yyyy-MM-dd'T'HH:mm:ss")
+).withColumn(
+    "amount", F.col("amount").cast("decimal(10,2)")
+)
+
+# Deduplicate within micro-batch using window
+dedup_window = Window.partitionBy("order_id").orderBy(F.desc("kafka_offset"))
+deduped_df = typed_df.withColumn(
+    "row_num", F.row_number().over(dedup_window)
+).filter("row_num = 1").drop("row_num")
+
+# Write to Silver with MERGE for cross-batch dedup
+deduped_df.writeStream \
+    .format("delta") \
+    .outputMode("append") \
+    .option("checkpointLocation", "/checkpoints/silver_orders") \
+    .toTable("silver.orders")</code></pre>
+          </div>
+
+          <div class="callout callout-tip">
+            <strong>💡 Pro tip:</strong>
+            <p>For cross-batch deduplication, use Delta Lake's MERGE statement with foreachBatch. Within-batch dedup can use window functions, but true exactly-once semantics require MERGE on the business key.</p>
+          </div>
+
+          <h2 id="gold-layer">Gold Layer — Business Aggregates</h2>
+
+          <p>The Gold layer contains <strong>business-level aggregates</strong> and analytics-ready datasets. These tables are optimized for consumption by BI tools, dashboards, ML feature stores, and business users.</p>
+
+          <h3>Characteristics</h3>
+          <ul>
+            <li><strong>Aggregated</strong> — pre-computed metrics (daily revenue, customer LTV, product rankings)</li>
+            <li><strong>Denormalized</strong> — joins pre-materialized, no need for complex queries at read time</li>
+            <li><strong>Business-logic applied</strong> — revenue recognition rules, customer segmentation, SLA calculations</li>
+            <li><strong>KPI tables</strong> — directly map to business questions and dashboard widgets</li>
+            <li><strong>Access-controlled</strong> — often the only layer exposed to business users and BI tools</li>
+            <li><strong>Performance-optimized</strong> — partitioned, Z-ordered, and compacted for fast reads</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Gold layer — daily revenue aggregation</div>
+            <pre><code>-- Gold table: daily revenue summary
+CREATE OR REPLACE TABLE gold.daily_revenue AS
+SELECT
+    DATE(order_date) AS order_day,
+    COUNT(DISTINCT order_id) AS total_orders,
+    COUNT(DISTINCT customer_id) AS unique_customers,
+    SUM(amount) AS gross_revenue,
+    SUM(CASE WHEN status = 'refunded' THEN amount ELSE 0 END) AS refunds,
+    SUM(amount) - SUM(CASE WHEN status = 'refunded' THEN amount ELSE 0 END) AS net_revenue,
+    AVG(amount) AS avg_order_value
+FROM silver.orders
+WHERE status IN ('completed', 'refunded')
+GROUP BY DATE(order_date)
+ORDER BY order_day;</code></pre>
+          </div>
+
+          <h2 id="implementation">Implementation with Delta Lake / Iceberg</h2>
+
+          <p>Both Delta Lake and Apache Iceberg provide the ACID guarantees needed to implement medallion architecture reliably.</p>
+
+          <h3>Creating Tables at Each Layer</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta Lake — table creation</div>
+            <pre><code>-- Bronze: wide schema, append-only
+CREATE TABLE bronze.orders (
+    kafka_key STRING,
+    raw_payload STRING,
+    topic STRING,
+    kafka_partition INT,
+    kafka_offset BIGINT,
+    kafka_timestamp TIMESTAMP,
+    ingested_at TIMESTAMP,
+    source_system STRING
+)
+USING DELTA
+PARTITIONED BY (DATE(ingested_at))
+TBLPROPERTIES ('delta.appendOnly' = 'true');
+
+-- Silver: structured, business-keyed
+CREATE TABLE silver.orders (
+    order_id STRING,
+    customer_id STRING,
+    amount DECIMAL(10,2),
+    status STRING,
+    order_date TIMESTAMP,
+    processed_at TIMESTAMP
+)
+USING DELTA
+PARTITIONED BY (DATE(order_date));
+
+-- Gold: aggregated, analytics-ready
+CREATE TABLE gold.daily_revenue (
+    order_day DATE,
+    total_orders BIGINT,
+    unique_customers BIGINT,
+    gross_revenue DECIMAL(15,2),
+    net_revenue DECIMAL(15,2),
+    avg_order_value DECIMAL(10,2)
+)
+USING DELTA
+PARTITIONED BY (order_day);</code></pre>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">MERGE pattern for Silver upserts</div>
+            <pre><code>MERGE INTO silver.orders AS target
+USING bronze_batch AS source
+ON target.order_id = source.order_id
+WHEN MATCHED AND source.kafka_offset > target.kafka_offset THEN
+    UPDATE SET
+        status = source.status,
+        amount = source.amount,
+        processed_at = current_timestamp()
+WHEN NOT MATCHED THEN
+    INSERT (order_id, customer_id, amount, status, order_date, processed_at)
+    VALUES (source.order_id, source.customer_id, source.amount,
+            source.status, source.order_date, current_timestamp());</code></pre>
+          </div>
+
+          <h2 id="data-quality">Data Quality at Each Layer</h2>
+
+          <p>Each layer should enforce progressively stricter quality gates.</p>
+
+          <h3>Bronze Quality</h3>
+          <ul>
+            <li>Basic schema validation (is the payload parseable?)</li>
+            <li>Completeness checks (did we receive expected number of records?)</li>
+            <li>No transformation — quarantine completely malformed records</li>
+          </ul>
+
+          <h3>Silver Quality</h3>
+          <ul>
+            <li>Not-null constraints on business keys (order_id, customer_id)</li>
+            <li>Referential integrity checks (does customer_id exist in silver.customers?)</li>
+            <li>Range validations (amount > 0, order_date not in the future)</li>
+            <li>Uniqueness constraints (no duplicate order_ids)</li>
+          </ul>
+
+          <h3>Gold Quality</h3>
+          <ul>
+            <li>Business rule validations (net_revenue = gross_revenue - refunds)</li>
+            <li>Trend anomaly detection (today's revenue within 3σ of rolling average)</li>
+            <li>Completeness (no missing dates in time-series tables)</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta Lake Expectations (Databricks)</div>
+            <pre><code>@dlt.expect_or_drop("valid_order_id", "order_id IS NOT NULL")
+@dlt.expect_or_drop("positive_amount", "amount > 0")
+@dlt.expect_or_fail("valid_date", "order_date <= current_date()")
+@dlt.expect("known_status", "status IN ('pending','completed','refunded','cancelled')")
+
+@dlt.table(name="silver_orders")
+def silver_orders():
+    return spark.readStream.table("bronze.orders").select(...)
+</code></pre>
+          </div>
+
+          <h2 id="obt-vs-star">OBT vs Star Schema at Gold Layer</h2>
+
+          <p>Two dominant modeling approaches for the Gold layer:</p>
+
+          <h3>One Big Table (OBT)</h3>
+          <ul>
+            <li>Single wide denormalized table with all dimensions flattened alongside facts</li>
+            <li><strong>Pros</strong>: No joins needed at query time, simple for BI tools, great read performance</li>
+            <li><strong>Cons</strong>: Data duplication, larger storage, slower writes, harder to maintain</li>
+            <li>Best for: specific dashboards, high-read use cases, limited dimension cardinality</li>
+          </ul>
+
+          <h3>Star Schema</h3>
+          <ul>
+            <li>Central fact table surrounded by dimension tables (customers, products, time)</li>
+            <li><strong>Pros</strong>: Normalized storage, easier updates, flexible ad-hoc queries</li>
+            <li><strong>Cons</strong>: Requires joins (though lakehouse engines handle this well)</li>
+            <li>Best for: enterprise data warehouse patterns, reusable dimensions, ad-hoc analytics</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Trade-off decision:</strong>
+            <p>Use OBT when you have a specific, high-frequency dashboard with known access patterns. Use Star Schema when multiple teams query the same dimensions in different ways. In practice, many teams use Star Schema at Gold with materialized OBT views for specific dashboards.</p>
+          </div>
+
+          <h2 id="incremental-processing">Incremental Processing Patterns</h2>
+
+          <p>Processing all data from scratch every run is expensive. Incremental patterns process only new/changed data.</p>
+
+          <h3>Watermark-Based</h3>
+          <ul>
+            <li>Track a high-watermark column (e.g., <code>modified_at</code> timestamp)</li>
+            <li>Each run processes records where <code>modified_at > last_watermark</code></li>
+            <li>Simple but can miss late-arriving data or backdated updates</li>
+          </ul>
+
+          <h3>CDC-Based (Change Data Capture)</h3>
+          <ul>
+            <li>Capture INSERT/UPDATE/DELETE operations from source database transaction log</li>
+            <li>Tools: Debezium, AWS DMS, Fivetran, Airbyte</li>
+            <li>Apply changes using MERGE INTO at Silver layer</li>
+            <li>Most reliable for keeping Silver in sync with OLTP sources</li>
+          </ul>
+
+          <h3>Change Tracking (Delta CDF / Iceberg Incremental)</h3>
+          <ul>
+            <li>Use the table format's built-in change tracking</li>
+            <li>Delta: Change Data Feed (CDF) — read changes between versions</li>
+            <li>Iceberg: Incremental read with snapshot range</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta CDF for incremental Silver → Gold</div>
+            <pre><code>-- Enable CDF on Silver table
+ALTER TABLE silver.orders SET TBLPROPERTIES ('delta.enableChangeDataFeed' = 'true');
+
+-- Read only changes since last version
+changes_df = spark.read.format("delta") \
+    .option("readChangeFeed", "true") \
+    .option("startingVersion", last_processed_version) \
+    .table("silver.orders")
+
+# Filter to inserts and updates only
+new_data = changes_df.filter(
+    F.col("_change_type").isin("insert", "update_postimage")
+)
+
+# Merge into Gold
+new_data.createOrReplaceTempView("silver_changes")
+spark.sql("""
+    MERGE INTO gold.daily_revenue AS target
+    USING (
+        SELECT DATE(order_date) AS order_day, ...
+        FROM silver_changes
+        GROUP BY DATE(order_date)
+    ) AS source
+    ON target.order_day = source.order_day
+    WHEN MATCHED THEN UPDATE SET ...
+    WHEN NOT MATCHED THEN INSERT ...
+""")</code></pre>
+          </div>
+
+          <h2 id="real-example">Real Example: E-Commerce Pipeline</h2>
+
+          <p>Let's trace an order event through all three layers:</p>
+
+          <h3>Source Event (Kafka)</h3>
+          <div class="code-block">
+            <div class="code-block-header">Raw Kafka message</div>
+            <pre><code>{
+  "order_id": "ORD-2025-78432",
+  "customer_id": "CUST-1192",
+  "items": [
+    {"sku": "SKU-001", "qty": 2, "unit_price": 29.99},
+    {"sku": "SKU-044", "qty": 1, "unit_price": 149.99}
+  ],
+  "total": 209.97,
+  "status": "completed",
+  "shipping_address": {"city": "Seattle", "state": "WA", "zip": "98101"},
+  "order_date": "2025-01-15T14:23:11Z"
+}</code></pre>
+          </div>
+
+          <h3>Bronze</h3>
+          <p>Stored as-is with metadata: raw JSON payload + kafka_offset + ingested_at + source_system. No parsing.</p>
+
+          <h3>Silver</h3>
+          <p>Parsed into structured columns. Items array exploded into <code>silver.order_items</code>. Order-level data in <code>silver.orders</code>. Customer address normalized. Deduped on <code>order_id</code>.</p>
+
+          <h3>Gold</h3>
+          <p>Aggregated into <code>gold.daily_revenue</code>, <code>gold.customer_ltv</code>, <code>gold.product_performance</code>. Joined with <code>silver.customers</code> and <code>silver.products</code> for denormalized reporting.</p>
+
+          <div class="callout callout-tip">
+            <strong>💡 Architecture tip:</strong>
+            <p>Keep Bronze→Silver and Silver→Gold as separate pipelines (separate Spark jobs or DLT pipelines). This allows independent scaling, failure isolation, and different processing frequencies (Bronze: real-time, Silver: micro-batch, Gold: hourly/daily).</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What is medallion architecture and why would you use it?</div>
+            <div class="qa-answer">
+              <p>Medallion architecture is a multi-layered data organization pattern in a lakehouse that progressively improves data quality. <strong>Bronze</strong> stores raw ingested data as-is (append-only, schema-on-read). <strong>Silver</strong> contains cleaned, deduplicated, conforming data with proper types and business keys. <strong>Gold</strong> contains business-level aggregates and analytics-ready tables. You use it because it enables: reprocessing from raw data when logic changes, clear separation of concerns between ingestion and business logic, independent team ownership, and progressive quality enforcement.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the responsibilities of each layer — Bronze vs Silver vs Gold?</div>
+            <div class="qa-answer">
+              <p><strong>Bronze</strong>: Raw ingestion only — append data with source metadata, no transformations, preserve full fidelity, schema-on-read. <strong>Silver</strong>: Data engineering — parse payloads, cast types, deduplicate, standardize schemas, apply business keys, enforce referential integrity, implement SCD Type 2. <strong>Gold</strong>: Business analytics — aggregate metrics, apply business rules (revenue recognition, segmentation), denormalize for performance, create KPI tables directly consumed by dashboards and BI tools.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle schema changes in a medallion architecture?</div>
+            <div class="qa-answer">
+              <p>At <strong>Bronze</strong>, schema changes are a non-issue because you store raw data (JSON strings, Avro with schema registry). At <strong>Silver</strong>, use schema evolution features (Delta's <code>mergeSchema</code>, Iceberg's metadata-only evolution) to add new columns. For breaking changes (renamed/removed fields), version your Silver tables or create new ones and backfill. At <strong>Gold</strong>, downstream views may need updates. Key pattern: Bronze absorbs all changes without breaking; Silver adapts with schema evolution; Gold is rebuilt from Silver.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">OBT vs Star Schema — when would you use each at the Gold layer?</div>
+            <div class="qa-answer">
+              <p><strong>OBT (One Big Table)</strong>: Use when you have a specific, high-frequency dashboard with well-known query patterns, few dimensions, and read performance is critical. All dimensions are flattened into a single wide table — no joins at query time. <strong>Star Schema</strong>: Use when multiple teams query the same data in different ways, dimensions are reused across multiple fact tables, or you need flexibility for ad-hoc queries. In practice, many teams maintain a Star Schema at Gold and create materialized OBT views for specific high-traffic dashboards.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you implement incremental processing between layers?</div>
+            <div class="qa-answer">
+              <p>Three main patterns: (1) <strong>Watermark-based</strong> — track a high-watermark column (e.g., <code>modified_at</code>); each run processes records newer than the last watermark. Simple but can miss late-arriving data. (2) <strong>CDC-based</strong> — use tools like Debezium to capture source DB changes (INSERT/UPDATE/DELETE) and apply them via MERGE INTO at Silver. Most reliable for OLTP sync. (3) <strong>Change Data Feed</strong> — use Delta CDF or Iceberg incremental reads to pull only changed records between table versions. Best for Silver→Gold because you're reading from a table format that already tracks changes.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Lakehouse</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PySpark Best Practices & UDFs — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>PySpark Best Practices</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">10 min read</span>
+          </div>
+          <h1>PySpark Best Practices & UDFs</h1>
+          <p class="article-desc">Performance guide for PySpark — understanding the Python-JVM boundary, UDF performance hierarchy, Arrow optimization, common anti-patterns, and production best practices for writing efficient PySpark code.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#python-jvm">Python-JVM Communication</a></li>
+            <li><a href="#dataframe-vs-rdd">DataFrame API vs RDD API</a></li>
+            <li><a href="#udf-types">UDF Types & Performance Hierarchy</a></li>
+            <li><a href="#arrow-optimization">Arrow Optimization</a></li>
+            <li><a href="#anti-patterns">Common Anti-Patterns</a></li>
+            <li><a href="#best-practices">Best Practices</a></li>
+            <li><a href="#type-hinting">Type Hinting & Schema Enforcement</a></li>
+            <li><a href="#platform-differences">Platform Differences</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="python-jvm">Python-JVM Communication</h2>
+
+          <h3>The Py4J Gateway</h3>
+          <p>PySpark does <strong>not</strong> run Python code on the JVM. Instead, it uses a two-process architecture:</p>
+          <ul>
+            <li><strong>Driver side</strong>: Python process communicates with JVM via <strong>Py4J</strong> — a socket-based bridge that translates Python method calls into Java method invocations</li>
+            <li><strong>Executor side</strong>: When Python UDFs are used, each executor spawns a <strong>Python worker process</strong> that communicates via socket pipes</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">PySpark architecture</div>
+            <pre><code># Driver side:
+# Python Process ←—Py4J socket—→ JVM (SparkContext, Catalyst, Scheduler)
+#
+# When you write:
+df.filter(col("age") > 25).groupBy("city").count()
+# This is translated to JVM calls — Python never touches the data!
+# All execution happens in JVM with Tungsten/Catalyst optimization
+
+# Executor side (when Python UDF is involved):
+# JVM Executor ←—socket pipe—→ Python Worker Process
+#
+# Data flow for UDF:
+# 1. JVM serializes rows → Python (pickle/Arrow)
+# 2. Python executes UDF logic
+# 3. Python serializes results → JVM (pickle/Arrow)
+# This serialization is the performance killer!</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Critical performance insight:</strong>
+            <p>DataFrame operations (filter, groupBy, join, agg with built-in functions) execute <em>entirely in the JVM</em> — Python is just the API layer. Python UDFs break this boundary and force data serialization between JVM and Python workers. This is why the same logic written as a built-in function can be 10-100x faster than a Python UDF.</p>
+          </div>
+
+          <h2 id="dataframe-vs-rdd">DataFrame API vs RDD API</h2>
+
+          <h3>Why DataFrame API is Faster in PySpark</h3>
+          <ul>
+            <li><strong>RDD operations</strong> in PySpark serialize data to Python for every transformation (map, filter, reduce) — Python processes each row</li>
+            <li><strong>DataFrame operations</strong> are translated to JVM Catalyst plans — data never leaves the JVM unless you use a Python UDF</li>
+            <li>DataFrames benefit from Catalyst optimization, Tungsten execution, and columnar processing</li>
+            <li>RDDs in PySpark have ~2-10x overhead vs Scala RDDs due to serialization</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">RDD vs DataFrame performance</div>
+            <pre><code># SLOW — RDD (data serialized to Python for processing)
+rdd = spark.sparkContext.textFile("s3://data/logs.txt")
+result = rdd \
+    .map(lambda line: line.split(",")) \
+    .filter(lambda parts: int(parts[2]) > 100) \
+    .map(lambda parts: (parts[0], int(parts[2]))) \
+    .reduceByKey(lambda a, b: a + b)
+# Every map/filter runs in Python workers → serialization overhead
+
+# FAST — DataFrame (all execution in JVM)
+df = spark.read.csv("s3://data/logs.txt", schema=schema)
+result = df \
+    .filter(col("amount") > 100) \
+    .groupBy("category") \
+    .agg(sum("amount"))
+# Catalyst optimizes, Tungsten executes — Python never touches data
+
+# Performance difference: DataFrame is typically 5-20x faster
+# for equivalent operations in PySpark</code></pre>
+          </div>
+
+          <h2 id="udf-types">UDF Types & Performance Hierarchy</h2>
+
+          <h3>Performance Ranking (fastest → slowest)</h3>
+          <ol>
+            <li><strong>Built-in functions</strong> — JVM native, Tungsten optimized (100x baseline)</li>
+            <li><strong>Pandas UDFs (vectorized)</strong> — Arrow transfer, NumPy/Pandas execution (10-40x faster than Python UDF)</li>
+            <li><strong>mapInPandas / applyInPandas</strong> — Arrow-based, arbitrary Pandas logic per partition/group</li>
+            <li><strong>Regular Python UDFs</strong> — row-by-row pickle serialization (baseline, slowest)</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">UDF type comparison</div>
+            <pre><code>from pyspark.sql.functions import udf, pandas_udf, col, upper
+from pyspark.sql.types import StringType, DoubleType
+import pandas as pd
+
+# === 1. BUILT-IN FUNCTIONS (fastest — always prefer) ===
+# Runs entirely in JVM, Tungsten optimized
+result = df.withColumn("name_upper", upper(col("name")))
+result = df.withColumn("amount_tax", col("amount") * 1.1)
+
+# === 2. PANDAS UDF (vectorized — 10-40x faster than Python UDF) ===
+# Data transferred via Arrow (columnar, zero-copy possible)
+# Operates on Pandas Series (batches of rows)
+@pandas_udf(DoubleType())
+def compute_tax(amount: pd.Series) -> pd.Series:
+    """Vectorized — processes entire column batch at once"""
+    return amount * 1.08 + (amount > 1000) * amount * 0.02
+
+result = df.withColumn("tax", compute_tax(col("amount")))
+
+# === 3. mapInPandas (partition-level Pandas processing) ===
+def process_partition(iterator):
+    """Receives iterator of Pandas DataFrames (batches)"""
+    for batch_df in iterator:
+        # Arbitrary Pandas logic per batch
+        batch_df["score"] = batch_df["amount"] / batch_df["amount"].max()
+        yield batch_df
+
+result = df.mapInPandas(process_partition, schema=output_schema)
+
+# === 4. applyInPandas (grouped processing) ===
+def normalize_group(pdf: pd.DataFrame) -> pd.DataFrame:
+    """Receives full group as Pandas DataFrame"""
+    pdf["normalized"] = (pdf["value"] - pdf["value"].mean()) / pdf["value"].std()
+    return pdf
+
+result = df.groupBy("category").applyInPandas(normalize_group, schema=output_schema)
+
+# === 5. REGULAR PYTHON UDF (slowest — avoid if possible) ===
+# Row-by-row pickle serialization between JVM and Python
+@udf(StringType())
+def format_name(first, last):
+    """Processes one row at a time — slow!"""
+    return f"{last.upper()}, {first.title()}"
+
+result = df.withColumn("full_name", format_name(col("first"), col("last")))</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Decision tree for UDF selection:</strong>
+            <p>Can you do it with built-in functions? → Use built-in. Need custom logic on a single column? → Use <code>pandas_udf</code>. Need full-row Pandas logic per partition? → Use <code>mapInPandas</code>. Need grouped Pandas logic? → Use <code>applyInPandas</code>. Absolutely no other option? → Use regular UDF (last resort).</p>
+          </div>
+
+          <h2 id="arrow-optimization">Arrow Optimization</h2>
+
+          <p>Apache Arrow provides a columnar in-memory format that enables zero-copy data transfer between JVM and Python. It's the backbone of Pandas UDF performance.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Arrow configuration</div>
+            <pre><code># Enable Arrow optimization for toPandas() and createDataFrame()
+spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
+
+# Fallback to non-Arrow if Arrow fails (schema incompatibility)
+spark.conf.set("spark.sql.execution.arrow.pyspark.fallback.enabled", "true")
+
+# Arrow batch size (rows per batch sent to Python)
+spark.conf.set("spark.sql.execution.arrow.maxRecordsPerBatch", "10000")
+
+# Performance impact of Arrow:
+# toPandas() without Arrow: ~30 seconds for 1M rows (pickle serialization)
+# toPandas() with Arrow:    ~2 seconds for 1M rows (columnar transfer)
+# 15x speedup for data transfer between JVM and Python
+
+# Arrow is used automatically by:
+# - pandas_udf (always uses Arrow)
+# - mapInPandas / applyInPandas (always uses Arrow)
+# - toPandas() (when arrow.pyspark.enabled = true)
+# - createDataFrame(pandas_df) (when arrow.pyspark.enabled = true)</code></pre>
+          </div>
+
+          <div class="callout callout-tip">
+            <strong>💡 How Arrow improves performance:</strong>
+            <p>Without Arrow: data is serialized row-by-row using Python pickle (slow, one row at a time). With Arrow: data is transferred in columnar batches — contiguous memory for each column enables SIMD processing in NumPy/Pandas. Additionally, Arrow's format matches Pandas internals, enabling near-zero-copy conversion.</p>
+          </div>
+
+          <h2 id="anti-patterns">Common Anti-Patterns</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Anti-patterns to avoid</div>
+            <pre><code># ❌ ANTI-PATTERN 1: collect() in loops
+# Brings all data to driver memory — OOM risk, no parallelism
+ids = df.select("customer_id").distinct().collect()
+for row in ids:
+    customer_df = df.filter(col("customer_id") == row.customer_id)
+    process(customer_df)  # Triggers separate Spark job each iteration!
+
+# ✅ FIX: Use groupBy + aggregation or window functions
+result = df.groupBy("customer_id").agg(...)
+# Or: df.withColumn("rank", row_number().over(window_spec))
+
+# ❌ ANTI-PATTERN 2: Python for-loops over DataFrame operations
+columns = ["col1", "col2", "col3", ..., "col50"]
+for c in columns:
+    df = df.withColumn(f"{c}_cleaned", trim(col(c)))
+# Each withColumn creates a new plan node — 50 nodes = deep plan tree
+# Can cause StackOverflow in Catalyst optimizer for 100+ columns
+
+# ✅ FIX: Use select with list comprehension (single plan node)
+df = df.select([
+    trim(col(c)).alias(f"{c}_cleaned") if c in columns else col(c)
+    for c in df.columns
+])
+
+# ❌ ANTI-PATTERN 3: toPandas() on large datasets
+pandas_df = huge_spark_df.toPandas()  # 100GB → driver memory? OOM!
+
+# ✅ FIX: Process in Spark, only collect small results
+summary = huge_spark_df.groupBy("region").agg(avg("amount")).toPandas()
+# Or use mapInPandas for partition-level Pandas processing
+
+# ❌ ANTI-PATTERN 4: UDF for simple operations
+@udf(StringType())
+def to_upper(s):
+    return s.upper() if s else None
+
+# ✅ FIX: Built-in function (100x faster)
+from pyspark.sql.functions import upper
+df.withColumn("name", upper(col("name")))
+
+# ❌ ANTI-PATTERN 5: Using Python libraries in regular UDFs
+@udf(DoubleType())
+def haversine_udf(lat1, lon1, lat2, lon2):
+    import math  # Imported per row!
+    # Complex math per row — very slow
+    ...
+
+# ✅ FIX: Pandas UDF with numpy vectorization
+@pandas_udf(DoubleType())
+def haversine_pandas(lat1, lon1, lat2, lon2):
+    # numpy operates on entire column at once (SIMD)
+    return np.arcsin(np.sqrt(...)) * 6371 * 2</code></pre>
+          </div>
+
+          <h2 id="best-practices">Best Practices</h2>
+
+          <h3>1. Maximize Built-in Function Usage</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Built-in function patterns</div>
+            <pre><code>from pyspark.sql.functions import (
+    when, coalesce, regexp_extract, from_json, explode,
+    date_trunc, datediff, months_between, concat_ws,
+    array_contains, transform, aggregate, filter as array_filter
+)
+
+# Complex conditional logic — no UDF needed
+df = df.withColumn("tier",
+    when(col("amount") > 10000, "platinum")
+    .when(col("amount") > 5000, "gold")
+    .when(col("amount") > 1000, "silver")
+    .otherwise("bronze")
+)
+
+# Array processing — higher-order functions (Spark 2.4+)
+df = df.withColumn("high_scores",
+    array_filter(col("scores"), lambda x: x > 90)
+)
+df = df.withColumn("total",
+    aggregate(col("values"), lit(0), lambda acc, x: acc + x)
+)
+
+# JSON parsing — built-in
+df = df.withColumn("parsed", from_json(col("json_str"), schema))
+
+# String extraction — regexp
+df = df.withColumn("domain",
+    regexp_extract(col("email"), r"@(.+)$", 1)
+)</code></pre>
+          </div>
+
+          <h3>2. Broadcast Small Tables</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Broadcast join pattern</div>
+            <pre><code>from pyspark.sql.functions import broadcast
+
+# Explicit broadcast for dimension tables (< 1GB typically)
+enriched = fact_table.join(
+    broadcast(dim_table),  # Broadcast hint — avoids shuffle on fact side
+    "join_key",
+    "left"
+)
+
+# Auto-broadcast threshold (default 10MB — increase for larger dims)
+spark.conf.set("spark.sql.autoBroadcastJoinThreshold", "100m")  # 100MB</code></pre>
+          </div>
+
+          <h3>3. Efficient Schema Design</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Schema best practices</div>
+            <pre><code># Always provide schema for reads — avoids expensive inference
+from pyspark.sql.types import StructType, StructField, StringType, LongType
+
+schema = StructType([
+    StructField("user_id", StringType(), nullable=False),
+    StructField("event_type", StringType(), nullable=True),
+    StructField("timestamp", LongType(), nullable=False),
+])
+
+# Explicit schema — instant read start (no scan for inference)
+df = spark.read.schema(schema).json("s3://data/events/")
+
+# Without schema — Spark scans entire dataset to infer types
+# df = spark.read.json("s3://data/events/")  # SLOW for large datasets</code></pre>
+          </div>
+
+          <h3>4. Caching Strategy</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">When to cache</div>
+            <pre><code># Cache when DataFrame is reused multiple times
+df = spark.read.parquet("s3://data/large_table") \
+    .filter(col("status") == "active") \
+    .select("user_id", "amount", "category")
+
+# Reused 3 times → cache is beneficial
+df.cache()  # or df.persist(StorageLevel.MEMORY_AND_DISK)
+
+summary_by_category = df.groupBy("category").agg(sum("amount"))
+summary_by_user = df.groupBy("user_id").agg(avg("amount"))
+total = df.agg(sum("amount")).collect()
+
+# Unpersist when done — free memory for other operations
+df.unpersist()
+
+# DON'T cache:
+# - DataFrames used only once
+# - Very large DataFrames that don't fit in memory
+# - DataFrames before a shuffle (cache after shuffle saves more)</code></pre>
+          </div>
+
+          <h2 id="type-hinting">Type Hinting & Schema Enforcement</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Type-safe PySpark patterns</div>
+            <pre><code># Pandas UDF with proper type hints (Spark 3.0+ style)
+import pandas as pd
+from pyspark.sql.functions import pandas_udf
+
+# Scalar type — Series → Series
+@pandas_udf("double")
+def multiply_tax(amount: pd.Series) -> pd.Series:
+    return amount * 1.08
+
+# Grouped Map — DataFrame → DataFrame (type hint with schema)
+@pandas_udf(output_schema, PandasUDFType.GROUPED_MAP)
+def normalize(pdf: pd.DataFrame) -> pd.DataFrame:
+    pdf["normalized"] = pdf["value"] / pdf["value"].sum()
+    return pdf
+
+# Iterator of Series (Spark 3.0+ — efficient for model loading)
+from typing import Iterator
+@pandas_udf("double")
+def predict_batch(iterator: Iterator[pd.Series]) -> Iterator[pd.Series]:
+    # Load model ONCE, apply to all batches
+    model = load_model("/path/to/model")
+    for batch in iterator:
+        yield pd.Series(model.predict(batch.values.reshape(-1, 1)))
+
+# Schema enforcement on write
+df.write \
+    .format("delta") \
+    .option("mergeSchema", "false") \
+    .mode("append") \
+    .save("s3://lake/validated_events")
+# Will fail if schema doesn't match — catches data quality issues early</code></pre>
+          </div>
+
+          <h2 id="platform-differences">Platform Differences</h2>
+
+          <h3>PySpark on Databricks</h3>
+          <ul>
+            <li><strong>Photon engine</strong>: Native C++ execution engine — replaces Tungsten for supported operations (3-8x faster)</li>
+            <li><strong>Delta Lake integration</strong>: Built-in, optimized for MERGE/UPDATE/DELETE</li>
+            <li><strong>Optimized runtime</strong>: Custom Spark fork with performance patches not in OSS</li>
+            <li><strong>Unity Catalog</strong>: Centralized governance, fine-grained access control</li>
+            <li><strong>Notebooks</strong>: Built-in collaborative notebooks with %python, %sql, %scala cells</li>
+            <li><strong>Auto-tuning</strong>: Automatic shuffle partition, file size optimization</li>
+          </ul>
+
+          <h3>PySpark on AWS EMR</h3>
+          <ul>
+            <li><strong>EMRFS</strong>: Optimized S3 connector with consistent view</li>
+            <li><strong>Glue Catalog</strong>: Hive-compatible metastore integrated with AWS ecosystem</li>
+            <li><strong>Instance types</strong>: Choose r5 (memory), c5 (compute), or i3 (storage) based on workload</li>
+            <li><strong>Managed scaling</strong>: Auto-scales based on YARN metrics</li>
+            <li><strong>EMR Serverless</strong>: No cluster management, pay per job</li>
+            <li><strong>Graviton instances</strong>: ARM-based, 20% cheaper for equivalent performance</li>
+          </ul>
+
+          <h3>PySpark on GCP Dataproc</h3>
+          <ul>
+            <li><strong>GCS connector</strong>: Optimized for Google Cloud Storage</li>
+            <li><strong>BigQuery connector</strong>: Direct read/write to BigQuery tables</li>
+            <li><strong>Dataproc Serverless</strong>: Managed Spark, auto-scaling infrastructure</li>
+            <li><strong>Preemptible VMs</strong>: Up to 80% cheaper for fault-tolerant workloads</li>
+            <li><strong>Dataproc Hub</strong>: JupyterLab integration</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Platform selection guidance:</strong>
+            <p><strong>Databricks</strong>: Best for teams that need maximum Spark performance, collaborative notebooks, and integrated MLflow/Delta. Premium cost. <strong>EMR</strong>: Best for AWS-native shops with existing S3/Glue/Redshift ecosystem. Good cost control with spot instances. <strong>Dataproc</strong>: Best for GCP-native teams, especially with BigQuery integration. Ephemeral clusters are the standard pattern.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Why are Python UDFs slow in PySpark?</div>
+            <div class="qa-answer">
+              <p>Python UDFs are slow because of the serialization boundary between JVM and Python. When a Python UDF is used: <strong>1)</strong> The JVM executor must serialize each row using pickle format and send it over a socket to a Python worker process. <strong>2)</strong> Python deserializes the data, executes the UDF logic one row at a time. <strong>3)</strong> Results are serialized back to the JVM. This per-row serialization overhead, combined with Python's inherent slowness for loops (GIL, interpreted execution), makes Python UDFs 10-100x slower than equivalent built-in functions. Built-in functions execute entirely within the JVM using Tungsten's optimized binary format — no serialization, no Python involved. Additionally, Python UDFs break WholeStageCodeGen — Spark can't generate fused code across a UDF boundary.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are Pandas UDFs and why are they faster than regular UDFs?</div>
+            <div class="qa-answer">
+              <p>Pandas UDFs (vectorized UDFs) operate on batches of rows as Pandas Series/DataFrames instead of one row at a time. They're faster for three reasons: <strong>1) Arrow transfer</strong> — data is sent in columnar Arrow format (not pickle), which is 10-100x faster for serialization and enables near-zero-copy transfer. <strong>2) Vectorized execution</strong> — NumPy/Pandas operate on entire arrays at once using C/Fortran backends and SIMD instructions, vs Python for-loops. <strong>3) Batch amortization</strong> — the fixed cost of JVM↔Python communication is amortized over thousands of rows per batch instead of per row. Typical improvement: 10-40x over regular UDFs. Types include: scalar (Series→Series), grouped map (DataFrame→DataFrame), grouped aggregate (DataFrame→scalar), and iterator variants for one-time model loading.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does PySpark communicate with the JVM?</div>
+            <div class="qa-answer">
+              <p>PySpark uses a two-layer communication model: <strong>Driver side</strong> — the Python driver process communicates with the JVM SparkContext via <strong>Py4J</strong>, a socket-based gateway. When you call <code>df.filter(...)</code>, Py4J translates this into a Java method call on the JVM. This is lightweight because only plan construction happens here (metadata, not data). <strong>Executor side</strong> — when Python UDFs are involved, each JVM executor spawns a Python worker process. Data flows through socket pipes: JVM serializes batches → socket → Python deserializes, processes, serializes results → socket → JVM. For DataFrame operations without UDFs, Python is only involved at the driver for plan construction — all execution happens in the JVM. This is why DataFrame API performance is identical to Scala for non-UDF operations.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the key best practices for PySpark performance?</div>
+            <div class="qa-answer">
+              <p><strong>1) Use built-in functions over UDFs</strong> — they execute in JVM with Tungsten optimization. Spark has 300+ built-in functions covering most use cases. <strong>2) When UDFs are unavoidable, use Pandas UDFs</strong> — vectorized execution with Arrow transfer. <strong>3) Avoid collect() and toPandas() on large datasets</strong> — process in Spark, only bring summaries to driver. <strong>4) Provide explicit schemas</strong> — avoids expensive schema inference scanning. <strong>5) Use broadcast joins for small tables</strong> — eliminates shuffle on the large side. <strong>6) Avoid iterative withColumn()</strong> — use select() with list comprehension to avoid deep plan trees. <strong>7) Enable Arrow</strong> for toPandas/createDataFrame. <strong>8) Cache strategically</strong> — only DataFrames reused multiple times, unpersist when done. <strong>9) Partition and filter early</strong> — push filters to source, leverage partition pruning.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

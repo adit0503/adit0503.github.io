@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Partitioning, Bucketing & Data Skew — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Spark</a>
+        <span>→</span>
+        <span>Partitioning, Bucketing & Data Skew</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Spark</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Partitioning, Bucketing & Data Skew</h1>
+          <p class="article-desc">Comprehensive guide to data distribution in Spark — in-memory partitioning strategies, Hive-style partitioning, bucketing for shuffle elimination, data skew solutions, dynamic partition pruning, and optimal file sizing.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#spark-partitioning">Spark In-Memory Partitioning</a></li>
+            <li><a href="#partition-configs">Partition Configuration</a></li>
+            <li><a href="#hive-partitioning">Hive-Style Partitioning</a></li>
+            <li><a href="#bucketing">Bucketing</a></li>
+            <li><a href="#data-skew">Data Skew</a></li>
+            <li><a href="#dpp">Dynamic Partition Pruning</a></li>
+            <li><a href="#file-partitioning">File-Level Partitioning for Writes</a></li>
+            <li><a href="#optimal-file-sizes">Optimal File Sizes</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="spark-partitioning">Spark In-Memory Partitioning</h2>
+
+          <p>Partitioning determines how data is distributed across tasks (and executors). The partitioner decides which records go to which partition.</p>
+
+          <h3>Hash Partitioner</h3>
+          <p>Default for key-based operations (<code>groupByKey</code>, <code>reduceByKey</code>, <code>join</code>). Assigns records based on <code>hash(key) % numPartitions</code>.</p>
+          <ul>
+            <li>Ensures same key always lands in the same partition</li>
+            <li>Uniform distribution if keys have good hash distribution</li>
+            <li>Used by <code>repartition(n, col("key"))</code> and <code>shuffle partitioning</code></li>
+            <li>Vulnerable to skew if some keys have disproportionately many records</li>
+          </ul>
+
+          <h3>Range Partitioner</h3>
+          <p>Used by <code>sortByKey</code> and <code>repartitionByRange</code>. Samples data to determine partition boundaries, then assigns records to partitions based on key ranges.</p>
+          <ul>
+            <li>Produces approximately equal-sized partitions (samples to determine boundaries)</li>
+            <li>Maintains global sort order across partitions</li>
+            <li>Used when output needs to be globally sorted (e.g., sorted writes)</li>
+            <li>Sampling adds overhead — not ideal for small datasets</li>
+          </ul>
+
+          <h3>Custom Partitioners (RDD API)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Partitioner examples</div>
+            <pre><code># Hash partitioning (DataFrame API)
+df.repartition(200, col("customer_id"))
+# All records with same customer_id → same partition
+# Useful before: groupBy("customer_id"), join on customer_id
+
+# Range partitioning (DataFrame API)
+df.repartitionByRange(200, col("order_date"))
+# Records sorted by order_date across partitions
+# Useful before: sorted writes, range-based queries
+
+# Custom partitioner (RDD API only)
+class RegionPartitioner(Partitioner):
+    def numPartitions(self):
+        return 4
+
+    def getPartition(self, key):
+        region_map = {"US": 0, "EU": 1, "ASIA": 2}
+        return region_map.get(key, 3)  # "OTHER" → partition 3
+
+rdd.partitionBy(RegionPartitioner())
+
+# Coalesce — reduce partitions WITHOUT shuffle
+df.coalesce(10)  # Combines existing partitions (narrow dependency)
+# Use when reducing partitions after a filter that eliminated most data
+# Warning: can create uneven partitions
+
+# Repartition — change partitions WITH shuffle
+df.repartition(200)  # Full shuffle to rebalance evenly</code></pre>
+          </div>
+
+          <h2 id="partition-configs">Partition Configuration</h2>
+
+          <h3>Three Types of "Partitions" in Spark</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Partition-related configs</div>
+            <pre><code># 1. INPUT PARTITIONS — determined by source
+# For HDFS/S3: one partition per file block (128MB default)
+# For Parquet: one partition per row group (or per file if small)
+# For Kafka: one partition per Kafka partition
+spark.conf.set("spark.sql.files.maxPartitionBytes", "134217728")  # 128MB
+spark.conf.set("spark.sql.files.openCostInBytes", "4194304")  # 4MB
+
+# 2. SHUFFLE PARTITIONS — after any wide transformation
+# Default 200 — almost always needs tuning!
+spark.conf.set("spark.sql.shuffle.partitions", "200")  # default
+
+# Rule of thumb: 2-3x number of cores, with 128MB-200MB per partition
+# 100 executors × 4 cores = 400 cores → set 800-1200 shuffle partitions
+# Or: total shuffle data size / 128MB = partition count
+
+# With AQE (Spark 3.0+) — auto-coalesce small partitions
+spark.conf.set("spark.sql.adaptive.enabled", "true")
+spark.conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
+spark.conf.set("spark.sql.adaptive.coalescePartitions.initialPartitionNum", "2000")
+spark.conf.set("spark.sql.adaptive.advisoryPartitionSizeInBytes", "128m")
+# Start with many partitions, AQE merges small ones to target 128MB
+
+# 3. OUTPUT FILE PARTITIONS — how many files are written
+# Number of output files = number of tasks in final stage
+# Control via repartition/coalesce before write
+df.repartition(100).write.parquet("s3://output/")  # Exactly 100 files
+df.coalesce(10).write.parquet("s3://output/")       # ~10 files</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Common mistake:</strong>
+            <p>Setting <code>spark.sql.shuffle.partitions=200</code> for all jobs regardless of data size. A 10GB dataset with 200 partitions = 50MB per partition (fine). A 1TB dataset with 200 partitions = 5GB per partition (OOM, GC pressure, spill to disk). Always tune based on data volume.</p>
+          </div>
+
+          <h2 id="hive-partitioning">Hive-Style Partitioning</h2>
+
+          <p>Hive-style partitioning organizes data into directories based on partition column values. This is a <strong>storage-level</strong> concept (on disk) — different from Spark's in-memory partitioning.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Hive-style partitioning</div>
+            <pre><code># Directory structure:
+# s3://lake/events/
+#   year=2024/month=01/day=15/part-0000.parquet
+#   year=2024/month=01/day=16/part-0000.parquet
+#   year=2024/month=02/day=01/part-0000.parquet
+
+# Write with partitioning
+df.write \
+    .partitionBy("year", "month", "day") \
+    .format("parquet") \
+    .mode("overwrite") \
+    .save("s3://lake/events")
+
+# Read with partition pruning — only scan matching directories
+spark.read.parquet("s3://lake/events") \
+    .filter(col("year") == 2024) \
+    .filter(col("month") == 1)
+# Only reads s3://lake/events/year=2024/month=01/ directories
+
+# vs Spark in-memory partitioning:
+# - Hive partitioning = physical directory structure on disk
+# - Spark partitioning = how data is distributed across tasks in memory
+# - They're independent! You can have Hive partitions read into
+#   a different number of Spark partitions
+
+# Choosing partition columns:
+# ✅ Low cardinality (date, region, status) — manageable directory count
+# ❌ High cardinality (user_id, uuid) — millions of tiny directories
+# Rule: each partition directory should have 128MB-1GB of data</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Partition column pitfalls:</strong>
+            <p>1) Over-partitioning: <code>partitionBy("user_id")</code> with 10M users = 10M directories with tiny files → slow listing, metadata overhead. 2) Under-partitioning: <code>partitionBy("country")</code> with 5 countries = 5 huge partitions, limited pruning benefit. 3) Partition evolution: changing partition scheme requires rewriting all data. Use Iceberg/Delta for partition evolution without rewrite.</p>
+          </div>
+
+          <h2 id="bucketing">Bucketing</h2>
+
+          <p>Bucketing pre-shuffles data at write time — records with the same key hash to the same bucket (file). This eliminates shuffle at read time for joins and aggregations on the bucketed column.</p>
+
+          <h3>How Bucketing Works</h3>
+          <ol>
+            <li>At write time: <code>hash(bucket_column) % num_buckets</code> determines which file each record goes to</li>
+            <li>Metadata stored in Hive metastore (bucket count, columns, sort order)</li>
+            <li>At read time: Spark reads metadata and assigns one task per bucket — no shuffle needed for join/groupBy on bucket column</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">Bucketing implementation</div>
+            <pre><code># Write bucketed table
+df.write \
+    .bucketBy(256, "customer_id") \
+    .sortBy("customer_id", "order_date") \
+    .format("parquet") \
+    .mode("overwrite") \
+    .saveAsTable("orders_bucketed")
+
+# Join without shuffle! (if both tables bucketed on same key + same bucket count)
+orders = spark.table("orders_bucketed")       # 256 buckets on customer_id
+customers = spark.table("customers_bucketed") # 256 buckets on customer_id
+
+# This join requires NO shuffle — data is pre-co-located
+result = orders.join(customers, "customer_id")
+
+# Verify no exchange in explain plan:
+result.explain()
+# == Physical Plan ==
+# SortMergeJoin [customer_id], [customer_id]
+# :- FileScan (NO Exchange before this!)
+# +- FileScan (NO Exchange before this!)
+
+# GroupBy without shuffle
+orders.groupBy("customer_id").agg(sum("amount"))
+# Also no shuffle — each bucket already has all records for its keys</code></pre>
+          </div>
+
+          <h3>When Bucketing Helps vs Doesn't</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Bucketing trade-offs</div>
+            <pre><code># ✅ BUCKETING HELPS WHEN:
+# 1. Repeated joins on the same key
+#    - Table is read many times, joined on customer_id
+#    - Shuffle cost saved across multiple queries > bucket write cost
+#
+# 2. Large-large table joins
+#    - Both tables are large (can't broadcast either)
+#    - Pre-bucketing eliminates expensive shuffle
+#
+# 3. Frequent groupBy on same column
+#    - Aggregations on bucketed column skip shuffle
+
+# ❌ BUCKETING DOESN'T HELP WHEN:
+# 1. Small tables — broadcast join is faster (no shuffle anyway)
+# 2. Changing join keys — if you join on different keys each time
+# 3. Different bucket counts — both sides must have same bucket count
+#    (or multiples in Spark 3.1+ with bucket pruning)
+# 4. One-time reads — write overhead not amortized
+# 5. Data written by other engines — must be written through Spark
+
+# Number of buckets selection:
+# - Match expected parallelism (e.g., 256, 512, 1024)
+# - Each bucket should be 128MB-1GB
+# - Must match between tables you want to join without shuffle
+# - Powers of 2 allow bucket coalescing (512 ↔ 256)</code></pre>
+          </div>
+
+          <div class="callout callout-tip">
+            <strong>💡 Bucketing + AQE caveat:</strong>
+            <p>AQE (Adaptive Query Execution) can break bucket join optimization if it decides to coalesce partitions. Set <code>spark.sql.sources.bucketing.autoBucketedScan.enabled=true</code> (default in Spark 3.2+) and avoid AQE coalesce on bucketed reads. In Spark 3.4+, this interaction is handled better.</p>
+          </div>
+
+          <h2 id="data-skew">Data Skew</h2>
+
+          <p>Data skew occurs when some partitions have disproportionately more data than others. One task processes 10GB while others process 100MB — the slow task dominates job runtime.</p>
+
+          <h3>Identifying Skew</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Skew detection</div>
+            <pre><code># === SPARK UI INDICATORS ===
+# 1. Stage details → Task Duration:
+#    - 199 tasks finish in 30 seconds
+#    - 1 task takes 25 minutes ← SKEW
+#
+# 2. Task Metrics → Shuffle Read Size:
+#    - Median: 50MB, Max: 8GB ← SKEW
+#
+# 3. Executor page → one executor at 100% while others idle
+
+# === PROGRAMMATIC DETECTION ===
+# Check key distribution
+df.groupBy("join_key") \
+    .count() \
+    .orderBy(col("count").desc()) \
+    .show(20)
+
+# Check partition sizes after shuffle
+df.rdd.glom().map(len).collect()
+# [1000, 1050, 980, ..., 5000000]  ← last partition is skewed
+
+# Common skew causes:
+# - Null keys in joins (all nulls hash to same partition)
+# - Popular values (one customer has 10M orders, others have 100)
+# - Date partitions (Black Friday vs regular Tuesday)
+# - Default/placeholder values ("UNKNOWN", "OTHER")</code></pre>
+          </div>
+
+          <h3>Solutions</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Skew remediation techniques</div>
+            <pre><code># === SOLUTION 1: AQE Skew Join (Spark 3.0+) — EASIEST ===
+spark.conf.set("spark.sql.adaptive.enabled", "true")
+spark.conf.set("spark.sql.adaptive.skewJoin.enabled", "true")
+spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionFactor", "5")
+spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes", "256m")
+# AQE detects skewed partitions at runtime and splits them
+# automatically into smaller sub-partitions
+
+# === SOLUTION 2: SALTING — manual but effective ===
+from pyspark.sql.functions import rand, concat, lit, col
+
+# Add salt to the skewed join key
+salt_range = 10  # Split skewed key into 10 sub-partitions
+
+# Explode the smaller (dimension) side
+dim_salted = dim_table.crossJoin(
+    spark.range(salt_range).withColumnRenamed("id", "salt")
+).withColumn("salted_key", concat(col("join_key"), lit("_"), col("salt")))
+
+# Add random salt to the larger (fact) side
+fact_salted = fact_table.withColumn(
+    "salted_key",
+    concat(col("join_key"), lit("_"), (rand() * salt_range).cast("int"))
+)
+
+# Join on salted key — distributes hot key across 10 partitions
+result = fact_salted.join(dim_salted, "salted_key") \
+    .drop("salted_key", "salt")
+
+# === SOLUTION 3: ISOLATE HOT KEYS ===
+# Process skewed keys separately with broadcast
+hot_keys = ["KEY_WITH_10M_ROWS", "ANOTHER_HOT_KEY"]
+
+# Split into skewed and non-skewed
+skewed = fact_table.filter(col("join_key").isin(hot_keys))
+normal = fact_table.filter(~col("join_key").isin(hot_keys))
+
+# Broadcast join for skewed portion (small dim filtered to hot keys)
+skewed_result = skewed.join(broadcast(dim_table), "join_key")
+
+# Regular join for normal portion
+normal_result = normal.join(dim_table, "join_key")
+
+# Union results
+result = skewed_result.unionAll(normal_result)
+
+# === SOLUTION 4: FILTER NULLS ===
+# Null keys all hash to partition 0 — massive skew
+# Handle nulls separately
+nulls = df.filter(col("join_key").isNull())
+non_nulls = df.filter(col("join_key").isNotNull())
+joined = non_nulls.join(other_table, "join_key")
+result = joined.unionAll(nulls.crossJoin(lit(None).alias("other_cols")))</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Skew strategy selection:</strong>
+            <p><strong>AQE skew join</strong>: Try first — zero code changes, handles most cases. <strong>Salting</strong>: When AQE isn't available or skew is extreme (one key has 100x more data). <strong>Isolation</strong>: When you know the exact hot keys and dimension table is small. <strong>Null handling</strong>: Always filter nulls before joins when possible.</p>
+          </div>
+
+          <h2 id="dpp">Dynamic Partition Pruning (DPP)</h2>
+
+          <p>DPP is a runtime optimization for star-schema queries. When a fact table is joined with a filtered dimension table, Spark pushes the dimension filter down to prune fact table partitions at scan time.</p>
+
+          <h3>How DPP Works</h3>
+          <ol>
+            <li>Dimension table is filtered (e.g., <code>dim_stores.region = 'WEST'</code>)</li>
+            <li>Spark collects the distinct join keys from filtered dimension (e.g., store_ids [1,5,9,12])</li>
+            <li>These keys are broadcast as a <strong>pruning filter</strong> to the fact table scan</li>
+            <li>Fact table scan skips partitions that don't contain matching store_ids</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">DPP in action</div>
+            <pre><code># Star schema example
+fact_sales = spark.table("fact_sales")        # 2TB, partitioned by store_id
+dim_stores = spark.table("dim_stores")        # 10MB, contains region info
+
+# Query: total sales for WEST region stores
+result = fact_sales.join(dim_stores, "store_id") \
+    .filter(dim_stores.region == "WEST") \
+    .agg(sum("amount"))
+
+# WITHOUT DPP: Scan all 2TB of fact_sales, shuffle, join, then filter
+# WITH DPP: First resolve WEST store_ids → [1,5,9,12],
+#           then scan ONLY fact_sales partitions for those store_ids
+
+# DPP configuration
+spark.conf.set("spark.sql.optimizer.dynamicPartitionPruning.enabled", "true")  # default
+spark.conf.set("spark.sql.optimizer.dynamicPartitionPruning.useStats", "true")
+spark.conf.set("spark.sql.optimizer.dynamicPartitionPruning.fallbackFilterRatio", "0.5")
+spark.conf.set("spark.sql.optimizer.dynamicPartitionPruning.reuseBroadcastOnly", "true")
+
+# DPP triggers when:
+# 1. Fact table is partitioned on the join key
+# 2. Dimension table has a selective filter
+# 3. Dimension side is small enough to broadcast (or reuses broadcast from join)
+# 4. Estimated pruning benefit exceeds overhead
+
+# Verify DPP in explain:
+result.explain(True)
+# Look for: DynamicPruningExpression
+# PartitionFilters: [store_id IN dynamicpruning#123]</code></pre>
+          </div>
+
+          <div class="callout callout-tip">
+            <strong>💡 DPP gotchas:</strong>
+            <p>DPP only works when the fact table is <em>physically partitioned</em> on the join column (Hive-style partitioning). If the fact table uses bucketing instead of partitioning, DPP won't trigger. Also, DPP won't fire if the dimension filter isn't selective enough (e.g., region IN all-regions) — Spark estimates the benefit isn't worth the overhead.</p>
+          </div>
+
+          <h2 id="file-partitioning">File-Level Partitioning for Writes</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Controlling output files</div>
+            <pre><code># === Control number of output files ===
+
+# Method 1: Repartition before write (even distribution)
+df.repartition(100) \
+    .write.parquet("s3://output/")
+# Produces exactly 100 files (one per partition/task)
+
+# Method 2: Coalesce (reduce without shuffle — uneven files possible)
+df.coalesce(10) \
+    .write.parquet("s3://output/")
+# Produces ~10 files, but sizes may vary
+
+# Method 3: maxRecordsPerFile (Spark 2.2+)
+df.write \
+    .option("maxRecordsPerFile", 1000000) \
+    .parquet("s3://output/")
+# Splits large partitions into multiple files (max 1M rows each)
+# Total files = sum(ceil(partition_rows / maxRecordsPerFile))
+
+# === Partition + file control for Hive-style writes ===
+df.repartition(col("date"), col("region"))  # One partition per (date, region)
+    .write \
+    .partitionBy("date", "region") \
+    .option("maxRecordsPerFile", 500000) \
+    .parquet("s3://lake/events")
+# Each partition directory gets files capped at 500K rows
+
+# === Sort within partitions for better compression ===
+df.repartition(200, col("date")) \
+    .sortWithinPartitions("date", "customer_id") \
+    .write \
+    .partitionBy("date") \
+    .parquet("s3://lake/events")
+# Sorting improves Parquet compression (similar values adjacent)
+# Also improves min/max statistics for predicate pushdown</code></pre>
+          </div>
+
+          <h2 id="optimal-file-sizes">Optimal File Sizes</h2>
+
+          <h3>Target Sizes by Format</h3>
+          <ul>
+            <li><strong>Parquet</strong>: 128MB – 1GB per file (sweet spot ~256MB for most workloads)</li>
+            <li><strong>ORC</strong>: 128MB – 512MB per file</li>
+            <li><strong>Delta Lake</strong>: 128MB target (auto-optimized with OPTIMIZE command)</li>
+            <li><strong>Iceberg</strong>: 128MB – 512MB (configurable via <code>write.target-file-size-bytes</code>)</li>
+          </ul>
+
+          <h3>Small Files Problem</h3>
+          <p>Too many small files cause:</p>
+          <ul>
+            <li><strong>Metadata overhead</strong>: Driver must list/track millions of files (slow planning)</li>
+            <li><strong>Excessive task scheduling</strong>: One task per file = millions of tasks for tiny operations</li>
+            <li><strong>Poor compression</strong>: Small files can't leverage Parquet's row group statistics effectively</li>
+            <li><strong>Cloud storage costs</strong>: S3 list operations are slow (1000 files/request) and expensive</li>
+            <li><strong>Name node pressure</strong>: HDFS name node stores metadata for every file in memory</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Solving small files problem</div>
+            <pre><code># === PREVENTION: Control file count at write time ===
+# Repartition to target file count
+target_files = total_data_size_bytes / (256 * 1024 * 1024)  # 256MB per file
+df.repartition(int(target_files)).write.parquet(output_path)
+
+# === REMEDIATION: Compact existing small files ===
+# Delta Lake: OPTIMIZE command
+spark.sql("OPTIMIZE delta.`s3://lake/events`")
+# Combines small files into ~1GB target size
+
+# Iceberg: rewrite_data_files
+spark.sql("""
+    CALL system.rewrite_data_files(
+        table => 'catalog.db.events',
+        options => map('target-file-size-bytes', '268435456')
+    )
+""")
+
+# Manual compaction for Parquet
+spark.read.parquet("s3://lake/events/date=2024-01-15") \
+    .repartition(10) \
+    .write.mode("overwrite") \
+    .parquet("s3://lake/events/date=2024-01-15")
+
+# === Streaming small files prevention ===
+# Problem: streaming writes create one file per micro-batch per partition
+# Solution 1: Longer trigger intervals
+.trigger(processingTime="5 minutes")  # Fewer, larger batches
+
+# Solution 2: Delta Lake auto-compaction
+spark.conf.set("spark.databricks.delta.autoCompact.enabled", "true")
+spark.conf.set("spark.databricks.delta.optimizeWrite.enabled", "true")
+
+# Solution 3: Post-processing compaction job
+# Schedule hourly OPTIMIZE on streaming target tables</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Large files problem (less discussed but real):</strong>
+            <p>Files that are TOO large (>2GB) cause issues too: 1) Single task processes entire file — limits parallelism. 2) If a task fails, the entire large file must be reprocessed. 3) Parquet footer read for a 10GB file takes significant time. Target 128MB-1GB as the sweet spot.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What is data skew and how do you fix it?</div>
+            <div class="qa-answer">
+              <p>Data skew occurs when data is unevenly distributed across partitions — one partition has significantly more data than others, causing one task to be the bottleneck (all other tasks wait). <strong>Symptoms</strong>: In Spark UI, one task takes 10-100x longer than median; shuffle read sizes show huge variance. <strong>Causes</strong>: Hot keys in joins/aggregations (one customer with millions of orders), null keys (all nulls hash to partition 0), default/placeholder values. <strong>Solutions (in priority order)</strong>: 1) Enable AQE skew join (<code>spark.sql.adaptive.skewJoin.enabled=true</code>) — Spark automatically splits skewed partitions at runtime. 2) Salting — append random suffix to the skewed key, explode dimension side to match. 3) Isolate hot keys — broadcast join for skewed keys, regular join for the rest. 4) Filter nulls before joins — handle null-key records separately.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between partitioning and bucketing?</div>
+            <div class="qa-answer">
+              <p><strong>Partitioning</strong> (Hive-style): Organizes data into directories based on column values (<code>date=2024-01-15/</code>). Benefits: partition pruning at scan time — skip entire directories. Best for low-cardinality columns used in filters (date, region). <strong>Bucketing</strong>: Pre-shuffles data into fixed-size buckets using hash(column) % num_buckets. Benefits: eliminates shuffle for joins and aggregations on the bucketed column. Best for high-cardinality join keys (customer_id, order_id) used repeatedly. Key differences: partitioning helps reads (pruning), bucketing helps joins (no shuffle). Partitioning creates variable-sized directories; bucketing creates fixed-count files. You can combine both: <code>partitionBy("date").bucketBy(256, "customer_id")</code>.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does dynamic partition pruning (DPP) work?</div>
+            <div class="qa-answer">
+              <p>DPP optimizes star-schema queries at runtime. When a partitioned fact table is joined with a filtered dimension table: <strong>1)</strong> Spark first evaluates the dimension filter (e.g., <code>dim_stores.region = 'WEST'</code>). <strong>2)</strong> It collects the distinct join key values from the filtered dimension (e.g., store_ids = [1, 5, 9, 12]). <strong>3)</strong> These values are broadcast as a pruning predicate to the fact table scan. <strong>4)</strong> The fact table scan skips all partitions whose partition key doesn't match the broadcast set. Prerequisites: fact table must be Hive-style partitioned on the join column, dimension side must have a selective filter, and it must be beneficial (Spark estimates the pruning ratio). Without DPP, Spark reads the entire fact table and filters after the join — with DPP, it reads only relevant partitions, often reducing I/O by 90%+.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you determine the optimal number of partitions?</div>
+            <div class="qa-answer">
+              <p>Target 128MB-256MB of data per partition after shuffle. Formulas: <strong>1) Based on data size</strong>: partition_count = total_shuffle_data / 128MB. For a 100GB shuffle: ~800 partitions. <strong>2) Based on cluster</strong>: partition_count = total_cores × 2-3. For 100 executors × 4 cores = 400 cores → 800-1200 partitions. <strong>3) Use the higher of the two estimates</strong>. Too few partitions: OOM (partition doesn't fit in memory), poor parallelism, long GC pauses. Too many partitions: scheduling overhead, small files on write, excessive task launch cost. <strong>Best practice (Spark 3.x)</strong>: Set <code>spark.sql.adaptive.enabled=true</code> and <code>spark.sql.adaptive.coalescePartitions.initialPartitionNum</code> to a high value (2000+). AQE automatically coalesces small partitions to the target size, handling this dynamically.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is the small files problem and how do you solve it?</div>
+            <div class="qa-answer">
+              <p>Small files (< 10MB) accumulate from: streaming writes (one file per micro-batch per partition), dynamic partitioning with many values, or misconfigured parallelism. <strong>Problems</strong>: 1) Slow file listing in S3/HDFS (metadata overhead). 2) Excessive task scheduling (one task per file). 3) Poor compression and column statistics. 4) Driver OOM from tracking millions of file paths. <strong>Prevention</strong>: repartition/coalesce before write to target file count, use <code>maxRecordsPerFile</code>, use longer trigger intervals in streaming. <strong>Remediation</strong>: Delta Lake <code>OPTIMIZE</code> (bin-packs to ~1GB files), Iceberg <code>rewrite_data_files</code>, manual read-repartition-overwrite compaction. <strong>For streaming specifically</strong>: enable Delta auto-compact (<code>spark.databricks.delta.autoCompact.enabled</code>), schedule periodic OPTIMIZE jobs, or use <code>availableNow</code> trigger for batch-style streaming that produces fewer files.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Spark</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Schema Evolution & Partition Strategies — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Lakehouse</a>
+        <span>→</span>
+        <span>Schema Evolution & Partitioning</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Lakehouse</span>
+            <span class="read-time">11 min read</span>
+          </div>
+          <h1>Schema Evolution & Partition Strategies</h1>
+          <p class="article-desc">How modern lakehouse formats handle schema changes without data rewrites, best practices for partition design, partition evolution, and implementing SCD patterns.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#why-schema-evolution">Why Schema Evolution Matters</a></li>
+            <li><a href="#iceberg-schema">Iceberg Schema Evolution</a></li>
+            <li><a href="#delta-schema">Delta Lake Schema Evolution</a></li>
+            <li><a href="#hudi-schema">Hudi Schema Evolution</a></li>
+            <li><a href="#compatibility">Backward vs Forward Compatibility</a></li>
+            <li><a href="#partition-strategies">Partition Strategies</a></li>
+            <li><a href="#partition-evolution">Partition Evolution</a></li>
+            <li><a href="#over-under-partitioning">Over-Partitioning vs Under-Partitioning</a></li>
+            <li><a href="#partition-best-practices">Partition Best Practices</a></li>
+            <li><a href="#dynamic-static">Dynamic vs Static Partition Overwrite</a></li>
+            <li><a href="#scd-patterns">SCD Patterns in Lakehouse</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="why-schema-evolution">Why Schema Evolution Matters</h2>
+
+          <p>In production data pipelines, schemas change constantly:</p>
+          <ul>
+            <li><strong>Business changes</strong> — new features require new columns (shipping_cost, discount_code)</li>
+            <li><strong>Source changes</strong> — upstream APIs add/remove/rename fields without warning</li>
+            <li><strong>Data model improvements</strong> — splitting columns, changing types, normalizing structures</li>
+            <li><strong>Compliance</strong> — adding audit columns, removing PII columns</li>
+          </ul>
+
+          <p>Traditional approaches required downtime: drop table, recreate with new schema, backfill all data. Modern lakehouse formats handle schema changes as <strong>metadata operations</strong> without touching data files.</p>
+
+          <div class="callout">
+            <strong>🔑 Key principle:</strong>
+            <p>Schema evolution should be a metadata-only operation. Old data files continue to be readable under the new schema (new columns return NULL for old files; dropped columns are simply not read). No data rewriting required.</p>
+          </div>
+
+          <h2 id="iceberg-schema">Iceberg Schema Evolution</h2>
+
+          <p>Iceberg has the most sophisticated schema evolution among lakehouse formats. It uses <strong>internal column IDs</strong> (not names or positions) to map schema fields to data file columns.</p>
+
+          <h3>Supported Operations (All Metadata-Only)</h3>
+          <ul>
+            <li><strong>Add column</strong> — new column assigned a new ID; old data files return NULL</li>
+            <li><strong>Drop column</strong> — column ID removed from schema; data files unchanged</li>
+            <li><strong>Rename column</strong> — column ID stays the same; only the name mapping changes</li>
+            <li><strong>Reorder columns</strong> — purely presentational; doesn't affect data</li>
+            <li><strong>Widen type</strong> — int→long, float→double, decimal(P,S)→decimal(P',S) where P'≥P</li>
+            <li><strong>Nested fields</strong> — add/drop/rename fields within structs, maps, and lists</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Iceberg schema evolution SQL</div>
+            <pre><code>-- Add columns
+ALTER TABLE catalog.db.orders ADD COLUMN shipping_cost DECIMAL(8,2);
+ALTER TABLE catalog.db.orders ADD COLUMN discount_code STRING AFTER customer_id;
+
+-- Rename column (safe — uses column ID internally)
+ALTER TABLE catalog.db.orders RENAME COLUMN amount TO order_amount;
+
+-- Widen type
+ALTER TABLE catalog.db.orders ALTER COLUMN order_amount TYPE DECIMAL(12,2);
+
+-- Drop column
+ALTER TABLE catalog.db.orders DROP COLUMN legacy_status;
+
+-- Nested evolution (structs)
+ALTER TABLE catalog.db.orders ADD COLUMN address.zip_code STRING;
+ALTER TABLE catalog.db.orders DROP COLUMN address.line2;
+
+-- Reorder
+ALTER TABLE catalog.db.orders ALTER COLUMN shipping_cost AFTER order_amount;</code></pre>
+          </div>
+
+          <div class="callout callout-tip">
+            <strong>💡 Why column IDs matter:</strong>
+            <p>In Hive/old Spark tables, columns are mapped by position. If you add a column in the middle or rename a column, old data files become misaligned — data corruption. Iceberg assigns each column a unique integer ID at creation time. Parquet files store data keyed by this ID, not by column name or position. Rename, reorder, and add operations only change the ID-to-name mapping in metadata.</p>
+          </div>
+
+          <h2 id="delta-schema">Delta Lake Schema Evolution</h2>
+
+          <p>Delta Lake provides schema evolution through write-time options and DDL commands.</p>
+
+          <h3>Schema Enforcement (Default)</h3>
+          <p>By default, Delta <strong>rejects writes</strong> with mismatched schemas. This prevents accidental schema drift.</p>
+
+          <h3>Schema Evolution Options</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta schema evolution</div>
+            <pre><code># mergeSchema: adds new columns from source to target
+df.write.format("delta") \
+    .mode("append") \
+    .option("mergeSchema", "true") \
+    .save("/path/to/table")
+
+# In MERGE statements:
+spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
+
+# overwriteSchema: replace entire schema (only with overwrite mode)
+df.write.format("delta") \
+    .mode("overwrite") \
+    .option("overwriteSchema", "true") \
+    .save("/path/to/table")
+
+# DDL commands
+ALTER TABLE my_table ADD COLUMNS (
+    shipping_cost DECIMAL(8,2) COMMENT 'Shipping cost in USD',
+    discount_code STRING
+);
+
+ALTER TABLE my_table CHANGE COLUMN old_name new_name STRING;
+ALTER TABLE my_table DROP COLUMN deprecated_field;
+
+# Column mapping (Delta 2.0+) enables rename/drop without rewrite
+ALTER TABLE my_table SET TBLPROPERTIES (
+    'delta.columnMapping.mode' = 'name',
+    'delta.minReaderVersion' = '2',
+    'delta.minWriterVersion' = '5'
+);</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Column mapping requirement:</strong>
+            <p>By default, Delta uses column <strong>names</strong> for mapping (like Hive). To safely rename or drop columns without data rewrite, you must enable <code>delta.columnMapping.mode = 'name'</code>. This is a one-way upgrade — once enabled, older readers may not be able to read the table.</p>
+          </div>
+
+          <h2 id="hudi-schema">Hudi Schema Evolution</h2>
+
+          <p>Hudi supports schema evolution with automatic schema reconciliation during writes.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Hudi schema evolution</div>
+            <pre><code># Automatic schema evolution during writes
+hudi_options = {
+    "hoodie.datasource.write.reconcile.schema": "true",
+    # New columns in source are automatically added to the table
+    # Missing columns in source are filled with NULL
+}
+
+# Explicit schema changes via Spark SQL (Hudi 0.13+)
+spark.sql("ALTER TABLE hudi_table ADD COLUMNS (new_col STRING)")
+spark.sql("ALTER TABLE hudi_table RENAME COLUMN old_col TO new_col")
+spark.sql("ALTER TABLE hudi_table ALTER COLUMN amount TYPE DECIMAL(12,2)")
+
+# Schema on write behavior:
+# - New column in DataFrame → added to Hudi table schema
+# - Column type widening → automatically applied
+# - Column removal → use explicit DDL (data files unaffected)</code></pre>
+          </div>
+
+          <h2 id="compatibility">Backward vs Forward Compatibility</h2>
+
+          <h3>Backward Compatibility</h3>
+          <p>New schema can read old data. Always true for:</p>
+          <ul>
+            <li>Adding columns (old files → NULL for new columns)</li>
+            <li>Widening types (old int values readable as long)</li>
+            <li>Renaming columns (in Iceberg — tracked by ID)</li>
+          </ul>
+
+          <h3>Forward Compatibility</h3>
+          <p>Old schema can read new data. True for:</p>
+          <ul>
+            <li>Adding columns (old readers ignore unknown columns)</li>
+            <li>NOT true for type changes, renames (in non-ID-based systems), or drops</li>
+          </ul>
+
+          <h3>Breaking Changes</h3>
+          <ul>
+            <li>Narrowing types (long→int) — potential data loss</li>
+            <li>Changing column semantics (amount now in cents instead of dollars)</li>
+            <li>Removing columns that downstream consumers depend on</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Strategy for breaking changes:</strong>
+            <p>Version your tables. Instead of modifying <code>silver.orders</code> destructively, create <code>silver.orders_v2</code> with the new schema, backfill from Bronze, then migrate consumers. Keep v1 running during transition period.</p>
+          </div>
+
+          <h2 id="partition-strategies">Partition Strategies</h2>
+
+          <p>Partitioning physically separates data into directories/file groups based on column values. Critical for query performance — the right partition scheme enables <strong>partition pruning</strong> (skipping entire directories of irrelevant data).</p>
+
+          <h3>Common Strategies</h3>
+          <ul>
+            <li><strong>By time</strong> — most common: <code>date</code>, <code>year/month/day</code>, <code>hour</code>. Ideal for time-series data, event logs, transactions.</li>
+            <li><strong>By category</strong> — <code>region</code>, <code>country</code>, <code>product_type</code>. Ideal when queries always filter on category.</li>
+            <li><strong>Composite</strong> — <code>date + region</code>, <code>year + month</code>. For multi-dimensional access patterns.</li>
+            <li><strong>Hash/Bucket</strong> — <code>bucket(customer_id, 256)</code>. For high-cardinality columns where range partitioning would create too many partitions.</li>
+            <li><strong>Hidden transforms</strong> (Iceberg) — <code>day(event_time)</code>, <code>hour(event_time)</code>. Users don't need to know partition details.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Partition strategies across formats</div>
+            <pre><code>-- Delta: explicit partitioning
+CREATE TABLE orders (
+    order_id STRING,
+    customer_id STRING,
+    amount DECIMAL(10,2),
+    order_date DATE,
+    region STRING
+) USING DELTA
+PARTITIONED BY (order_date, region);
+
+-- Iceberg: hidden partitioning with transforms
+CREATE TABLE orders (
+    order_id STRING,
+    customer_id STRING,
+    amount DECIMAL(10,2),
+    order_time TIMESTAMP,
+    region STRING
+) USING iceberg
+PARTITIONED BY (day(order_time), region);
+
+-- Iceberg: bucket partitioning
+CREATE TABLE customers (
+    customer_id STRING,
+    name STRING,
+    email STRING
+) USING iceberg
+PARTITIONED BY (bucket(64, customer_id));
+
+-- Hudi: partition path
+"hoodie.datasource.write.partitionpath.field": "order_date"
+"hoodie.datasource.write.hive_style_partitioning": "true"</code></pre>
+          </div>
+
+          <h2 id="partition-evolution">Partition Evolution</h2>
+
+          <p>Iceberg uniquely supports changing the partition scheme without rewriting data — <strong>partition evolution</strong>.</p>
+
+          <h3>How It Works</h3>
+          <ul>
+            <li>Each data file records which partition spec was in effect when it was written</li>
+            <li>When the partition spec changes, new files use the new spec</li>
+            <li>Old files retain their original partitioning</li>
+            <li>Query planning handles both specs: it knows how to prune files from any spec</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Partition evolution (Iceberg)</div>
+            <pre><code>-- Original: daily partitions
+CREATE TABLE events (...) PARTITIONED BY (day(event_time));
+
+-- Table grows: daily partitions too large (>10GB each)
+-- Evolve to hourly without rewriting data:
+ALTER TABLE events ADD PARTITION FIELD hour(event_time);
+ALTER TABLE events DROP PARTITION FIELD day(event_time);
+
+-- Now: new data → hourly partitions
+--      old data → still in daily partitions
+--      queries → correctly prune both
+
+-- Another evolution: add region partitioning
+ALTER TABLE events ADD PARTITION FIELD region;
+-- New data: partitioned by (hour(event_time), region)
+-- Old data: partitioned by day(event_time) only
+-- All coexist transparently</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>🔑 Why this matters:</strong>
+            <p>In Delta/Hive, changing partitioning requires: (1) create new table with new partition scheme, (2) backfill all historical data (potentially TBs), (3) swap table names, (4) update all downstream consumers. In Iceberg, it's a single ALTER TABLE — zero data movement, zero downtime.</p>
+          </div>
+
+          <h2 id="over-under-partitioning">Over-Partitioning vs Under-Partitioning</h2>
+
+          <h3>Over-Partitioning Symptoms</h3>
+          <ul>
+            <li>Too many small files (each partition has files < 10MB)</li>
+            <li>Slow query planning (thousands of partitions to list)</li>
+            <li>High storage overhead (many small Parquet files with disproportionate metadata)</li>
+            <li><strong>Example</strong>: Partitioning by <code>(date, hour, user_id)</code> → millions of partitions with 1-10 records each</li>
+          </ul>
+
+          <h3>Under-Partitioning Symptoms</h3>
+          <ul>
+            <li>Full table scans even with selective filters</li>
+            <li>Very large files (>10GB) that are slow to read for selective queries</li>
+            <li>No pruning possible — queries touch all data</li>
+            <li><strong>Example</strong>: No partitioning on a 10TB time-series table queried by date range</li>
+          </ul>
+
+          <h3>Solutions</h3>
+          <ul>
+            <li>Over-partitioned → reduce partition granularity (hour → day, remove low-selectivity partition columns)</li>
+            <li>Under-partitioned → add partitioning on the most common filter column, or use Z-ORDER for multi-column pruning</li>
+            <li>Target: each partition should produce files in the 128MB–1GB range</li>
+          </ul>
+
+          <h2 id="partition-best-practices">Partition Best Practices</h2>
+
+          <h3>Column Selection Criteria</h3>
+          <ul>
+            <li><strong>Query patterns</strong> — partition on columns that appear in WHERE clauses of most queries</li>
+            <li><strong>Cardinality</strong> — moderate cardinality (100s–10,000s of distinct values). Too low = not useful, too high = over-partitioning</li>
+            <li><strong>File size targets</strong> — choose granularity so each partition has ~128MB–1GB of data</li>
+            <li><strong>Growth patterns</strong> — time-based partitions naturally support incremental processing</li>
+          </ul>
+
+          <h3>Guidelines by Data Volume</h3>
+
+          <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+            <thead>
+              <tr><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Daily Data Volume</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Recommended Partition</th><th style="text-align:left;padding:8px;border-bottom:2px solid var(--border)">Reasoning</th></tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">< 128MB/day</td><td style="padding:8px;border-bottom:1px solid var(--border)">Monthly or no partitioning</td><td style="padding:8px;border-bottom:1px solid var(--border)">Daily partitions would be too small</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">128MB – 10GB/day</td><td style="padding:8px;border-bottom:1px solid var(--border)">Daily</td><td style="padding:8px;border-bottom:1px solid var(--border)">Sweet spot for daily partitions</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">10GB – 100GB/day</td><td style="padding:8px;border-bottom:1px solid var(--border)">Daily + secondary (region/category)</td><td style="padding:8px;border-bottom:1px solid var(--border)">Composite partitioning for manageability</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid var(--border)">> 100GB/day</td><td style="padding:8px;border-bottom:1px solid var(--border)">Hourly or daily + bucket</td><td style="padding:8px;border-bottom:1px solid var(--border)">Finer granularity needed for pruning</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="dynamic-static">Dynamic vs Static Partition Overwrite</h2>
+
+          <h3>Static Partition Overwrite</h3>
+          <p>Explicitly specify which partition to overwrite. Only that partition is replaced.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Static partition overwrite</div>
+            <pre><code># Delta: replaceWhere
+df.write.format("delta") \
+    .mode("overwrite") \
+    .option("replaceWhere", "order_date = '2025-01-15'") \
+    .save("/path/to/orders")
+
+# Only the partition date=2025-01-15 is replaced
+# Other partitions are untouched</code></pre>
+          </div>
+
+          <h3>Dynamic Partition Overwrite</h3>
+          <p>Overwrite all partitions that exist in the source DataFrame. Partitions not in the source are untouched.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Dynamic partition overwrite</div>
+            <pre><code># Spark config for dynamic partition overwrite
+spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+
+# DataFrame has data for dates 2025-01-15 and 2025-01-16
+df.write.format("delta") \
+    .mode("overwrite") \
+    .save("/path/to/orders")
+
+# Result: only partitions 2025-01-15 and 2025-01-16 are overwritten
+# All other partitions remain untouched
+
+# Iceberg: overwritePartitions()
+df.writeTo("catalog.db.orders").overwritePartitions()</code></pre>
+          </div>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Danger with dynamic overwrite:</strong>
+            <p>If your source DataFrame is accidentally empty (e.g., upstream failure), dynamic overwrite will overwrite zero partitions — which is safe. But if it has partial data for a partition, it will replace the entire partition with that partial data. Always validate source completeness before dynamic overwrite.</p>
+          </div>
+
+          <h2 id="scd-patterns">SCD Patterns in Lakehouse</h2>
+
+          <h3>SCD Type 1 — Overwrite</h3>
+          <p>Simply update the record in place. No history preserved. Use MERGE with UPDATE.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">SCD Type 1 with MERGE</div>
+            <pre><code>MERGE INTO dim_customers AS target
+USING staging_customers AS source
+ON target.customer_id = source.customer_id
+WHEN MATCHED THEN
+    UPDATE SET
+        name = source.name,
+        email = source.email,
+        address = source.address,
+        updated_at = current_timestamp()
+WHEN NOT MATCHED THEN
+    INSERT (customer_id, name, email, address, created_at, updated_at)
+    VALUES (source.customer_id, source.name, source.email,
+            source.address, current_timestamp(), current_timestamp());</code></pre>
+          </div>
+
+          <h3>SCD Type 2 — Historical Tracking</h3>
+          <p>Preserve full history. Each change creates a new row with effective dates. Old row gets an end date.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">SCD Type 2 with MERGE</div>
+            <pre><code>-- Step 1: Close existing active records that have changes
+MERGE INTO dim_customers AS target
+USING (
+    SELECT s.customer_id, s.name, s.email, s.address
+    FROM staging_customers s
+    JOIN dim_customers d
+        ON s.customer_id = d.customer_id
+        AND d.is_current = true
+    WHERE s.name != d.name OR s.email != d.email OR s.address != d.address
+) AS changes
+ON target.customer_id = changes.customer_id AND target.is_current = true
+WHEN MATCHED THEN
+    UPDATE SET
+        is_current = false,
+        effective_end = current_timestamp();
+
+-- Step 2: Insert new version for changed records + new records
+INSERT INTO dim_customers
+SELECT
+    customer_id,
+    name,
+    email,
+    address,
+    current_timestamp() AS effective_start,
+    NULL AS effective_end,
+    true AS is_current
+FROM staging_customers s
+WHERE EXISTS (
+    -- Changed records (now closed above)
+    SELECT 1 FROM dim_customers d
+    WHERE d.customer_id = s.customer_id AND d.is_current = false
+    AND d.effective_end = current_timestamp()
+)
+OR NOT EXISTS (
+    -- Brand new records
+    SELECT 1 FROM dim_customers d WHERE d.customer_id = s.customer_id
+);</code></pre>
+          </div>
+
+          <h3>SCD Type 3 — Previous Value Column</h3>
+          <p>Keep the previous value in a separate column. Limited history (only one previous value).</p>
+
+          <div class="code-block">
+            <div class="code-block-header">SCD Type 3</div>
+            <pre><code>MERGE INTO dim_customers AS target
+USING staging_customers AS source
+ON target.customer_id = source.customer_id
+WHEN MATCHED AND target.email != source.email THEN
+    UPDATE SET
+        previous_email = target.email,
+        email = source.email,
+        email_changed_at = current_timestamp()
+WHEN NOT MATCHED THEN
+    INSERT (customer_id, name, email, previous_email, email_changed_at)
+    VALUES (source.customer_id, source.name, source.email, NULL, NULL);</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Iceberg handle schema evolution without rewriting data files?</div>
+            <div class="qa-answer">
+              <p>Iceberg assigns each column a unique <strong>integer ID</strong> at creation time. Parquet data files reference columns by these IDs (stored in Parquet metadata), not by column name or position. When you rename a column, only the ID→name mapping in the metadata file changes — data files are untouched. When you add a column, it gets a new ID that doesn't exist in old files — reads return NULL. When you drop a column, its ID is removed from the schema — data files still have the data but it's never read. This ID-based approach makes all evolution operations metadata-only, regardless of table size.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is partition evolution and which format supports it best?</div>
+            <div class="qa-answer">
+              <p>Partition evolution changes a table's partition scheme <strong>without rewriting existing data</strong>. Only Iceberg fully supports it. Each data file records which partition spec was active when it was written. When you change the spec (e.g., <code>day(ts)</code> → <code>hour(ts)</code>), new files use the new spec while old files keep theirs. Query planning handles both specs transparently. In Delta/Hive, changing partitioning requires a full table rewrite (potentially terabytes). This makes Iceberg uniquely suited for tables whose access patterns evolve over time — you can adapt partitioning to match changing query patterns with zero downtime.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle schema changes in a streaming pipeline?</div>
+            <div class="qa-answer">
+              <p>Strategy depends on the change type: (1) <strong>Additive changes</strong> (new columns) — use <code>mergeSchema=true</code> (Delta) or Iceberg's ADD COLUMN. Streaming queries auto-pick-up new columns on restart. (2) <strong>Type widening</strong> — apply ALTER TABLE, then restart the stream. (3) <strong>Breaking changes</strong> (rename, remove, type narrowing) — you can't evolve a running stream mid-flight. Create a new table version, deploy new streaming job to write to v2, backfill from Bronze, then migrate consumers. (4) <strong>Schema registry</strong> — for Kafka/Avro sources, use a schema registry with compatibility checks (BACKWARD, FORWARD) to prevent breaking changes at the source.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the symptoms of over-partitioning and how do you fix it?</div>
+            <div class="qa-answer">
+              <p><strong>Symptoms</strong>: (1) Thousands of tiny files (< 10MB each) across many partitions. (2) Slow query planning because listing thousands of partition directories in object storage is expensive. (3) OPTIMIZE/compaction runs very slowly (too many partitions to process). (4) Write amplification — each micro-batch creates a file per partition, multiplying small file count. <strong>Fixes</strong>: Reduce partition granularity (hour→day, remove low-selectivity partition columns). Use Iceberg's partition evolution to change without rewriting. Alternatively, replace fine-grained partitioning with Z-ORDER/liquid clustering on the over-partitioned columns — you get file-skipping without the partition overhead.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you implement SCD Type 2 in a lakehouse?</div>
+            <div class="qa-answer">
+              <p>SCD Type 2 maintains full history by creating a new row for each change with effective dates. Implementation: (1) Add columns: <code>effective_start</code>, <code>effective_end</code> (NULL = current), <code>is_current</code> (boolean). (2) On change detection: MERGE to set <code>is_current = false</code> and <code>effective_end = now()</code> on the existing active row. (3) INSERT the new version with <code>is_current = true</code> and <code>effective_start = now()</code>. This typically requires a two-pass approach (close old + insert new) because MERGE can't both update and insert for the same source row. Delta and Iceberg's MERGE support this pattern. Partition by <code>is_current</code> or <code>effective_start</code> to optimize queries for the "current" view while preserving history.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Lakehouse</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>
