@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>S3 Storage Optimization & Lifecycle — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AWS</a>
+        <span>→</span>
+        <span>S3 Optimization</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">AWS</span>
+            <span class="read-time">9 min read</span>
+          </div>
+          <h1>S3 Storage Optimization & Lifecycle</h1>
+          <p class="article-desc">Complete guide to S3 performance optimization — prefix-based partitioning, request rate limits, optimal file sizes, storage classes, lifecycle policies, S3 Select, inventory, versioning, multipart uploads, event notifications, access points, and cost optimization for data lake workloads.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#s3-performance">S3 Performance Fundamentals</a></li>
+            <li><a href="#file-sizes">Optimal File Sizes</a></li>
+            <li><a href="#storage-classes">Storage Classes</a></li>
+            <li><a href="#lifecycle-policies">Lifecycle Policies</a></li>
+            <li><a href="#s3-select">S3 Select</a></li>
+            <li><a href="#s3-inventory">S3 Inventory</a></li>
+            <li><a href="#versioning-object-lock">Versioning & Object Lock</a></li>
+            <li><a href="#multipart-upload">Multipart Upload</a></li>
+            <li><a href="#event-notifications">S3 Event Notifications</a></li>
+            <li><a href="#access-points">S3 Access Points</a></li>
+            <li><a href="#cost-optimization">Cost Optimization Strategies</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="s3-performance">S3 Performance Fundamentals</h2>
+
+          <h3>Request Rate Limits</h3>
+          <ul>
+            <li><strong>Per-prefix limits</strong>: 5,500 GET/HEAD requests per second AND 3,500 PUT/COPY/POST/DELETE per second — per prefix.</li>
+            <li><strong>Prefix definition</strong>: Everything between bucket name and object name. <code>s3://bucket/year=2024/month=01/data.parquet</code> → prefix is <code>year=2024/month=01/</code>.</li>
+            <li><strong>No bucket-level limit</strong>: Total throughput scales with number of distinct prefixes. A bucket with 1000 prefixes can handle 5.5M GET/s total.</li>
+            <li><strong>Throttling symptom</strong>: HTTP 503 SlowDown errors. S3 returns this when a prefix exceeds rate limits.</li>
+          </ul>
+
+          <h3>Prefix-Based Partitioning for Throughput</h3>
+          <ul>
+            <li><strong>Anti-pattern</strong>: All files under one prefix (<code>s3://bucket/data/</code>) — bottlenecked at 5,500 GET/s.</li>
+            <li><strong>Best practice</strong>: Spread across many prefixes using partition structure: <code>s3://bucket/data/year=2024/month=01/day=15/hour=14/</code> — each hour is a separate prefix with its own 5,500 limit.</li>
+            <li><strong>Hash prefixing</strong> (legacy): Adding random hex prefix (<code>s3://bucket/a7f3/data/...</code>) was needed before 2018. No longer necessary — S3 auto-indexes internally. Use logical partition structure instead.</li>
+          </ul>
+
+          <h3>Throughput Optimization</h3>
+          <ul>
+            <li><strong>S3 Transfer Acceleration</strong>: Routes uploads through CloudFront edge locations for geographically distant clients. 50-500% improvement for cross-region uploads.</li>
+            <li><strong>Byte-range fetches</strong>: Read specific byte ranges of a file in parallel. Enables parallel reads of different Parquet row groups from a single file. Critical for Spark/Athena performance.</li>
+            <li><strong>Request parallelism</strong>: S3 performance scales linearly with request count (up to prefix limits). More threads = more throughput. Default Spark <code>fs.s3a.threads.max=64</code> is often too low for large clusters — set to 200+.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> S3 is not a filesystem — it's an object store with flat namespace. The "/" in paths is purely cosmetic. Performance is determined by how S3 internally hashes and distributes objects across partitions. Each unique key prefix gets assigned to a partition with its own throughput quota.
+          </div>
+
+          <h2 id="file-sizes">Optimal File Sizes</h2>
+
+          <h3>The Small File Problem</h3>
+          <ul>
+            <li><strong>Problem</strong>: Each S3 GET request has ~50-100ms latency overhead regardless of file size. Reading 10,000 × 1MB files = 10,000 requests × 100ms = 16+ minutes just in request overhead.</li>
+            <li><strong>Versus</strong>: Reading 10 × 1GB files = 10 requests × 100ms = 1 second overhead. Same total data, 1000x less overhead.</li>
+            <li><strong>Causes</strong>: Streaming micro-batch writes (Kafka sink every minute), over-partitioned tables, uncompacted insert-heavy tables.</li>
+          </ul>
+
+          <h3>Optimal Size Guidelines</h3>
+          <table>
+            <thead>
+              <tr><th>Use Case</th><th>Optimal File Size</th><th>Reasoning</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Spark/EMR reads</td><td>128 MB – 1 GB</td><td>Maps well to Spark partition size; minimizes S3 overhead</td></tr>
+              <tr><td>Athena queries</td><td>128 MB – 512 MB</td><td>Balances parallelism with scan efficiency</td></tr>
+              <tr><td>Streaming ingestion target</td><td>64 MB – 256 MB</td><td>Slightly smaller for faster availability</td></tr>
+              <tr><td>Archive/cold storage</td><td>256 MB – 5 GB</td><td>Larger files = fewer objects = less lifecycle overhead</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Compaction Strategies</h3>
+          <div class="code-block">
+            <div class="code-block-header">Spark Compaction Job</div>
+            <pre><code># Compact small files into optimal size (128MB target)
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder \
+    .config("spark.sql.files.maxPartitionBytes", "134217728") \
+    .getOrCreate()
+
+# Read all small files
+df = spark.read.parquet("s3://datalake/events/year=2024/month=01/day=15/")
+
+# Repartition to target file count
+# total_size_bytes / target_file_size = target_partition_count
+total_bytes = 10 * 1024 * 1024 * 1024  # 10 GB total
+target_size = 128 * 1024 * 1024  # 128 MB target
+target_partitions = max(1, total_bytes // target_size)  # ~80 partitions
+
+df.repartition(target_partitions) \
+  .write \
+  .mode("overwrite") \
+  .parquet("s3://datalake/events_compacted/year=2024/month=01/day=15/")
+
+# For Delta/Iceberg tables, use built-in compaction:
+# Delta: OPTIMIZE table_name WHERE date = '2024-01-15'
+# Iceberg: CALL system.rewrite_data_files(table => 'db.events', 
+#           strategy => 'binpack', options => map('target-file-size-bytes', '134217728'))</code></pre>
+          </div>
+
+          <h2 id="storage-classes">Storage Classes</h2>
+
+          <table>
+            <thead>
+              <tr><th>Class</th><th>Cost (GB/mo)</th><th>Retrieval</th><th>Min Duration</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Standard</td><td>$0.023</td><td>Instant</td><td>None</td><td>Frequently accessed data (hot tier)</td></tr>
+              <tr><td>Standard-IA</td><td>$0.0125</td><td>Instant ($0.01/GB retrieval)</td><td>30 days</td><td>Infrequent access, quick retrieval</td></tr>
+              <tr><td>One Zone-IA</td><td>$0.01</td><td>Instant ($0.01/GB)</td><td>30 days</td><td>Reproducible data, non-critical</td></tr>
+              <tr><td>Intelligent-Tiering</td><td>$0.023 → auto</td><td>Instant</td><td>None</td><td>Unknown/changing access patterns</td></tr>
+              <tr><td>Glacier Instant</td><td>$0.004</td><td>Instant ($0.03/GB)</td><td>90 days</td><td>Quarterly reports, compliance data</td></tr>
+              <tr><td>Glacier Flexible</td><td>$0.0036</td><td>Minutes–hours</td><td>90 days</td><td>Backup/archive rarely accessed</td></tr>
+              <tr><td>Glacier Deep Archive</td><td>$0.00099</td><td>12–48 hours</td><td>180 days</td><td>Long-term regulatory compliance</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Intelligent-Tiering</h3>
+          <ul>
+            <li>Automatically moves objects between access tiers based on actual access patterns.</li>
+            <li><strong>Tiers</strong>: Frequent Access → Infrequent (30 days no access) → Archive Instant (90 days) → Archive (optional, 90+ days) → Deep Archive (optional, 180+ days).</li>
+            <li><strong>No retrieval fees</strong> for frequent and infrequent tiers. Small monitoring fee per object ($0.0025/1000 objects).</li>
+            <li><strong>Best for</strong>: Data lakes where access patterns aren't predictable. Let AWS optimize instead of guessing with lifecycle rules.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Data lake pattern:</strong> Raw/landing zone → Standard (first 30 days, active processing). Curated/gold zone → Standard (always hot for queries). Historical partitions → Intelligent-Tiering (access patterns vary). Compliance/archive → Glacier Deep Archive (7-year retention, never queried unless audit).
+          </div>
+
+          <h2 id="lifecycle-policies">Lifecycle Policies</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Lifecycle Policy (JSON)</div>
+            <pre><code>{
+  "Rules": [
+    {
+      "ID": "transition-old-raw-data",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "raw/"},
+      "Transitions": [
+        {"Days": 30, "StorageClass": "STANDARD_IA"},
+        {"Days": 90, "StorageClass": "GLACIER_IR"},
+        {"Days": 365, "StorageClass": "DEEP_ARCHIVE"}
+      ]
+    },
+    {
+      "ID": "expire-temp-files",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "tmp/"},
+      "Expiration": {"Days": 7}
+    },
+    {
+      "ID": "clean-incomplete-multiparts",
+      "Status": "Enabled",
+      "Filter": {"Prefix": ""},
+      "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 3}
+    },
+    {
+      "ID": "expire-old-versions",
+      "Status": "Enabled",
+      "Filter": {"Prefix": "curated/"},
+      "NoncurrentVersionTransitions": [
+        {"NoncurrentDays": 30, "StorageClass": "STANDARD_IA"},
+        {"NoncurrentDays": 90, "StorageClass": "GLACIER"}
+      ],
+      "NoncurrentVersionExpiration": {"NoncurrentDays": 365}
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <h3>Lifecycle Best Practices</h3>
+          <ul>
+            <li><strong>Always add multipart abort rule</strong>: Incomplete multipart uploads consume storage but aren't visible in normal listings. They accumulate indefinitely without this rule.</li>
+            <li><strong>Min duration charges</strong>: Transitioning a Standard-IA object before 30 days = you still pay for 30 days. Don't transition objects that might be deleted within the minimum.</li>
+            <li><strong>Per-object overhead</strong>: Each transition/expiration rule is evaluated per-object. With billions of objects, lifecycle processing can take days to complete a full sweep.</li>
+            <li><strong>Prefix filtering</strong>: Use specific prefixes to target rules. Avoid bucket-wide rules that affect temp/staging data unintentionally.</li>
+          </ul>
+
+          <h2 id="s3-select">S3 Select</h2>
+
+          <p>Push filtering and projection down to the S3 storage layer — S3 processes the query and returns only matching data, reducing data transfer by 80%+.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">S3 Select — Query Pushdown</div>
+            <pre><code>import boto3
+
+s3 = boto3.client('s3')
+
+# Query a single Parquet file — S3 does the filtering
+response = s3.select_object_content(
+    Bucket='datalake',
+    Key='events/year=2024/month=01/day=15/part-00001.parquet',
+    ExpressionType='SQL',
+    Expression="SELECT event_id, amount FROM s3object WHERE amount > 1000 AND event_type = 'purchase'",
+    InputSerialization={
+        'Parquet': {}
+    },
+    OutputSerialization={
+        'JSON': {}
+    }
+)
+
+# Process streaming results
+for event in response['Payload']:
+    if 'Records' in event:
+        print(event['Records']['Payload'].decode('utf-8'))
+
+# Use cases:
+# - Filter large CSV/JSON files before loading into application
+# - Extract specific columns from Parquet without downloading entire file
+# - Pre-filter data for Lambda processing (avoid 10GB Lambda /tmp limit)</code></pre>
+          </div>
+
+          <ul>
+            <li><strong>Supported formats</strong>: CSV, JSON, Parquet.</li>
+            <li><strong>SQL support</strong>: SELECT, WHERE (=, >, <, LIKE, BETWEEN, IN), aggregate functions (COUNT, SUM, AVG, MIN, MAX).</li>
+            <li><strong>Cost</strong>: $0.002 per GB scanned + $0.0007 per GB returned. Cheaper than downloading full files if you filter out >60% of data.</li>
+            <li><strong>Limitation</strong>: Operates on SINGLE files. Cannot query across files (use Athena for multi-file queries). No JOIN support.</li>
+          </ul>
+
+          <h2 id="s3-inventory">S3 Inventory</h2>
+
+          <ul>
+            <li><strong>Purpose</strong>: Scheduled report of all objects in a bucket — alternative to expensive LIST operations.</li>
+            <li><strong>Output</strong>: CSV, ORC, or Parquet file listing all objects with metadata (size, storage class, encryption status, replication status, last modified).</li>
+            <li><strong>Frequency</strong>: Daily or weekly delivery to a destination bucket.</li>
+            <li><strong>Use cases</strong>: (1) Audit storage class distribution. (2) Find unencrypted objects. (3) Identify old/orphaned files. (4) Calculate per-prefix storage costs. (5) Input for data catalog reconciliation.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Query S3 Inventory with Athena</div>
+            <pre><code>-- Create table over S3 inventory output
+CREATE EXTERNAL TABLE s3_inventory (
+    bucket STRING,
+    key STRING,
+    size BIGINT,
+    last_modified_date TIMESTAMP,
+    storage_class STRING,
+    is_multipart_uploaded BOOLEAN,
+    encryption_status STRING
+)
+STORED AS ORC
+LOCATION 's3://inventory-bucket/datalake-inventory/data/';
+
+-- Find small files (compaction candidates)
+SELECT 
+    regexp_extract(key, '^([^/]+/[^/]+/[^/]+/)', 1) as prefix,
+    count(*) as file_count,
+    sum(size) as total_bytes,
+    avg(size) as avg_file_size
+FROM s3_inventory
+WHERE size < 1048576  -- Files under 1MB
+GROUP BY regexp_extract(key, '^([^/]+/[^/]+/[^/]+/)', 1)
+HAVING count(*) > 1000
+ORDER BY file_count DESC;
+
+-- Find storage cost distribution
+SELECT storage_class, 
+       count(*) as object_count,
+       sum(size) / 1073741824.0 as total_gb
+FROM s3_inventory
+GROUP BY storage_class;</code></pre>
+          </div>
+
+          <h2 id="versioning-object-lock">Versioning & Object Lock</h2>
+
+          <h3>Versioning</h3>
+          <ul>
+            <li>Every overwrite/delete creates a new version — previous versions remain accessible.</li>
+            <li><strong>Data lake protection</strong>: Accidental overwrites of Parquet files are recoverable. Critical for tables without Delta/Iceberg transaction logs.</li>
+            <li><strong>Cost impact</strong>: All versions consume storage. A table rewritten 5 times has 5x storage cost without lifecycle rules on noncurrent versions.</li>
+            <li><strong>Delete markers</strong>: DELETE on a versioned object adds a "delete marker" — object appears deleted but all versions remain. Must delete specific version IDs to truly remove data.</li>
+          </ul>
+
+          <h3>Object Lock</h3>
+          <ul>
+            <li><strong>WORM (Write-Once-Read-Many)</strong>: Prevents object deletion or overwrite for a retention period.</li>
+            <li><strong>Governance mode</strong>: Root user can bypass lock. For internal compliance.</li>
+            <li><strong>Compliance mode</strong>: Nobody can delete — not even root. For regulatory requirements (SEC, HIPAA).</li>
+            <li><strong>Legal hold</strong>: Indefinite lock until explicitly removed. For litigation preservation.</li>
+          </ul>
+
+          <h2 id="multipart-upload">Multipart Upload</h2>
+
+          <ul>
+            <li><strong>Required for</strong>: Files &gt; 5 GB. Recommended for files &gt; 100 MB.</li>
+            <li><strong>How it works</strong>: Split file into parts (5 MB – 5 GB each), upload parts in parallel, complete multipart to assemble final object.</li>
+            <li><strong>Benefits</strong>: Parallel upload (saturate network bandwidth), resume on failure (retry only failed parts), begin upload before total size is known (streaming).</li>
+            <li><strong>Part size selection</strong>: Larger parts = fewer S3 API calls but more data to retry on failure. 64-128 MB per part is common for large files.</li>
+            <li><strong>Cleanup</strong>: Always configure lifecycle rule to abort incomplete multipart uploads. Orphaned parts are invisible but billable.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Multipart Upload with boto3</div>
+            <pre><code>import boto3
+from boto3.s3.transfer import TransferConfig
+
+s3 = boto3.client('s3')
+
+# Configure multipart thresholds
+config = TransferConfig(
+    multipart_threshold=100 * 1024 * 1024,  # 100 MB — use multipart above this
+    max_concurrency=10,                       # 10 parallel part uploads
+    multipart_chunksize=64 * 1024 * 1024,    # 64 MB per part
+    use_threads=True
+)
+
+# Upload large file with multipart
+s3.upload_file(
+    Filename='/data/large_export.parquet',
+    Bucket='datalake',
+    Key='exports/2024/01/15/large_export.parquet',
+    Config=config,
+    ExtraArgs={
+        'ServerSideEncryption': 'aws:kms',
+        'StorageClass': 'STANDARD_IA'
+    }
+)</code></pre>
+          </div>
+
+          <h2 id="event-notifications">S3 Event Notifications</h2>
+
+          <p>Trigger actions when objects are created, deleted, or modified — foundation for event-driven data pipelines:</p>
+
+          <ul>
+            <li><strong>Targets</strong>: Lambda, SQS, SNS, EventBridge (recommended for flexibility).</li>
+            <li><strong>Event types</strong>: <code>s3:ObjectCreated:*</code>, <code>s3:ObjectRemoved:*</code>, <code>s3:ObjectRestore:*</code>.</li>
+            <li><strong>Prefix/suffix filters</strong>: Trigger only for specific paths or file extensions. <code>prefix: raw/events/</code>, <code>suffix: .parquet</code>.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Event-Driven Pipeline (EventBridge + Step Functions)</div>
+            <pre><code># EventBridge rule: trigger when Parquet files land in raw zone
+{
+  "source": ["aws.s3"],
+  "detail-type": ["Object Created"],
+  "detail": {
+    "bucket": {"name": ["datalake-raw"]},
+    "object": {"key": [{"prefix": "events/"}]},
+    "reason": ["PutObject", "CompleteMultipartUpload"]
+  }
+}
+
+# Step Function triggered by EventBridge:
+# 1. Wait for batch accumulation (5 min timer or file count threshold)
+# 2. Start Glue job with paths of new files as input
+# 3. On success: register new partitions in Catalog
+# 4. On failure: send alert, retry with exponential backoff</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Duplicate notifications:</strong> S3 event notifications are delivered at-least-once. Your downstream processing must be idempotent — the same notification may arrive twice. Design pipelines to safely re-process the same file without creating duplicates.
+          </div>
+
+          <h2 id="access-points">S3 Access Points</h2>
+
+          <ul>
+            <li><strong>Purpose</strong>: Named network endpoints with individual access policies. Simplifies managing access to shared buckets with many teams/applications.</li>
+            <li><strong>Instead of</strong>: One monolithic bucket policy with 100+ statements (one per team/prefix combination).</li>
+            <li><strong>Each access point has</strong>: Its own DNS name, its own IAM policy (independent of bucket policy), optional VPC restriction (limit to specific VPC).</li>
+            <li><strong>Use case</strong>: Data lake with 10 teams — create 10 access points, each restricting to the team's prefix. Teams reference their access point ARN, never the bucket directly.</li>
+            <li><strong>Limit</strong>: 10,000 access points per account per region.</li>
+          </ul>
+
+          <h2 id="cost-optimization">Cost Optimization Strategies</h2>
+
+          <h3>Storage Cost Reduction</h3>
+          <ul>
+            <li><strong>Compression</strong>: ZSTD/Snappy compressed Parquet = 3-5x smaller than uncompressed. Direct cost reduction.</li>
+            <li><strong>Lifecycle tiering</strong>: Move data to cheaper tiers based on access patterns. 90% of data lake storage should be IA or colder.</li>
+            <li><strong>Delete test/temp data</strong>: Set aggressive expiration on temporary paths (<code>tmp/</code>, <code>staging/</code>, <code>_spark_metadata/</code>).</li>
+            <li><strong>Version cleanup</strong>: Expire noncurrent versions after 30-90 days unless compliance requires longer.</li>
+            <li><strong>Incomplete multipart cleanup</strong>: Can account for 5-15% of storage costs in active buckets.</li>
+          </ul>
+
+          <h3>Request Cost Reduction</h3>
+          <ul>
+            <li><strong>Consolidate small files</strong>: 10,000 GET requests ($0.004/1000 = $0.04) for 10K small files vs 10 GETs ($0.00004) for 10 large files. At scale: millions of requests/day = significant savings.</li>
+            <li><strong>Avoid unnecessary LIST operations</strong>: Use Glue Catalog/Delta log instead of S3 LIST for file discovery. LIST is expensive ($0.005/1000 requests) and slow.</li>
+            <li><strong>S3 Select for targeted reads</strong>: Transfer cost ($0.09/GB) dwarfs S3 Select cost ($0.002/GB scanned) when filtering 80%+ of data.</li>
+          </ul>
+
+          <h3>Transfer Cost Reduction</h3>
+          <ul>
+            <li><strong>Same-region access</strong>: S3 → EC2/Lambda in the same region = $0 transfer. Cross-region = $0.02/GB. Always co-locate compute with storage.</li>
+            <li><strong>VPC endpoints</strong>: Gateway endpoints for S3 = $0 transfer (no NAT gateway charges). Interface endpoints have per-hour + per-GB charge.</li>
+            <li><strong>Compression for transfer</strong>: Compress data before storage — reduces both storage cost AND transfer cost for reads.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Quick wins audit:</strong> Run S3 Storage Lens (free) to identify: (1) buckets with no lifecycle rules, (2) high incomplete multipart upload counts, (3) objects never accessed for 90+ days in Standard class, (4) buckets with versioning but no noncurrent version expiration. Fixing these typically saves 20-40% on S3 costs.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your data lake on S3 has grown to 500 TB and costs $11,500/month in storage alone. How do you reduce costs by 50%?</div>
+            <div class="qa-answer">
+              <p><strong>Step 1 — Audit with S3 Inventory + Storage Lens</strong>: Identify storage distribution by prefix, age, and access pattern. Typically: 60-70% of data is >90 days old and rarely accessed.</p>
+              <p><strong>Step 2 — Lifecycle tiering (biggest impact)</strong>: Move data older than 30 days to Standard-IA ($0.0125 vs $0.023 = 46% savings). Move data older than 90 days to Glacier Instant Retrieval ($0.004 = 83% savings). Raw/bronze data older than 1 year → Glacier Deep Archive ($0.00099 = 96% savings).</p>
+              <p><strong>Step 3 — Intelligent-Tiering for curated zone</strong>: Instead of guessing access patterns, let S3 auto-tier the curated/gold zone. No retrieval fees for frequent/infrequent access.</p>
+              <p><strong>Step 4 — Compression audit</strong>: Check if all Parquet data uses ZSTD compression (5-7x ratio vs uncompressed). Re-write uncompressed or Snappy-compressed data with ZSTD — could save 30-50% on already-Parquet data.</p>
+              <p><strong>Step 5 — Delete waste</strong>: Orphaned files (not in any table catalog), incomplete multipart uploads, old noncurrent versions, temporary/staging paths. Typically 5-10% of total storage.</p>
+              <p><strong>Expected result</strong>: Lifecycle tiering alone takes 350 TB of old data from $0.023 to ~$0.006 average = saves ~$6,000/month. Combined with compression and cleanup: 50%+ reduction achievable.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain the "small file problem" in a data lake and how you would detect and fix it at scale.</div>
+            <div class="qa-answer">
+              <p><strong>The problem</strong>: Thousands of files under 1-5 MB per partition. Each file requires a separate S3 GET request (50-100ms latency), Spark task scheduling overhead, and metadata tracking. A partition with 50,000 × 1MB files takes 100x longer to read than 50 × 1GB files — same data, dramatically worse performance.</p>
+              <p><strong>Common causes</strong>: (1) Spark Structured Streaming writing micro-batches every 10s without compaction. (2) Kafka Connect sinks with small flush intervals. (3) DMS CDC writing one file per batch (100 records). (4) Over-partitioned tables (partition per hour × customer = millions of tiny partitions). (5) INSERT INTO appending without repartition.</p>
+              <p><strong>Detection at scale</strong>: (1) S3 Inventory → Athena query to find prefixes with avg_file_size < 10MB AND file_count > 1000. (2) Glue Catalog stats: check <code>averageRecordSize × recordCount / fileCount</code> per partition. (3) Custom monitoring: Lambda triggered daily that scans inventory report and flags problematic tables.</p>
+              <p><strong>Fix at scale</strong>: (1) For Delta/Iceberg tables: scheduled OPTIMIZE/rewrite_data_files targeting partitions with small files. (2) For Hive tables: Spark compaction job (repartition + overwrite). (3) Prevention: set minimum file sizes in streaming sinks (Kafka Connect <code>flush.size=100000</code>), use Spark <code>coalesce()</code> before write, choose appropriate partition granularity. (4) Automated: EventBridge + Lambda that monitors file counts per partition and triggers compaction jobs when thresholds are exceeded.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a storage strategy for a multi-tenant data platform on S3 with cost isolation per tenant.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture option 1 — Bucket per tenant</strong>: Each tenant gets a dedicated bucket. Pros: natural cost isolation (S3 cost allocation tags per bucket), simple IAM boundaries, independent lifecycle policies. Cons: doesn't scale beyond ~100 tenants (operational overhead), cross-tenant queries require federation.</p>
+              <p><strong>Architecture option 2 — Shared bucket with prefix isolation</strong> (recommended): One bucket with prefix per tenant: <code>s3://platform/tenant={tenant_id}/table/partition/</code>. Use S3 Access Points per tenant for policy isolation. Cost allocation via S3 Storage Lens with prefix-level breakdown.</p>
+              <p><strong>Cost tracking</strong>: (1) S3 Storage Lens: Configure prefix-level metrics aggregated daily. Dashboard shows GB per tenant, request counts per tenant. (2) S3 Inventory + Athena: Monthly job calculates exact storage per tenant-prefix, multiplied by storage class rates. (3) Cost allocation tags: Tag objects with tenant ID at write time (requires producer cooperation). Use Cost Explorer tag-based reports.</p>
+              <p><strong>Access control</strong>: S3 Access Points with policy restricting each tenant's IAM role to their prefix only. Lake Formation on top for table/column-level governance. VPC endpoint policies restrict which access points are reachable from which VPCs.</p>
+              <p><strong>Performance isolation</strong>: Tenant prefixes naturally distribute S3 request limits (each prefix gets 5,500 GET/s). Heavy-usage tenants don't starve others because they hit different S3 internal partitions.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you use S3 Intelligent-Tiering vs manual lifecycle rules? What are the cost tradeoffs?</div>
+            <div class="qa-answer">
+              <p><strong>Intelligent-Tiering (IT) advantages</strong>: (1) No retrieval fees when objects move back to frequent access (lifecycle transition FROM IA back to Standard would require re-uploading). (2) Automatic — no guesswork about access patterns. (3) Objects that become "hot" again auto-promote. (4) No minimum storage duration charges (unlike Standard-IA's 30-day minimum).</p>
+              <p><strong>IT cost</strong>: $0.0025 per 1,000 objects/month monitoring fee. For objects &lt;128KB, monitoring fee > savings from tiering. So IT has a break-even point around object count and size.</p>
+              <p><strong>Use IT when</strong>: Access patterns are unpredictable (ad-hoc analytics, user-generated data). Objects may be accessed again after periods of inactivity. You have relatively few, large objects (monitoring fee is negligible relative to storage savings).</p>
+              <p><strong>Use manual lifecycle when</strong>: Access patterns are predictable (time-based: "data older than 30 days is never queried directly"). You have millions of small objects (monitoring fee adds up). You want to move to Glacier tiers (IT's Deep Archive access tier requires 180-day inactivity — may be slower than a lifecycle rule).</p>
+              <p><strong>Hybrid approach</strong>: Use IT for curated/gold zone (unpredictable access). Use lifecycle rules for raw/bronze (predictable: always old = cold) and archive/compliance (always move to Deep Archive after X days).</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AWS</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AWS Glue — ETL Patterns & Optimization — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AWS</a>
+        <span>→</span>
+        <span>Glue Patterns</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">AWS</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>AWS Glue — ETL Patterns & Optimization</h1>
+          <p class="article-desc">Comprehensive guide to AWS Glue internals — DPU allocation, DynamicFrame patterns, Crawler mechanics, Data Catalog integration, bookmarks for incremental processing, pushdown predicates, Glue 4.0 features, Data Quality, and cost optimization strategies.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#glue-architecture">Glue Architecture — Spark Under the Hood</a></li>
+            <li><a href="#glue-flavors">Glue ETL vs Glue Studio vs Glue Streaming</a></li>
+            <li><a href="#dynamicframe-dataframe">DynamicFrame vs DataFrame</a></li>
+            <li><a href="#crawlers">Glue Crawlers — Schema Detection</a></li>
+            <li><a href="#data-catalog">Glue Data Catalog</a></li>
+            <li><a href="#bookmarks">Bookmarks — Incremental Processing</a></li>
+            <li><a href="#pushdown-predicates">Pushdown Predicates</a></li>
+            <li><a href="#job-metrics">Job Metrics & CloudWatch</a></li>
+            <li><a href="#glue-4">Glue 4.0 Improvements</a></li>
+            <li><a href="#data-quality">Glue Data Quality</a></li>
+            <li><a href="#cost-optimization">Cost Optimization</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="glue-architecture">Glue Architecture — Spark Under the Hood</h2>
+
+          <p>AWS Glue is a fully managed Apache Spark environment with a proprietary orchestration layer. Understanding the internals is critical for optimization:</p>
+
+          <h3>DPU (Data Processing Unit)</h3>
+          <ul>
+            <li><strong>Definition</strong>: 1 DPU = 4 vCPUs + 16 GB RAM. This is the billing unit.</li>
+            <li><strong>Standard worker</strong>: G.1X = 1 DPU per worker (4 vCPU, 16 GB). G.2X = 2 DPU per worker (8 vCPU, 32 GB). G.4X = 4 DPU per worker (16 vCPU, 64 GB — for memory-heavy transforms). G.8X = 8 DPU per worker (32 vCPU, 128 GB).</li>
+            <li><strong>Cost model</strong>: Billed per DPU-hour with 1-minute minimum, rounded to nearest second. Pricing: ~$0.44/DPU-hour.</li>
+            <li><strong>Driver overhead</strong>: 1 DPU is always allocated to the Spark driver. A 10-DPU job = 1 driver + 9 executor workers.</li>
+          </ul>
+
+          <h3>Execution Environment</h3>
+          <ul>
+            <li>Spark runs in isolated Docker containers on AWS-managed infrastructure.</li>
+            <li>Each job gets a fresh Spark cluster — no shared state between job runs.</li>
+            <li>Glue 4.0 runs Spark 3.3.0 with optimized AWS connectors.</li>
+            <li>Supports Python (PySpark) and Scala (Spark Scala). No Java directly — use JARs as dependencies.</li>
+            <li><strong>Warm pools</strong>: Glue reuses pre-warmed containers for frequently-run jobs — startup drops from ~45s to ~10s.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Glue is literally Spark with managed infrastructure + Glue-specific libraries (DynamicFrame, crawlers, bookmarks). Any Spark optimization technique applies directly to Glue. Think of it as "managed EMR for ETL" with a higher per-DPU cost but zero operational overhead.
+          </div>
+
+          <h2 id="glue-flavors">Glue ETL vs Glue Studio vs Glue Streaming</h2>
+
+          <h3>Glue ETL (Script-Based)</h3>
+          <ul>
+            <li>Write PySpark/Scala scripts with Glue libraries.</li>
+            <li>Full Spark API access + Glue DynamicFrame API.</li>
+            <li>Best for: complex transformations, custom logic, experienced Spark developers.</li>
+          </ul>
+
+          <h3>Glue Studio (Visual)</h3>
+          <ul>
+            <li>Drag-and-drop DAG builder — generates PySpark code behind the scenes.</li>
+            <li>Built-in transforms: ApplyMapping, Filter, Join, SQL, custom code nodes.</li>
+            <li>Best for: simple ETL flows, less experienced teams, rapid prototyping.</li>
+            <li><strong>Limitation</strong>: Generated code can be suboptimal — complex logic still needs script mode.</li>
+          </ul>
+
+          <h3>Glue Streaming</h3>
+          <ul>
+            <li>Micro-batch processing using Spark Structured Streaming.</li>
+            <li>Sources: Kinesis Data Streams, MSK (Kafka).</li>
+            <li>Sinks: S3, JDBC, Kinesis, custom.</li>
+            <li><strong>Window interval</strong>: Configurable — 100 seconds default. Minimum effective is ~10s.</li>
+            <li>Uses Glue bookmarks equivalent (checkpointing) for exactly-once semantics.</li>
+            <li>DPUs run continuously — cost = DPUs × hours running (not per-trigger).</li>
+          </ul>
+
+          <h2 id="dynamicframe-dataframe">DynamicFrame vs DataFrame</h2>
+
+          <h3>DynamicFrame — Glue's Extension</h3>
+          <ul>
+            <li><strong>Schema flexibility</strong>: DynamicFrame handles schema inconsistencies per-record. A column can be <code>int</code> in some rows and <code>string</code> in others — it creates a <code>choice</code> type instead of failing.</li>
+            <li><strong>ResolveChoice</strong>: Explicit resolution — cast to target type, make_struct (keep both), or project:type (pick one).</li>
+            <li><strong>Relationalize</strong>: Flattens nested JSON/structs into relational tables automatically — critical for loading semi-structured data into Redshift/RDS.</li>
+            <li><strong>Built-in transforms</strong>: ApplyMapping (column rename + type cast), Filter, Join, DropNullFields, SelectFields.</li>
+          </ul>
+
+          <h3>When to Use Each</h3>
+          <ul>
+            <li><strong>DynamicFrame</strong>: Reading messy data (inconsistent schemas, nested JSON), simple column-level transforms, loading to JDBC sinks (built-in parallelism and retry).</li>
+            <li><strong>DataFrame</strong>: Complex transformations (window functions, UDFs, pivot), aggregations, joins with complex conditions, Spark SQL, performance-critical paths.</li>
+            <li><strong>Conversion</strong>: <code>df = dyf.toDF()</code> and <code>dyf = DynamicFrame.fromDF(df, glueContext, "name")</code> — zero-cost conversion, same underlying RDD.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">DynamicFrame Pattern — Schema Resolution</div>
+            <pre><code>from awsglue.context import GlueContext
+from awsglue.dynamicframe import DynamicFrame
+
+glueContext = GlueContext(SparkContext.getOrCreate())
+
+# Read from Catalog
+dyf = glueContext.create_dynamic_frame.from_catalog(
+    database="raw_db",
+    table_name="events",
+    push_down_predicate="year='2024' and month='01'",
+    additional_options={"useS3ListImplementation": True}
+)
+
+# Handle schema inconsistencies
+# 'user_id' column is sometimes int, sometimes string
+dyf_resolved = dyf.resolveChoice(
+    specs=[
+        ("user_id", "cast:long"),
+        ("amount", "cast:double"),
+        ("metadata", "make_struct")  # keep nested structure
+    ]
+)
+
+# Flatten nested JSON
+dyf_flat = dyf_resolved.relationalize("events_flat", "s3://temp-bucket/relationalize/")
+
+# Convert to DataFrame for complex logic
+df = dyf_flat.toDF()
+df_transformed = df.withColumn("event_date", F.to_date("timestamp")) \
+                   .filter(F.col("amount") > 0)
+
+# Back to DynamicFrame for Catalog-aware write
+dyf_output = DynamicFrame.fromDF(df_transformed, glueContext, "output")
+glueContext.write_dynamic_frame.from_catalog(
+    frame=dyf_output,
+    database="curated_db",
+    table_name="events_clean"
+)</code></pre>
+          </div>
+
+          <h2 id="crawlers">Glue Crawlers — Schema Detection</h2>
+
+          <h3>How Crawlers Work</h3>
+          <ol>
+            <li><strong>List files</strong>: Enumerate all files in the target S3 path (or JDBC tables).</li>
+            <li><strong>Sample</strong>: Read a subset of files (not all!) to infer schema. Sampling is based on file size and count.</li>
+            <li><strong>Classify</strong>: Determine format (Parquet, JSON, CSV, etc.) using built-in classifiers or custom classifiers.</li>
+            <li><strong>Group</strong>: Group files into tables based on path structure and schema similarity.</li>
+            <li><strong>Schema merge</strong>: Merge schemas across sampled files — union of all columns found.</li>
+            <li><strong>Update catalog</strong>: Create/update table definitions in Glue Data Catalog.</li>
+          </ol>
+
+          <h3>When to Avoid Crawlers</h3>
+          <ul>
+            <li><strong>Known schema</strong>: If you control the producer, define tables manually via Glue API/Terraform/CloudFormation. Faster, deterministic, no surprises.</li>
+            <li><strong>Partitioned data</strong>: Crawlers re-scan ALL partitions to find new ones. For tables with 100K+ partitions, use <code>MSCK REPAIR TABLE</code> or <code>batch_create_partition</code> API instead.</li>
+            <li><strong>Schema evolution</strong>: Crawlers may incorrectly merge schemas or change column types. Use explicit schema management with Delta/Iceberg.</li>
+            <li><strong>Cost</strong>: Crawlers consume DPU time. A crawler on a million-file S3 prefix costs real money and takes 30+ minutes.</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>Pitfall:</strong> Crawlers can change a column type from <code>bigint</code> to <code>string</code> if they sample a file with a string value in that column. This silently breaks downstream queries. Always set <code>SchemaChangePolicy.UpdateBehavior = LOG</code> in production and review changes before applying.
+          </div>
+
+          <h2 id="data-catalog">Glue Data Catalog</h2>
+
+          <p>The Data Catalog is a Hive Metastore-compatible metadata repository that serves as the single source of truth for schema definitions across AWS analytics services.</p>
+
+          <h3>Integration Points</h3>
+          <ul>
+            <li><strong>Athena</strong>: Uses Catalog directly — query any Catalog table via SQL.</li>
+            <li><strong>EMR</strong>: Set <code>hive.metastore.client.factory.class = com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory</code>.</li>
+            <li><strong>Redshift Spectrum</strong>: External schemas point to Catalog databases.</li>
+            <li><strong>Lake Formation</strong>: Layered on top of Catalog for fine-grained access control.</li>
+            <li><strong>Glue ETL</strong>: Native read/write via <code>create_dynamic_frame.from_catalog()</code>.</li>
+          </ul>
+
+          <h3>Catalog Limits and Patterns</h3>
+          <ul>
+            <li><strong>Partition limit</strong>: 10 million partitions per table (hard limit). Design partition schemes accordingly.</li>
+            <li><strong>Batch operations</strong>: <code>batch_create_partition</code> adds up to 100 partitions per call — use for ETL jobs that know exactly which partitions they create.</li>
+            <li><strong>Partition indexes</strong>: Create indexes on frequently-filtered partition keys for faster pruning in Athena. Up to 3 indexes per table.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Programmatic Partition Registration</div>
+            <pre><code>import boto3
+
+glue_client = boto3.client('glue')
+
+# Register new partitions after ETL write
+partitions_to_add = [
+    {
+        'Values': ['2024', '01', '15'],
+        'StorageDescriptor': {
+            'Location': 's3://datalake/events/year=2024/month=01/day=15/',
+            'InputFormat': 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat',
+            'OutputFormat': 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat',
+            'SerdeInfo': {
+                'SerializationLibrary': 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+            },
+            'Columns': [
+                {'Name': 'event_id', 'Type': 'string'},
+                {'Name': 'user_id', 'Type': 'bigint'},
+                {'Name': 'amount', 'Type': 'double'},
+                {'Name': 'timestamp', 'Type': 'timestamp'}
+            ]
+        }
+    }
+]
+
+glue_client.batch_create_partition(
+    DatabaseName='analytics_db',
+    TableName='events',
+    PartitionInputList=partitions_to_add
+)</code></pre>
+          </div>
+
+          <h2 id="bookmarks">Bookmarks — Incremental Processing</h2>
+
+          <p>Glue bookmarks track which data has been processed in previous job runs, enabling incremental ETL without re-processing the entire dataset.</p>
+
+          <h3>How Bookmarks Work</h3>
+          <ul>
+            <li><strong>S3 sources</strong>: Tracks processed files by modification timestamp. On next run, only reads files modified after the last bookmark.</li>
+            <li><strong>JDBC sources</strong>: Tracks a monotonically increasing column (e.g., <code>id</code>, <code>updated_at</code>). Stores the max value seen and filters on next run.</li>
+            <li><strong>State storage</strong>: Bookmark state lives in the Glue service (not S3 or DynamoDB). Accessible via <code>ResetJobBookmark</code> API.</li>
+          </ul>
+
+          <h3>Bookmark Gotchas</h3>
+          <ul>
+            <li><strong>Late-arriving files</strong>: If files are written with old timestamps (e.g., backfill to old partitions), bookmarks may skip them since they appear "already processed" by timestamp.</li>
+            <li><strong>Job failures</strong>: Bookmarks only advance on job SUCCESS. Failed runs don't update — ensures retry processes the same data.</li>
+            <li><strong>Pause state</strong>: Set <code>job-bookmark-option: job-bookmark-pause</code> for one-time full reprocessing without resetting the bookmark.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Bookmark-Enabled Incremental Read</div>
+            <pre><code># Enable bookmarks in job parameters: --job-bookmark-option job-bookmark-enable
+
+dyf = glueContext.create_dynamic_frame.from_catalog(
+    database="raw_db",
+    table_name="clickstream",
+    transformation_ctx="clickstream_source"  # REQUIRED for bookmarks
+)
+
+# transformation_ctx is the key — it uniquely identifies this
+# read operation for bookmark tracking. Without it, bookmarks
+# won't work even if enabled at the job level.
+
+# Process only new data
+df = dyf.toDF()
+df_transformed = df.filter(F.col("event_type").isNotNull()) \
+                   .withColumn("processed_at", F.current_timestamp())
+
+# Write (also needs transformation_ctx for write bookmarks)
+glueContext.write_dynamic_frame.from_catalog(
+    frame=DynamicFrame.fromDF(df_transformed, glueContext, "output"),
+    database="curated_db",
+    table_name="clickstream_clean",
+    transformation_ctx="clickstream_sink"
+)</code></pre>
+          </div>
+
+          <h2 id="pushdown-predicates">Pushdown Predicates</h2>
+
+          <p>Pushdown predicates filter data at the Catalog level BEFORE Spark reads files — reducing I/O dramatically for partitioned tables.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Pushdown Predicate vs push_down_predicate</div>
+            <pre><code># PARTITION-LEVEL pushdown (Catalog filter — most impactful)
+# Only reads partitions matching the predicate
+dyf = glueContext.create_dynamic_frame.from_catalog(
+    database="analytics",
+    table_name="events",
+    push_down_predicate="year='2024' and month='01'"
+)
+
+# FILE-LEVEL pushdown (S3 Select / columnar predicate)
+# Filters within files (Parquet row-group stats)
+dyf = glueContext.create_dynamic_frame.from_catalog(
+    database="analytics",
+    table_name="events",
+    push_down_predicate="year='2024'",
+    additional_options={
+        "pushDownPredicate": "(amount > 100)"  # file-level filter
+    }
+)
+
+# Both reduce DPU-hours and cost significantly
+# Rule of thumb: partition pushdown = 10-100x reduction
+# File-level pushdown = 2-5x reduction on top</code></pre>
+          </div>
+
+          <h2 id="job-metrics">Job Metrics & CloudWatch</h2>
+
+          <ul>
+            <li><strong>Enable metrics</strong>: Set <code>--enable-metrics</code> in job parameters. Adds ~1% overhead but provides critical visibility.</li>
+            <li><strong>Key metrics</strong>: <code>glue.driver.aggregate.bytesRead</code>, <code>glue.driver.aggregate.shuffleBytesWritten</code>, <code>glue.ALL.system.cpuSystemLoad</code>, <code>glue.driver.aggregate.elapsedTime</code>.</li>
+            <li><strong>Executor memory</strong>: <code>glue.ALL.jvm.heap.used</code> — watch for >80% sustained (risk of OOM).</li>
+            <li><strong>Shuffle detection</strong>: High <code>shuffleBytesWritten</code> relative to <code>bytesRead</code> indicates join/aggregation heavy workload — consider broadcast joins or pre-partitioning.</li>
+          </ul>
+
+          <h2 id="glue-4">Glue 4.0 Improvements</h2>
+
+          <ul>
+            <li><strong>Spark 3.3.0</strong>: Adaptive Query Execution (AQE) enabled by default — auto-coalesce, skew handling, join strategy switching at runtime.</li>
+            <li><strong>Faster start</strong>: Job startup reduced from ~90s to ~30s with optimized container warm pools.</li>
+            <li><strong>Python 3.10</strong>: Latest Python with type hints and performance improvements.</li>
+            <li><strong>Apache Arrow</strong>: Optimized PySpark ↔ Pandas conversion via Arrow columnar format.</li>
+            <li><strong>Auto-scaling</strong>: Workers can scale down mid-job based on actual workload (not just time-based). Reduces cost for jobs with uneven phases.</li>
+            <li><strong>Iceberg/Hudi/Delta</strong>: Native integration with lakehouse table formats — read/write without custom JARs.</li>
+          </ul>
+
+          <h2 id="data-quality">Glue Data Quality</h2>
+
+          <p>Built-in data quality rules engine (based on Deequ) that evaluates data against defined expectations:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Data Quality Ruleset (DQDL Syntax)</div>
+            <pre><code>Rules = [
+    Completeness "email" > 0.95,
+    Uniqueness "order_id" = 1.0,
+    ColumnValues "amount" between 0 and 1000000,
+    ColumnLength "phone" between 10 and 15,
+    CustomSql "select count(*) from primary where amount < 0" = 0,
+    RowCount > 1000,
+    IsComplete "user_id",
+    ColumnValues "status" in ["active", "inactive", "pending"],
+    ReferentialIntegrity "customer_id" "reference_db.customers.id" > 0.99
+]</code></pre>
+          </div>
+
+          <ul>
+            <li><strong>Integration</strong>: Runs as a step within Glue ETL jobs or standalone evaluation tasks.</li>
+            <li><strong>Actions on failure</strong>: Route failing records to quarantine S3 path, halt the pipeline, or alert via SNS.</li>
+            <li><strong>Recommendations</strong>: Auto-generates rules by profiling existing data — baseline from which to set thresholds.</li>
+          </ul>
+
+          <h2 id="cost-optimization">Cost Optimization</h2>
+
+          <h3>Right-Sizing DPUs</h3>
+          <ul>
+            <li><strong>Start small</strong>: Begin with 2 DPU (G.1X) and monitor metrics. Scale up only when CPU utilization is consistently >80% or memory >75%.</li>
+            <li><strong>Auto-scaling</strong>: Enable Glue auto-scaling (Glue 3.0+) — let the service manage DPU count. Set max DPU as cost guardrail.</li>
+            <li><strong>Worker type matching</strong>: Use G.1X (16GB) for I/O-bound jobs (read/transform/write). Use G.2X (32GB) for memory-intensive (large joins, caching). Use G.4X/G.8X only for truly massive aggregations.</li>
+          </ul>
+
+          <h3>Flex Execution</h3>
+          <ul>
+            <li>Non-urgent jobs run on spare Glue capacity at reduced cost (compared to standard).</li>
+            <li>No SLA on start time — jobs may queue for minutes during peak hours.</li>
+            <li>Same DPU pricing once running — the discount is in avoiding capacity reservation.</li>
+            <li><strong>Best for</strong>: Nightly batch jobs with wide execution windows, backfills, non-time-critical reprocessing.</li>
+          </ul>
+
+          <h3>Other Cost Strategies</h3>
+          <ul>
+            <li><strong>Partition pushdown</strong>: Reduces DPU-hours by scanning less data.</li>
+            <li><strong>Columnar formats</strong>: Parquet/ORC → read only needed columns → less I/O → faster job → fewer DPU-hours.</li>
+            <li><strong>Timeout</strong>: Set <code>--job-timeout</code> to kill runaway jobs (default: 48 hours — dangerously high).</li>
+            <li><strong>Consolidate small jobs</strong>: Each Glue job has 1 DPU minimum + startup overhead. Combine multiple tiny transformations into one job.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Cost formula:</strong> Total cost = DPUs × runtime (hours) × $0.44. A 10-DPU job running 30 min = 10 × 0.5 × $0.44 = $2.20. Reducing from 10 to 5 DPUs (by optimizing transforms) saves 50% — often possible by simply adding partition pushdown or fixing broadcast join thresholds.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Glue job processes 500GB daily but takes 3 hours with 20 DPUs. How would you optimize it?</div>
+            <div class="qa-answer">
+              <p><strong>Step 1 — Enable metrics and profile</strong>: Check <code>cpuSystemLoad</code>, <code>jvm.heap.used</code>, and <code>shuffleBytesWritten</code>. If CPU is <30% with high shuffle, the job is I/O bound on shuffle — not compute bound.</p>
+              <p><strong>Step 2 — Reduce input data scanned</strong>: Add partition pushdown predicates. If reading full partitions when only recent data changed, enable bookmarks for incremental processing. This alone can reduce runtime from 3h to 30min.</p>
+              <p><strong>Step 3 — Optimize transforms</strong>: (a) Replace wide shuffles with broadcast joins where one side is <200MB. (b) Use columnar format (Parquet) if input is CSV/JSON. (c) Add coalesce before write to avoid thousands of small output files. (d) Cache DataFrames used multiple times.</p>
+              <p><strong>Step 4 — Right-size workers</strong>: If memory is under-utilized on G.2X, switch to G.1X (half the cost). If CPU-bound, try fewer but larger workers to reduce shuffle overhead.</p>
+              <p><strong>Step 5 — Enable auto-scaling</strong>: Let Glue scale down during light phases (e.g., after the heavy join phase, during simple write). This trims 20-30% of DPU-hours for uneven workloads.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you choose Glue over EMR, and vice versa?</div>
+            <div class="qa-answer">
+              <p><strong>Choose Glue when</strong>: (1) Team doesn't have Hadoop/Spark operational expertise. (2) Jobs are ETL-focused (read → transform → write) without complex iterative algorithms. (3) You want managed schema management (Data Catalog integration). (4) Job count is high but each job is small-medium (avoid managing dozens of EMR clusters). (5) You value development speed over per-job cost efficiency.</p>
+              <p><strong>Choose EMR when</strong>: (1) Workload needs fine-grained Spark tuning (custom JVM flags, off-heap memory, specific Spark versions). (2) Cost sensitivity at scale — EMR is 30-50% cheaper per vCPU-hour than Glue DPUs. (3) Need full Hadoop ecosystem (HBase, Presto, Hive LLAP). (4) Long-running/streaming jobs where Glue's per-DPU-hour pricing becomes expensive. (5) GPU workloads for ML training. (6) Existing Spark code that uses features Glue doesn't support.</p>
+              <p><strong>Hybrid pattern</strong>: Use Glue for orchestration-heavy ETL (dozens of small catalog-aware jobs) and EMR for heavy compute (large aggregations, ML feature engineering). Both can share the Glue Data Catalog as a common metastore.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain how Glue bookmarks work and their failure modes.</div>
+            <div class="qa-answer">
+              <p><strong>Mechanism for S3</strong>: Bookmarks store the modification timestamp of the last processed file. On the next run, Glue filters the S3 listing to only include files with modification timestamps newer than the bookmark. This is why <code>transformation_ctx</code> is required — it acts as the key for bookmark state storage.</p>
+              <p><strong>Mechanism for JDBC</strong>: Stores the maximum value of a designated bookmark key column (must be sequential — auto-increment ID or timestamp). Generates a WHERE clause: <code>WHERE bookmark_key > last_max_value</code>.</p>
+              <p><strong>Failure mode 1 — Late-arriving files</strong>: If a file is written to an old partition with a past modification timestamp (common in backfills), the bookmark has already advanced past that timestamp. The file is never processed. Fix: use <code>job-bookmark-pause</code> for backfill runs, or design pipelines where new files always have current timestamps.</p>
+              <p><strong>Failure mode 2 — File overwrites</strong>: If a file is overwritten in-place (same path, new content), the bookmark may or may not pick it up depending on whether the modification timestamp changes. This is unpredictable on S3 (eventual metadata propagation). Fix: always write new files, never overwrite.</p>
+              <p><strong>Failure mode 3 — Multiple sources</strong>: Each <code>transformation_ctx</code> tracks independently. If you add a new source mid-pipeline without bookmark state, it processes ALL historical data on first run.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Glue Data Quality compare to Great Expectations or custom validation? When would you use each?</div>
+            <div class="qa-answer">
+              <p><strong>Glue Data Quality (GDQ)</strong>: Native integration with Glue ETL — zero additional infrastructure. DQDL syntax is simpler than GE's JSON expectation suites. Auto-recommendation engine profiles data to suggest rules. Built-in CloudWatch metrics for quality scores. Limitation: tied to Glue ecosystem, less extensible than GE, fewer rule types.</p>
+              <p><strong>Great Expectations (GE)</strong>: Framework-agnostic (works with Spark, Pandas, SQLAlchemy). 300+ built-in expectations. Rich documentation and data docs (HTML reports). Custom expectations in Python. Limitation: requires infrastructure management (store backends, docs hosting, CI/CD integration).</p>
+              <p><strong>Decision</strong>: Use GDQ when your pipeline is fully Glue-based and rules are standard (completeness, ranges, referential integrity). Use GE when you need cross-platform validation (same rules across Spark and Pandas), custom business logic expectations, or rich HTML documentation for stakeholders. Use both in combination: GDQ as inline gates within Glue jobs, GE as comprehensive data contracts at domain boundaries.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AWS</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>DMS & CDC Patterns — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AWS</a>
+        <span>→</span>
+        <span>DMS & CDC</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">AWS</span>
+            <span class="read-time">10 min read</span>
+          </div>
+          <h1>DMS & CDC Patterns</h1>
+          <p class="article-desc">Deep dive into AWS Database Migration Service — CDC internals (binlog, WAL, LogMiner), full-load vs ongoing replication, S3/Kafka targets, transformation rules, comparison with Debezium and GoldenGate, error handling, and production CDC architecture patterns.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#dms-architecture">DMS Architecture</a></li>
+            <li><a href="#full-load-vs-cdc">Full Load vs CDC</a></li>
+            <li><a href="#cdc-internals">CDC Internals — Log-Based Capture</a></li>
+            <li><a href="#task-settings">Task Settings</a></li>
+            <li><a href="#transformation-rules">Transformation Rules</a></li>
+            <li><a href="#s3-target">S3 as Target</a></li>
+            <li><a href="#kafka-target">DMS + MSK — Streaming CDC to Kafka</a></li>
+            <li><a href="#comparison">DMS vs GoldenGate vs Debezium</a></li>
+            <li><a href="#error-handling">Error Handling & Monitoring</a></li>
+            <li><a href="#data-validation">Data Validation</a></li>
+            <li><a href="#limitations">Limitations & Workarounds</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="dms-architecture">DMS Architecture</h2>
+
+          <p>AWS DMS consists of three components that work together for data migration and ongoing replication:</p>
+
+          <h3>Replication Instance</h3>
+          <ul>
+            <li>EC2 instance running the DMS replication engine. Performs the actual data transfer.</li>
+            <li><strong>Sizing</strong>: <code>dms.r5.large</code> (2 vCPU, 16GB) for small loads. <code>dms.r5.4xlarge</code> (16 vCPU, 128GB) for large-scale CDC with many tables.</li>
+            <li><strong>Multi-AZ</strong>: Enable for production CDC — standby instance in another AZ for automatic failover. Adds ~50% cost but ensures replication continuity.</li>
+            <li><strong>Storage</strong>: Local storage buffers CDC events during spikes. Size = max_spike_duration × change_rate. Default 50GB, increase for high-volume sources.</li>
+          </ul>
+
+          <h3>Source Endpoint</h3>
+          <ul>
+            <li>Connection configuration to the source database (hostname, port, credentials, SSL, extra connection attributes).</li>
+            <li>Supported sources: Oracle, SQL Server, MySQL, PostgreSQL, MongoDB, S3, SAP ASE, IBM Db2.</li>
+            <li>CDC-specific requirements per source (detailed in CDC Internals section).</li>
+          </ul>
+
+          <h3>Target Endpoint</h3>
+          <ul>
+            <li>Connection to the destination: RDS, Redshift, S3 (Parquet/CSV), Kafka, Kinesis, DynamoDB, Elasticsearch, Neptune.</li>
+            <li>Target-specific settings control output format, batching, and apply mode.</li>
+          </ul>
+
+          <h3>Replication Task</h3>
+          <ul>
+            <li>Defines WHAT to replicate: source endpoint → target endpoint, table mappings, transformation rules.</li>
+            <li>Task types: Full Load, CDC only, Full Load + CDC (recommended for initial migration).</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> The replication instance is the bottleneck. All data flows through it — source → instance buffer → target. Under-sizing causes CDC lag. Over-sizing wastes money. Monitor <code>CDCLatencySource</code> and <code>CDCLatencyTarget</code> metrics to right-size.
+          </div>
+
+          <h2 id="full-load-vs-cdc">Full Load vs CDC</h2>
+
+          <h3>Full Load</h3>
+          <ul>
+            <li>Reads entire table contents via SELECT statements. One-time bulk copy.</li>
+            <li>Parallel threads per table (configurable: <code>MaxFullLoadSubTasks</code>). Large tables split by segment (range-based).</li>
+            <li>Target table options: DROP and CREATE, TRUNCATE, DO_NOTHING (append).</li>
+            <li><strong>Performance</strong>: 50-200 GB/hour depending on source/target throughput and instance size.</li>
+          </ul>
+
+          <h3>CDC (Change Data Capture)</h3>
+          <ul>
+            <li>Captures ongoing changes (INSERT, UPDATE, DELETE) from source transaction logs in near real-time.</li>
+            <li>Continuous process — runs indefinitely after full load completes.</li>
+            <li>Typical latency: 1-10 seconds (source commit → target apply), depending on change rate and network.</li>
+            <li>Changes are applied in transaction order to maintain referential integrity.</li>
+          </ul>
+
+          <h3>Full Load + CDC (Recommended Pattern)</h3>
+          <ol>
+            <li>DMS starts CDC capture (begins reading transaction log from current position).</li>
+            <li>Full load executes — copies existing data to target.</li>
+            <li>After full load completes, CDC applies all changes that accumulated during the full load.</li>
+            <li>Target reaches consistency — full historical data + all changes since task start.</li>
+            <li>CDC continues running — ongoing replication.</li>
+          </ol>
+
+          <h2 id="cdc-internals">CDC Internals — Log-Based Capture</h2>
+
+          <h3>MySQL — Binary Log (Binlog)</h3>
+          <ul>
+            <li><strong>Required settings</strong>: <code>binlog_format = ROW</code> (not STATEMENT or MIXED), <code>binlog_row_image = FULL</code>, <code>log_bin = ON</code>.</li>
+            <li><strong>How DMS reads</strong>: Connects as a MySQL replication slave. Reads binlog events via the replication protocol. Each event contains before/after row images.</li>
+            <li><strong>Retention</strong>: Binlogs must be retained long enough for DMS to read. Set <code>expire_logs_days = 3</code> minimum (RDS: <code>binlog retention hours</code> parameter).</li>
+            <li><strong>Performance impact on source</strong>: Minimal — DMS reads binlog files from disk/archive, doesn't add query load to the active database.</li>
+          </ul>
+
+          <h3>PostgreSQL — Write-Ahead Log (WAL)</h3>
+          <ul>
+            <li><strong>Required settings</strong>: <code>wal_level = logical</code>, <code>max_replication_slots ≥ 1</code> (per DMS task), <code>max_wal_senders ≥ 1</code>.</li>
+            <li><strong>Logical decoding</strong>: DMS uses a replication slot with the <code>test_decoding</code> or <code>pgoutput</code> plugin to receive decoded WAL changes.</li>
+            <li><strong>Critical issue — WAL retention</strong>: A replication slot HOLDS WAL segments until consumed. If DMS stops/pauses, WAL accumulates on the source → disk fills → source database crashes. Always monitor <code>pg_replication_slots</code> and set <code>max_slot_wal_keep_size</code> as a safety limit (PostgreSQL 13+).</li>
+            <li><strong>RDS-specific</strong>: Use <code>rds.logical_replication = 1</code> parameter. Requires reboot to activate.</li>
+          </ul>
+
+          <h3>Oracle — LogMiner / Binary Reader</h3>
+          <ul>
+            <li><strong>LogMiner mode</strong> (default): DMS uses Oracle's LogMiner API to parse redo/archive logs. Runs SQL against the source (some CPU overhead). Easier setup.</li>
+            <li><strong>Binary Reader mode</strong> (recommended for production): DMS reads redo logs directly at the binary level. Lower source impact, higher throughput. Requires: SUPPLEMENTAL LOGGING at table/database level.</li>
+            <li><strong>Required</strong>: <code>ALTER DATABASE ADD SUPPLEMENTAL LOG DATA</code>, archive log mode enabled, redo log retention sufficient for DMS to keep up.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">PostgreSQL CDC Setup for DMS</div>
+            <pre><code>-- On source PostgreSQL (RDS parameter group or postgresql.conf)
+-- rds.logical_replication = 1 (requires reboot)
+
+-- Verify settings
+SHOW wal_level;           -- Must be 'logical'
+SHOW max_replication_slots; -- Must be >= number of DMS tasks
+
+-- DMS automatically creates a replication slot named: 
+-- dms_replication_slot_{task_id}
+
+-- Monitor slot lag (CRITICAL — prevents WAL bloat)
+SELECT slot_name, 
+       pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) AS lag_bytes,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag_readable,
+       active
+FROM pg_replication_slots;
+
+-- If lag_bytes grows continuously and active=false → DMS is stuck
+-- DROP the slot manually to release WAL:
+-- SELECT pg_drop_replication_slot('dms_replication_slot_xyz');</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Critical production risk:</strong> A stalled DMS task on PostgreSQL will hold WAL indefinitely. A 500GB/day change rate with a 2-day outage = 1TB of unreclaimed WAL disk space. Set CloudWatch alarms on <code>OldestReplicationSlotLag</code> (RDS metric) and <code>CDCLatencySource</code> (DMS metric). Automate slot cleanup if lag exceeds threshold.
+          </div>
+
+          <h2 id="task-settings">Task Settings</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">DMS Task Settings (JSON)</div>
+            <pre><code>{
+  "TargetMetadata": {
+    "ParallelLoadThreads": 8,
+    "ParallelLoadBufferSize": 500,
+    "BatchApplyEnabled": true
+  },
+  "FullLoadSettings": {
+    "TargetTablePrepMode": "DROP_AND_CREATE",
+    "MaxFullLoadSubTasks": 8,
+    "TransactionConsistencyTimeout": 600,
+    "CommitRate": 50000
+  },
+  "Logging": {
+    "EnableLogging": true,
+    "LogComponents": [
+      {"Id": "SOURCE_CAPTURE", "Severity": "LOGGER_SEVERITY_DEFAULT"},
+      {"Id": "TARGET_APPLY", "Severity": "LOGGER_SEVERITY_DEFAULT"},
+      {"Id": "SOURCE_UNLOAD", "Severity": "LOGGER_SEVERITY_DETAILED_DEBUG"}
+    ]
+  },
+  "ChangeProcessingTuning": {
+    "BatchApplyPreserveTransaction": true,
+    "BatchApplyTimeoutMin": 1,
+    "BatchApplyTimeoutMax": 30,
+    "BatchApplyMemoryLimit": 500,
+    "BatchSplitSize": 0,
+    "MinTransactionSize": 1000,
+    "CommitTimeout": 1,
+    "MemoryLimitTotal": 1024,
+    "MemoryKeepTime": 60,
+    "StatementCacheSize": 50
+  },
+  "CharacterSetSettings": {
+    "CharacterReplacements": null,
+    "CharacterSetSupport": null
+  }
+}</code></pre>
+          </div>
+
+          <h3>Key Settings Explained</h3>
+          <ul>
+            <li><strong>BatchApplyEnabled</strong>: Groups multiple changes into batch SQL statements (INSERT INTO ... VALUES (...), (...), ...). 5-10x throughput improvement for high-volume CDC.</li>
+            <li><strong>ParallelLoadThreads</strong>: Number of threads per table during full load. Increase for large tables (8-16).</li>
+            <li><strong>LOB handling</strong>: Full LOB mode reads LOBs inline (slow for large BLOBs). Limited LOB mode truncates at size limit (fast but may lose data). Set <code>LobMaxSize</code> based on your actual LOB sizes.</li>
+          </ul>
+
+          <h2 id="transformation-rules">Transformation Rules</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Table Mapping with Transformations</div>
+            <pre><code>{
+  "rules": [
+    {
+      "rule-type": "selection",
+      "rule-id": "1",
+      "rule-name": "select-all-tables",
+      "object-locator": {
+        "schema-name": "public",
+        "table-name": "%"
+      },
+      "rule-action": "include"
+    },
+    {
+      "rule-type": "selection",
+      "rule-id": "2",
+      "rule-name": "exclude-audit-tables",
+      "object-locator": {
+        "schema-name": "public",
+        "table-name": "audit_%"
+      },
+      "rule-action": "exclude"
+    },
+    {
+      "rule-type": "transformation",
+      "rule-id": "3",
+      "rule-name": "rename-schema",
+      "rule-action": "rename",
+      "rule-target": "schema",
+      "object-locator": {
+        "schema-name": "public"
+      },
+      "value": "raw_production"
+    },
+    {
+      "rule-type": "transformation",
+      "rule-id": "4",
+      "rule-name": "add-metadata-columns",
+      "rule-action": "add-column",
+      "rule-target": "column",
+      "object-locator": {
+        "schema-name": "public",
+        "table-name": "%"
+      },
+      "value": "dms_updated_at",
+      "expression": "$AR_H_CHANGE_SEQ",
+      "data-type": {"type": "string", "length": 50}
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <h2 id="s3-target">S3 as Target</h2>
+
+          <p>DMS can write directly to S3 in Parquet or CSV format — building a data lake from database CDC:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">S3 Target Endpoint Configuration</div>
+            <pre><code>{
+  "S3Settings": {
+    "BucketName": "datalake-raw",
+    "BucketFolder": "cdc/production",
+    "CompressionType": "gzip",
+    "DataFormat": "parquet",
+    "ParquetVersion": "parquet-2-0",
+    "EnableStatistics": true,
+    "ParquetTimestampInMillisecond": true,
+    "TimestampColumnName": "_dms_ingestion_timestamp",
+    "IncludeOpForFullLoad": true,
+    "CdcInsertsAndUpdates": true,
+    "CdcPath": "cdc_changes",
+    "DatePartitionEnabled": true,
+    "DatePartitionSequence": "YYYYMMDD",
+    "DatePartitionDelimiter": "SLASH",
+    "AddColumnName": true,
+    "CannedAclForObjects": "bucket-owner-full-control",
+    "MaxFileSize": 131072
+  }
+}</code></pre>
+          </div>
+
+          <h3>S3 Output Structure</h3>
+          <ul>
+            <li><strong>Full load files</strong>: <code>s3://bucket/folder/schema/table/LOAD00001.parquet</code></li>
+            <li><strong>CDC files</strong>: <code>s3://bucket/folder/schema/table/cdc_changes/20240115/20240115-143052-changes.parquet</code></li>
+            <li><strong>CDC records include</strong>: <code>Op</code> column (I=insert, U=update, D=delete), all column values (before/after for updates depending on config).</li>
+            <li><strong>File size</strong>: Controlled by <code>MaxFileSize</code> (KB). Smaller = more files but lower latency to S3. Larger = fewer files but higher latency.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Production pattern:</strong> DMS CDC → S3 Parquet (raw) → Spark/Glue job applies CDC operations (MERGE) into an Iceberg/Delta table (curated). This two-stage approach decouples ingestion from transformation, making it easier to reprocess and debug.
+          </div>
+
+          <h2 id="kafka-target">DMS + MSK — Streaming CDC to Kafka</h2>
+
+          <ul>
+            <li>DMS can publish CDC events directly to Kafka (MSK) topics — each table maps to a topic.</li>
+            <li><strong>Message format</strong>: JSON with before/after images + metadata (operation type, timestamp, transaction ID).</li>
+            <li><strong>Partitioning</strong>: Messages keyed by primary key — ensures ordering per entity across partitions.</li>
+            <li><strong>Topic mapping</strong>: Default = one topic per table. Custom topic naming via transformation rules.</li>
+            <li><strong>Use case</strong>: Real-time event streaming from OLTP databases to consumers (dashboards, materialized views, event-driven microservices).</li>
+          </ul>
+
+          <h2 id="comparison">DMS vs GoldenGate vs Debezium</h2>
+
+          <table>
+            <thead>
+              <tr><th>Aspect</th><th>AWS DMS</th><th>Oracle GoldenGate</th><th>Debezium</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Deployment</td><td>Managed (AWS)</td><td>Self-managed or Oracle Cloud</td><td>Self-managed (Kafka Connect)</td></tr>
+              <tr><td>Source support</td><td>Broad (Oracle, PG, MySQL, Mongo, etc.)</td><td>Oracle-focused (best), some others</td><td>Broad (PG, MySQL, Mongo, SQL Server, Oracle)</td></tr>
+              <tr><td>Target</td><td>AWS services (S3, Kafka, RDS, Redshift)</td><td>Any database, JMS, flat files</td><td>Kafka (consumers decide target)</td></tr>
+              <tr><td>Transformation</td><td>Basic (rename, filter, add column)</td><td>Rich (SQL-like transforms, conflict resolution)</td><td>SMTs (Single Message Transforms in Connect)</td></tr>
+              <tr><td>Schema evolution</td><td>Limited (may require task restart)</td><td>DDL replication supported</td><td>Full DDL change events published</td></tr>
+              <tr><td>Exactly-once</td><td>At-least-once (dedup needed)</td><td>Exactly-once for Oracle-to-Oracle</td><td>At-least-once (with Kafka EOS)</td></tr>
+              <tr><td>Latency</td><td>1-10s typical</td><td>Sub-second</td><td>Sub-second to seconds</td></tr>
+              <tr><td>Cost</td><td>Instance-hours ($0.018–$1.88/hr)</td><td>License ($$$$)</td><td>Free (OSS) + Kafka infra cost</td></tr>
+              <tr><td>Best for</td><td>AWS-to-AWS migrations, S3 lake ingestion</td><td>Oracle environments, bidirectional replication</td><td>Kafka-centric architectures, event sourcing</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout-warning">
+            <strong>DMS vs Debezium critical difference:</strong> DMS is a managed black box — limited configurability, occasional bugs with specific source/target combinations, AWS-only targets. Debezium gives full control (custom serialization, transforms, dead letter queues) but requires managing Kafka Connect infrastructure. For Kafka-first architectures, Debezium is almost always the better choice. For simple "database → S3 lake" pipelines, DMS wins on operational simplicity.
+          </div>
+
+          <h2 id="error-handling">Error Handling & Monitoring</h2>
+
+          <h3>Error Handling Modes</h3>
+          <ul>
+            <li><strong>Suspend table</strong>: On error, suspend replication for the affected table. Other tables continue. Check and resume manually.</li>
+            <li><strong>Stop task</strong>: Any error stops the entire task. Conservative but safe — no silent data loss.</li>
+            <li><strong>Log and continue</strong>: Log the error to a control table, skip the record, continue. Risk: data gaps. Use for non-critical data only.</li>
+          </ul>
+
+          <h3>Key Monitoring Metrics</h3>
+          <ul>
+            <li><strong>CDCLatencySource</strong>: Seconds between source commit and DMS reading the change. High = DMS can't keep up with source log production.</li>
+            <li><strong>CDCLatencyTarget</strong>: Seconds between DMS reading change and applying to target. High = target is slow (capacity, locks, network).</li>
+            <li><strong>CDCIncomingChanges</strong>: Number of changes pending in DMS buffer. Growing = falling behind. Should stay near zero for healthy replication.</li>
+            <li><strong>FreeStorageSpace</strong>: Replication instance storage. If CDC buffer fills up, task fails. Alarm at &lt;20%.</li>
+          </ul>
+
+          <h2 id="data-validation">Data Validation</h2>
+
+          <ul>
+            <li>DMS built-in validation compares source and target row counts and row-level checksums.</li>
+            <li><strong>Enable</strong>: Set <code>"EnableValidation": true</code> in task settings.</li>
+            <li><strong>How it works</strong>: Periodically queries both source and target, compares hash of primary key + data columns.</li>
+            <li><strong>Reporting</strong>: Validation state per table in <code>awsdms_validation_failures_v1</code> control table. States: Validated, Mismatched, Error, Pending.</li>
+            <li><strong>Limitation</strong>: Validation adds read load to both source and target. Schedule during low-traffic periods for large tables.</li>
+          </ul>
+
+          <h2 id="limitations">Limitations & Workarounds</h2>
+
+          <ul>
+            <li><strong>DDL changes</strong>: DMS handles basic DDL (ADD COLUMN) but may fail on complex DDL (ALTER TYPE, RENAME COLUMN, DROP TABLE). Workaround: stop task, apply DDL to target manually, restart task.</li>
+            <li><strong>Large transactions</strong>: Transactions with millions of rows can overflow DMS buffer memory. Workaround: increase instance size or set <code>MemoryLimitTotal</code> higher.</li>
+            <li><strong>LOB columns</strong>: Full LOB mode is extremely slow (one-row-at-a-time for LOB fetch). Workaround: use Limited LOB mode with generous <code>LobMaxSize</code>, or replicate LOB columns separately.</li>
+            <li><strong>Partitioned tables (Oracle)</strong>: Partition DDL operations (SPLIT, MERGE, EXCHANGE) may not replicate correctly. Workaround: replicate at the partition level or handle post-migration.</li>
+            <li><strong>No multi-master</strong>: DMS is one-directional. No bidirectional/active-active replication. For that, use Oracle GoldenGate or custom conflict resolution.</li>
+            <li><strong>Schema drift</strong>: If source schema changes during CDC, DMS may stop or produce corrupted records. Workaround: use schema change notifications + automated task restart/configuration update.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a CDC pipeline from a production PostgreSQL database to a data lake with near-real-time freshness.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture</strong>: PostgreSQL → DMS CDC → S3 (raw Parquet) → Spark/Glue MERGE → Iceberg table (curated).</p>
+              <p><strong>Step 1 — Source preparation</strong>: Set <code>wal_level=logical</code>, configure replication slot limits, ensure sufficient WAL retention. Set up monitoring on <code>pg_replication_slots</code> lag.</p>
+              <p><strong>Step 2 — DMS configuration</strong>: Full Load + CDC task with Parquet output to S3. Date-partitioned paths for CDC files. <code>MaxFileSize=128MB</code> for optimal downstream processing. Enable <code>IncludeOpForFullLoad</code> and <code>TimestampColumnName</code> for lineage.</p>
+              <p><strong>Step 3 — Apply layer</strong>: Scheduled Spark/Glue job (every 5-15 minutes) reads new CDC files from S3, applies operations (I/U/D) as MERGE INTO the Iceberg target table. Use Iceberg's MERGE for efficient upserts. Handle deletes via soft-delete column or physical delete.</p>
+              <p><strong>Step 4 — Freshness SLA</strong>: DMS latency ~5s + S3 file flush interval (configurable) + apply job frequency. Achievable: 5-20 minute end-to-end latency. For sub-minute: replace S3 with Kafka target + Spark Structured Streaming consumer.</p>
+              <p><strong>Step 5 — Monitoring</strong>: CDCLatencySource alarm >30s, CDCIncomingChanges alarm >10000, WAL slot lag alarm >1GB. Data quality checks on apply: validate row counts, detect schema drift via column count comparison.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your DMS CDC task is falling behind — CDCLatencySource is growing at 100ms/sec. Diagnose and fix.</div>
+            <div class="qa-answer">
+              <p><strong>Growing latency means</strong>: DMS is reading changes slower than the source produces them. It will eventually exhaust replication instance storage and fail.</p>
+              <p><strong>Diagnosis 1 — Source log throughput</strong>: Check source change rate (binlog bytes/sec for MySQL, WAL bytes/sec for PG). If change rate spiked (batch job, migration), wait for spike to end.</p>
+              <p><strong>Diagnosis 2 — Instance under-sized</strong>: Check DMS instance CPU and memory. If CPU >80% → upgrade instance type. If memory pressure (swap usage) → upgrade or reduce parallel load threads.</p>
+              <p><strong>Diagnosis 3 — Target bottleneck</strong>: Check <code>CDCLatencyTarget</code>. If target apply is slow (target DB locks, S3 throttling), changes back up in DMS buffer, slowing source reads. Fix target performance (add indexes on target, increase S3 max connections, use batch apply mode).</p>
+              <p><strong>Diagnosis 4 — LOB mode</strong>: Full LOB mode processes one row at a time (sequential). If tables have LOB columns, switch to Limited LOB mode with appropriate size limit.</p>
+              <p><strong>Diagnosis 5 — Table with no PK</strong>: Tables without primary keys use full-row comparison for updates — extremely slow. Add a PK or unique index to the source table.</p>
+              <p><strong>Immediate remediation</strong>: (1) Scale up replication instance. (2) Enable <code>BatchApplyEnabled=true</code> if not already. (3) If specific tables are bottlenecks, split into separate tasks for parallel processing.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare DMS CDC to Debezium for a Kafka-centric streaming architecture. When would you choose each?</div>
+            <div class="qa-answer">
+              <p><strong>Choose DMS when</strong>: (1) Target is S3/Redshift/DynamoDB (native AWS integration). (2) Team doesn't run Kafka or Kafka Connect infrastructure. (3) Simple one-way replication without complex transformation. (4) Migration project with a defined end date (not permanent CDC). (5) Operational simplicity is priority — fully managed, no patching.</p>
+              <p><strong>Choose Debezium when</strong>: (1) Kafka is your event backbone — you want CDC events as first-class Kafka messages with proper keys, schemas, and tombstones. (2) Need DDL change capture (table creates, alters published as events). (3) Need snapshot + streaming with exactly-once semantics (Kafka transactions). (4) Require custom transforms (masking PII, enriching events, routing). (5) Multiple consumers need CDC events (Debezium publishes once, N consumers read). (6) Need outbox pattern integration (poll-based outbox tables). (7) Long-term CDC architecture (not a one-time migration).</p>
+              <p><strong>Architecture insight</strong>: For a permanent streaming data platform, Debezium is superior because CDC events become part of your event-driven architecture. DMS is a "pipe" — it moves data but doesn't make it an event. Debezium makes every database change a proper event with schema, key, and metadata that downstream systems can independently consume.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle schema evolution in a DMS CDC pipeline without data loss?</div>
+            <div class="qa-answer">
+              <p><strong>Challenge</strong>: When source schema changes (ADD COLUMN, ALTER TYPE), DMS may stop, skip records, or produce mismatched data.</p>
+              <p><strong>Strategy 1 — Additive-only changes</strong>: ADD COLUMN is generally safe — DMS detects new columns and adds them to output. Configure <code>"HandleSourceTableDDL": true</code>. New records have the column; old records have NULL.</p>
+              <p><strong>Strategy 2 — Breaking changes (ALTER TYPE, DROP COLUMN)</strong>: (a) Stop DMS task at a known checkpoint. (b) Apply DDL to target (match source schema). (c) Restart DMS task — it resumes from checkpoint. (d) For S3 targets: new files will have new schema. Downstream readers must handle schema evolution (Iceberg/Delta handle this natively).</p>
+              <p><strong>Strategy 3 — Schema-flexible target</strong>: Write CDC to S3 as JSON (schema-less). Downstream Spark job handles schema resolution — reads JSON with evolving schemas, applies to a Delta/Iceberg table with schema evolution enabled (<code>mergeSchema=true</code>). DMS never stops regardless of source DDL.</p>
+              <p><strong>Strategy 4 — Event notification</strong>: Monitor DMS task events for <code>TABLE_ERROR</code> or <code>SCHEMA_CHANGE</code> events via EventBridge. Trigger a Lambda that: pauses downstream consumers, evaluates the change, updates target schema, resumes task.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AWS</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

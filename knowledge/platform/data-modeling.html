@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Data Modeling — Dimensional, Star & OBT — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Platform</a>
+        <span>→</span>
+        <span>Data Modeling</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Platform</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Data Modeling — Dimensional, Star & OBT</h1>
+          <p class="article-desc">Comprehensive guide to data modeling paradigms — 3NF, Kimball dimensional modeling, Data Vault, One Big Table (OBT), star and snowflake schemas, slowly changing dimensions (SCD Types 1-6), fact table types, activity schema, medallion architecture, lakehouse modeling patterns, dbt modeling layers, and the metrics layer.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#paradigms">Data Modeling Paradigms</a></li>
+            <li><a href="#star-schema">Star Schema</a></li>
+            <li><a href="#snowflake-schema">Snowflake Schema</a></li>
+            <li><a href="#scd">Slowly Changing Dimensions</a></li>
+            <li><a href="#fact-types">Fact Table Types</a></li>
+            <li><a href="#obt">One Big Table (OBT) Pattern</a></li>
+            <li><a href="#activity-schema">Activity Schema</a></li>
+            <li><a href="#medallion">Medallion Architecture as Modeling Paradigm</a></li>
+            <li><a href="#lakehouse-modeling">Modeling for Lakehouse</a></li>
+            <li><a href="#dbt-patterns">dbt Modeling Patterns</a></li>
+            <li><a href="#metrics-layer">Metrics Layer</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="paradigms">Data Modeling Paradigms</h2>
+
+          <h3>Third Normal Form (3NF)</h3>
+          <ul>
+            <li>Fully normalized — every non-key column depends on the key, the whole key, and nothing but the key. No redundancy.</li>
+            <li><strong>Use case</strong>: OLTP systems (minimize write anomalies, enforce data integrity). Not ideal for analytics (too many JOINs).</li>
+            <li><strong>Example</strong>: Orders table references customer_id (FK). Customer details only in customers table. No denormalization.</li>
+          </ul>
+
+          <h3>Kimball Dimensional Model</h3>
+          <ul>
+            <li>Optimized for analytical queries. Central fact tables (measures/events) surrounded by dimension tables (context/attributes). The star schema is the primary implementation.</li>
+            <li><strong>Principles</strong>: Facts are numeric measures at the grain of a business event. Dimensions provide context (who, what, where, when). Conformed dimensions are shared across fact tables for cross-process analysis.</li>
+            <li><strong>Philosophy</strong>: Bottom-up design — build individual dimensional models per business process (orders, shipments, returns), then connect via conformed dimensions.</li>
+          </ul>
+
+          <h3>Data Vault</h3>
+          <ul>
+            <li>Designed for enterprise data warehouses with multiple sources, audit requirements, and historical tracking. Three entity types: Hubs (business keys), Links (relationships), Satellites (attributes over time).</li>
+            <li><strong>Hubs</strong>: Contain unique business keys (customer_id, order_number). Never change. Represent business entities.</li>
+            <li><strong>Links</strong>: Represent relationships between hubs (customer PLACED order). Many-to-many relationships. Also immutable.</li>
+            <li><strong>Satellites</strong>: Contain descriptive attributes with temporal validity (effective_date, load_date). Change over time — new satellite records added as attributes change.</li>
+            <li><strong>Strengths</strong>: Full audit trail, handles multiple source integration cleanly, parallel loading (no dependencies between hubs/links/satellites). Weaknesses: complex for analysts to query directly — requires a presentation layer on top.</li>
+          </ul>
+
+          <h3>One Big Table (OBT)</h3>
+          <ul>
+            <li>Single wide denormalized table containing all dimensions and facts flattened together. No JOINs needed at query time.</li>
+            <li><strong>Use case</strong>: Analytics/BI dashboards where query simplicity and performance matter more than storage efficiency. Common in modern cloud warehouses where storage is cheap and JOIN performance is variable.</li>
+            <li><strong>Tradeoffs</strong>: Extreme query simplicity (no JOINs, analysts need only one table) vs. data redundancy, complex ETL to maintain, and update anomalies (dimension change requires updating every row).</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Choosing a paradigm:</strong> 3NF for OLTP sources. Kimball dimensional for most analytical use cases (best balance of query performance and maintainability). Data Vault for enterprise warehouses with 50+ source systems and strict audit requirements. OBT for specific BI use cases where query simplicity is paramount and data freshness requirements allow full rebuilds. In practice, most modern platforms use Kimball in the gold/mart layer with OBT for specific dashboard-focused tables.
+          </div>
+
+          <h2 id="star-schema">Star Schema</h2>
+
+          <h3>Fact Tables</h3>
+          <ul>
+            <li>Central table containing numeric measures (amount, quantity, duration) and foreign keys to dimension tables.</li>
+            <li><strong>Grain</strong>: The most critical design decision — what does one row represent? One transaction? One daily summary? One line item? Define grain first, then identify dimensions and facts.</li>
+            <li><strong>Measures</strong>: Additive (sum across all dimensions — revenue, quantity), semi-additive (sum across some dimensions — account balance sums across accounts but not across time), non-additive (ratios, percentages — cannot be summed).</li>
+          </ul>
+
+          <h3>Dimension Tables</h3>
+          <ul>
+            <li>Wide, descriptive tables providing context for facts. Few rows (thousands to millions), many columns (50-100+).</li>
+            <li><strong>Attributes</strong>: Textual descriptions, hierarchies, flags, categories. Enable GROUP BY, FILTER, and human-readable results.</li>
+            <li><strong>Denormalized within dimensions</strong>: Dimension tables are intentionally denormalized. A product dimension contains product → subcategory → category → department all in one row (no need for separate category table).</li>
+          </ul>
+
+          <h3>Surrogate Keys</h3>
+          <ul>
+            <li>Synthetic integer keys (auto-increment or hash-based) used as primary keys in dimension tables and foreign keys in fact tables.</li>
+            <li><strong>Why not natural keys?</strong>: Natural keys can change (company merges → new ID), have different formats across sources, or be large (composite keys). Surrogate keys are stable, compact, and uniform.</li>
+            <li><strong>Implementation</strong>: <code>dim_customer_key INT</code> in both dim_customer and fact_orders. Join on this key. The natural key (customer_id from source) is stored as an attribute in the dimension for lookup.</li>
+          </ul>
+
+          <h3>Conformed Dimensions</h3>
+          <ul>
+            <li>Dimensions shared across multiple fact tables with identical structure and content. Enable cross-process analysis.</li>
+            <li><strong>Example</strong>: dim_date is conformed — used by fact_orders, fact_shipments, fact_returns. A query joining all three on date_key gives consistent time analysis.</li>
+            <li><strong>Governance</strong>: Conformed dimensions are owned centrally. Changes require cross-team coordination since multiple fact tables depend on them.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Star Schema — Orders Domain</div>
+            <pre><code>-- Fact table: one row per order line item
+CREATE TABLE fact_order_lines (
+    order_line_key    BIGINT PRIMARY KEY,  -- Surrogate key
+    order_key         BIGINT,              -- FK → dim_order
+    customer_key      BIGINT,              -- FK → dim_customer
+    product_key       BIGINT,              -- FK → dim_product
+    date_key          INT,                 -- FK → dim_date (YYYYMMDD)
+    store_key         BIGINT,              -- FK → dim_store
+    promotion_key     BIGINT,              -- FK → dim_promotion
+    -- Measures (additive)
+    quantity          INT,
+    unit_price        DECIMAL(10,2),
+    discount_amount   DECIMAL(10,2),
+    net_amount        DECIMAL(10,2),
+    tax_amount        DECIMAL(10,2),
+    shipping_cost     DECIMAL(10,2)
+);
+
+-- Dimension table: customer context
+CREATE TABLE dim_customer (
+    customer_key      BIGINT PRIMARY KEY,  -- Surrogate key
+    customer_id       VARCHAR(50),          -- Natural key (from source)
+    first_name        VARCHAR(100),
+    last_name         VARCHAR(100),
+    email             VARCHAR(200),
+    customer_segment  VARCHAR(50),          -- Gold, Silver, Bronze
+    acquisition_channel VARCHAR(50),        -- Organic, Paid, Referral
+    city              VARCHAR(100),
+    state             VARCHAR(50),
+    country           VARCHAR(50),
+    region            VARCHAR(50),          -- Denormalized hierarchy
+    first_order_date  DATE,
+    lifetime_value    DECIMAL(12,2),
+    is_active         BOOLEAN,
+    -- SCD Type 2 metadata
+    effective_date    DATE,
+    expiry_date       DATE,
+    is_current        BOOLEAN
+);</code></pre>
+          </div>
+
+          <h2 id="snowflake-schema">Snowflake Schema</h2>
+
+          <ul>
+            <li>Extension of star schema where dimension tables are normalized into sub-dimensions. A product dimension splits into product → subcategory → category tables.</li>
+            <li><strong>Advantage</strong>: Reduced storage (no redundancy in dimension hierarchies), easier dimension maintenance (update category once, not in every product row).</li>
+            <li><strong>Disadvantage</strong>: More JOINs at query time (3-4 joins to traverse a hierarchy vs. 1 join in star). Modern columnar engines make this less painful than historically.</li>
+            <li><strong>When to use</strong>: Large dimensions with deep hierarchies (geographic: country → state → city → zip) where storage or maintenance burden of full denormalization is significant. Rarely preferred over star schema in modern analytics — storage is cheap, query performance matters more.</li>
+          </ul>
+
+          <h2 id="scd">Slowly Changing Dimensions</h2>
+
+          <h3>SCD Type 1 — Overwrite</h3>
+          <ul>
+            <li>Simply overwrite the old value. No history preserved. Customer moves from NYC to LA → update city = 'LA'.</li>
+            <li><strong>Use when</strong>: History doesn't matter (correcting typos, non-business-critical attributes).</li>
+            <li><strong>Implementation</strong>: Simple UPDATE statement. Cheapest to maintain.</li>
+          </ul>
+
+          <h3>SCD Type 2 — Add New Row</h3>
+          <ul>
+            <li>Insert a new dimension row for each change. Previous row gets an expiry_date. Current row has is_current = true.</li>
+            <li><strong>Columns added</strong>: surrogate_key, effective_date, expiry_date (or end_date), is_current flag.</li>
+            <li><strong>Use when</strong>: Full history is needed for point-in-time analysis ("What was the customer's segment when they placed this order 6 months ago?").</li>
+            <li><strong>Join strategy</strong>: Fact table stores the surrogate_key that was current at transaction time — naturally points to the correct historical version.</li>
+            <li><strong>Challenge</strong>: Dimension table grows (one customer = many rows). Requires careful key management in the ETL pipeline.</li>
+          </ul>
+
+          <h3>SCD Type 3 — Add New Column</h3>
+          <ul>
+            <li>Keep previous and current values in separate columns. <code>current_city</code> and <code>previous_city</code>.</li>
+            <li><strong>Use when</strong>: Only need to track one prior version (not full history). Rarely used — limited to specific analytical requirements.</li>
+          </ul>
+
+          <h3>SCD Type 4 — History Table</h3>
+          <ul>
+            <li>Maintain current dimension (always up-to-date) and a separate history table logging all changes with timestamps.</li>
+            <li><strong>Use when</strong>: Query performance on current state is critical (no filtering by is_current needed), but history must be available for audit.</li>
+          </ul>
+
+          <h3>SCD Type 6 — Hybrid (1+2+3)</h3>
+          <ul>
+            <li>Combine Type 2 (full history rows) with Type 3 (current value column on every row). Every historical row also shows the CURRENT value.</li>
+            <li><strong>Example</strong>: Customer moved NYC → LA → Chicago. Row 1: effective=NYC, current=Chicago. Row 2: effective=LA, current=Chicago. Row 3: effective=Chicago, current=Chicago.</li>
+            <li><strong>Use when</strong>: Need both point-in-time analysis AND current-state reporting from the same table without JOINing the current version.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">SCD Type 2 Implementation (dbt snapshot)</div>
+            <pre><code>-- dbt snapshot configuration (schema.yml)
+{% snapshot dim_customer_snapshot %}
+{{
+    config(
+      target_schema='warehouse',
+      unique_key='customer_id',
+      strategy='timestamp',
+      updated_at='updated_at',
+      invalidate_hard_deletes=True
+    )
+}}
+
+SELECT 
+    customer_id,
+    first_name,
+    last_name,
+    email,
+    customer_segment,
+    city,
+    state,
+    country,
+    lifetime_value,
+    is_active,
+    updated_at
+FROM {{ source('production', 'customers') }}
+
+{% endsnapshot %}
+
+-- dbt automatically manages:
+-- dbt_valid_from (effective_date)
+-- dbt_valid_to (expiry_date, NULL = current)
+-- dbt_scd_id (surrogate key = hash of natural key + valid_from)</code></pre>
+          </div>
+
+          <h2 id="fact-types">Fact Table Types</h2>
+
+          <h3>Transaction Fact</h3>
+          <ul>
+            <li>One row per business event/transaction at the atomic grain. Most common type.</li>
+            <li><strong>Examples</strong>: Order placed, payment received, item shipped, click event.</li>
+            <li><strong>Characteristics</strong>: Additive measures, grows continuously, sparse (not every combination of dimensions has rows).</li>
+          </ul>
+
+          <h3>Periodic Snapshot Fact</h3>
+          <ul>
+            <li>One row per entity per time period. Captures the state at regular intervals.</li>
+            <li><strong>Examples</strong>: Daily account balance, monthly inventory levels, weekly pipeline metrics.</li>
+            <li><strong>Characteristics</strong>: Semi-additive measures (balance can be summed across accounts but not across dates — use latest or average for time). Dense — every period has a row even with no activity.</li>
+          </ul>
+
+          <h3>Accumulating Snapshot Fact</h3>
+          <ul>
+            <li>One row per entity that gets UPDATED as the entity progresses through a process/lifecycle.</li>
+            <li><strong>Examples</strong>: Order lifecycle (date_ordered, date_shipped, date_delivered, date_returned). Insurance claim (date_filed, date_reviewed, date_approved, date_paid).</li>
+            <li><strong>Characteristics</strong>: Multiple date keys (one per milestone). Row is updated (not inserted) as milestones occur. Useful for lag/duration analysis.</li>
+          </ul>
+
+          <h3>Factless Fact</h3>
+          <ul>
+            <li>Records events or conditions with no numeric measures — just the combination of dimension keys.</li>
+            <li><strong>Examples</strong>: Student attendance (student_key, class_key, date_key — no measure, just "was present"). Product promotion coverage (product_key, promotion_key, store_key — "this product was on promotion at this store").</li>
+            <li><strong>Use case</strong>: Answer "what DIDN'T happen" — students who were absent = all expected combinations MINUS factless fact rows.</li>
+          </ul>
+
+          <h2 id="obt">One Big Table (OBT) Pattern</h2>
+
+          <p>The OBT pattern denormalizes everything into a single wide table — all facts and all dimension attributes in every row. No joins needed at query time.</p>
+
+          <h3>When OBT Works</h3>
+          <ul>
+            <li><strong>Dashboard-specific tables</strong>: A Looker/Tableau dashboard backed by one table with all needed fields. Analysts don't need to understand star schema JOINs.</li>
+            <li><strong>Column-oriented storage</strong>: In Parquet/ORC/BigQuery, wide tables don't penalize queries that only read a few columns (column pruning). Storage cost of redundancy is low.</li>
+            <li><strong>Read-heavy workloads</strong>: When a table is read 1000x for every 1 write, optimizing for read performance (no JOINs) outweighs write complexity.</li>
+          </ul>
+
+          <h3>When OBT Fails</h3>
+          <ul>
+            <li><strong>Dimension updates</strong>: If customer_segment changes, you must update EVERY row containing that customer. For a 10B row fact table with 1M customers, a segment change requires touching millions of rows.</li>
+            <li><strong>Multiple grains</strong>: OBT works at one grain. If you need order-level AND line-item-level analysis, you need two OBTs or a star schema.</li>
+            <li><strong>Data freshness</strong>: Full OBT rebuild is expensive. Incremental updates with denormalization logic is complex and error-prone.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">OBT Construction (dbt model)</div>
+            <pre><code>-- models/marts/obt_orders.sql
+-- One Big Table: all order data denormalized for dashboard consumption
+
+WITH orders AS (
+    SELECT * FROM {{ ref('stg_orders') }}
+),
+customers AS (
+    SELECT * FROM {{ ref('dim_customers') }}
+    WHERE is_current = TRUE
+),
+products AS (
+    SELECT * FROM {{ ref('dim_products') }}
+),
+stores AS (
+    SELECT * FROM {{ ref('dim_stores') }}
+)
+
+SELECT
+    -- Order facts
+    o.order_id,
+    o.order_date,
+    o.quantity,
+    o.unit_price,
+    o.discount_amount,
+    o.net_amount,
+    o.tax_amount,
+    o.shipping_cost,
+    o.total_amount,
+    
+    -- Customer dimension (denormalized)
+    c.customer_id,
+    c.customer_name,
+    c.customer_segment,
+    c.acquisition_channel,
+    c.city AS customer_city,
+    c.state AS customer_state,
+    c.country AS customer_country,
+    c.region AS customer_region,
+    c.first_order_date,
+    c.lifetime_value,
+    
+    -- Product dimension (denormalized)
+    p.product_id,
+    p.product_name,
+    p.brand,
+    p.category,
+    p.subcategory,
+    p.department,
+    p.unit_cost,
+    p.margin_pct,
+    
+    -- Store dimension (denormalized)
+    s.store_id,
+    s.store_name,
+    s.store_type,
+    s.store_city,
+    s.store_state,
+    
+    -- Derived metrics
+    o.net_amount - (o.quantity * p.unit_cost) AS gross_profit,
+    DATEDIFF('day', c.first_order_date, o.order_date) AS customer_tenure_days
+
+FROM orders o
+LEFT JOIN customers c ON o.customer_id = c.customer_id
+LEFT JOIN products p ON o.product_id = p.product_id
+LEFT JOIN stores s ON o.store_id = s.store_id</code></pre>
+          </div>
+
+          <h2 id="activity-schema">Activity Schema</h2>
+
+          <ul>
+            <li>A modeling approach where ALL user activities are stored in a single table with a flexible schema — activity_type, entity_id, timestamp, and a JSON/MAP column for event-specific attributes.</li>
+            <li><strong>Schema</strong>: <code>(activity_id, customer_id, activity_type, activity_ts, feature_1, feature_2, feature_3, revenue_impact, ...)</code></li>
+            <li><strong>Advantage</strong>: Single table for all customer analytics — "show me all activities for customer X" is a simple filter, not a UNION across 20 tables. New activity types don't require schema changes.</li>
+            <li><strong>Disadvantage</strong>: Sparse columns (most activities only use a few features), loss of strong typing, harder to enforce data quality per activity type.</li>
+            <li><strong>Best for</strong>: Customer 360 analytics, user journey analysis, event-driven architectures where activity variety is high and evolving.</li>
+          </ul>
+
+          <h2 id="medallion">Medallion Architecture as Modeling Paradigm</h2>
+
+          <h3>Bronze Layer (Raw)</h3>
+          <ul>
+            <li>Raw data as-is from source systems. No transformations, no deduplication, no schema enforcement.</li>
+            <li><strong>Purpose</strong>: Immutable audit trail, source of truth for reprocessing, schema-on-read flexibility.</li>
+            <li><strong>Format</strong>: Same format as source (JSON, CSV) or minimal conversion (Parquet for efficiency). Partitioned by ingestion date.</li>
+            <li><strong>Retention</strong>: Long (1-7 years) — enables full reprocessing from raw data.</li>
+          </ul>
+
+          <h3>Silver Layer (Cleaned/Conformed)</h3>
+          <ul>
+            <li>Cleaned, deduplicated, schema-enforced, and conformed data. Business rules applied. Standard naming conventions.</li>
+            <li><strong>Transformations</strong>: Type casting, null handling, deduplication, PII masking, standardization (country codes, date formats), CDC application (MERGE operations).</li>
+            <li><strong>Format</strong>: Iceberg/Delta tables with enforced schemas. This is the "enterprise data model" layer.</li>
+            <li><strong>Consumers</strong>: Data engineers building gold tables, advanced analysts doing ad-hoc exploration.</li>
+          </ul>
+
+          <h3>Gold Layer (Business/Consumption)</h3>
+          <ul>
+            <li>Business-level aggregations, KPIs, dimensional models, and OBTs optimized for specific use cases.</li>
+            <li><strong>Examples</strong>: dim_customer, fact_orders (star schema), obt_daily_revenue (dashboard table), ml_feature_store (ML features).</li>
+            <li><strong>Consumers</strong>: BI tools (Looker, Tableau), ML pipelines, APIs, business stakeholders.</li>
+            <li><strong>Modeling</strong>: This is where Kimball dimensional modeling lives — star schemas with conformed dimensions.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Medallion ≠ just three copies of data.</strong> Each layer serves a distinct purpose: bronze for auditability, silver for enterprise conformity, gold for business consumption. The anti-pattern is treating it as "raw → slightly less raw → aggregated." True silver is a governed, tested, schema-enforced enterprise layer that multiple gold consumers can trust.
+          </div>
+
+          <h2 id="lakehouse-modeling">Modeling for Lakehouse</h2>
+
+          <h3>Late-Arriving Facts</h3>
+          <ul>
+            <li>Events that arrive after their logical time period has closed (a Monday transaction arriving on Wednesday). Common in mobile apps, IoT, and distributed systems.</li>
+            <li><strong>Handling</strong>: Use MERGE (not INSERT OVERWRITE) so late-arriving data can be applied to historical partitions without full rewrite. Iceberg's row-level deletes make this efficient.</li>
+            <li><strong>Impact on reporting</strong>: Daily reports may change retroactively. Implement "report_date" vs "event_date" distinction. Downstream consumers should handle evolving historical partitions.</li>
+          </ul>
+
+          <h3>Partition Strategies</h3>
+          <ul>
+            <li><strong>Date partitioning</strong>: Most common. Partition by event_date or ingestion_date. Enables time-based pruning for analytical queries.</li>
+            <li><strong>High-cardinality partitioning</strong>: Avoid partitioning by customer_id (millions of values = millions of tiny files). Use bucketing instead.</li>
+            <li><strong>Iceberg hidden partitioning</strong>: Partition by month(event_ts) — users query WHERE event_ts BETWEEN ..., engine auto-prunes to relevant months. No exposed partition column needed.</li>
+            <li><strong>Over-partitioning risk</strong>: Too many partitions = too many small files = slow metadata operations and poor query performance. Target partition sizes of 128MB-1GB.</li>
+          </ul>
+
+          <h2 id="dbt-patterns">dbt Modeling Patterns</h2>
+
+          <h3>Staging → Intermediate → Marts</h3>
+          <ul>
+            <li><strong>Staging (stg_)</strong>: 1:1 with source tables. Rename columns, cast types, apply basic filters. No business logic. Materialized as views (no storage cost).</li>
+            <li><strong>Intermediate (int_)</strong>: Business logic that combines staging models. Deduplication, enrichment, calculation of derived fields. May not be exposed to end users. Materialized as views or ephemeral.</li>
+            <li><strong>Marts (dim_, fact_, obt_)</strong>: Final consumption-ready models. Dimensional models, OBTs, aggregates. Materialized as tables (for performance). Tested extensively.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">dbt Project Structure</div>
+            <pre><code>models/
+├── staging/
+│   ├── production/
+│   │   ├── _production__sources.yml    # Source definitions
+│   │   ├── stg_production__customers.sql
+│   │   ├── stg_production__orders.sql
+│   │   └── stg_production__products.sql
+│   └── stripe/
+│       ├── _stripe__sources.yml
+│       └── stg_stripe__payments.sql
+├── intermediate/
+│   ├── int_orders_with_payments.sql    # Join orders + payments
+│   ├── int_customer_order_history.sql  # Aggregate per customer
+│   └── int_product_daily_sales.sql     # Daily grain aggregation
+└── marts/
+    ├── core/
+    │   ├── dim_customers.sql           # SCD Type 2 dimension
+    │   ├── dim_products.sql
+    │   ├── dim_dates.sql               # Conformed date dimension
+    │   └── fact_orders.sql             # Transaction fact
+    ├── marketing/
+    │   ├── obt_campaign_performance.sql
+    │   └── mart_customer_ltv.sql
+    └── finance/
+        ├── mart_daily_revenue.sql
+        └── mart_monthly_pl.sql</code></pre>
+          </div>
+
+          <h2 id="metrics-layer">Metrics Layer</h2>
+
+          <ul>
+            <li>A centralized definition of business metrics (KPIs) that ensures consistent calculation regardless of where the metric is consumed (BI tool, API, report).</li>
+            <li><strong>Problem solved</strong>: "Revenue" is calculated differently by 3 teams — one includes tax, one excludes refunds, one uses a different exchange rate. The metrics layer provides ONE canonical definition.</li>
+            <li><strong>Implementation</strong>: dbt Metrics (semantic layer), MetricFlow, Cube.js, Looker LookML. Define metric = measure + dimensions + time grain + filters.</li>
+            <li><strong>Example</strong>: <code>metric: monthly_active_users = COUNT(DISTINCT user_id) WHERE activity_date >= DATEADD(month, -1, CURRENT_DATE) FROM fact_user_activities</code></li>
+            <li><strong>Benefits</strong>: Single source of truth for definitions, version-controlled metric logic, automatic drill-down and slice-by-dimension support, consistent results across BI tools and APIs.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">dbt Metrics Definition</div>
+            <pre><code># models/metrics/revenue_metrics.yml
+metrics:
+  - name: total_revenue
+    label: "Total Revenue"
+    description: "Sum of net order amounts excluding cancelled orders"
+    type: simple
+    type_params:
+      measure: net_amount
+    filter: |
+      {{ Dimension('order_status') }} != 'cancelled'
+
+  - name: average_order_value
+    label: "Average Order Value"
+    description: "Average net amount per order"
+    type: derived
+    type_params:
+      expr: total_revenue / order_count
+      metrics:
+        - name: total_revenue
+        - name: order_count
+
+  - name: customer_lifetime_value
+    label: "Customer LTV"
+    description: "Total revenue per customer over their lifetime"
+    type: simple
+    type_params:
+      measure: net_amount
+    dimensions:
+      - customer_id
+    time_grains: [day, week, month, quarter, year]</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Design the dimensional model for an e-commerce platform. What fact tables and dimensions would you create?</div>
+            <div class="qa-answer">
+              <p>I'd design around the core business processes: orders, shipments, returns, and page views. The primary fact table is fact_order_lines at the line-item grain — one row per product per order with measures: quantity, unit_price, discount, net_amount, tax, shipping_cost. This atomic grain enables both line-item analysis and order-level aggregation (SUM by order_id). Supporting fact tables: fact_shipments (shipment events with delivery dates — accumulating snapshot), fact_returns (return events with return_reason), and fact_page_views (clickstream — transaction grain, very high volume).</p>
+              <p>Conformed dimensions shared across all facts: dim_customer (SCD Type 2 for segment changes), dim_product (with full category hierarchy denormalized), dim_date (calendar + fiscal attributes), dim_store/channel (online vs retail). Each fact table uses surrogate keys to join dimensions. The date dimension enables time-intelligence queries (YoY comparison, rolling averages) without complex date math. I'd also create an accumulating snapshot fact_order_lifecycle tracking milestones (ordered → paid → picked → shipped → delivered → returned) with date keys for each milestone — enabling fulfillment funnel analysis. For the gold layer specifically consumed by BI, I'd add an OBT (obt_daily_orders_summary) that pre-joins the most common fact + dimension combinations for Looker dashboards, refreshed daily.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain SCD Type 2. How do you implement it efficiently in a lakehouse environment, and how does it interact with fact tables?</div>
+            <div class="qa-answer">
+              <p>SCD Type 2 preserves full history by inserting a new dimension row whenever an attribute changes, with effective/expiry dates and a current flag. Implementation in a lakehouse: I use dbt snapshots which automatically detect changes (via timestamp or check strategy), insert new rows with dbt_valid_from/dbt_valid_to columns, and maintain the current flag. The snapshot runs daily, comparing current source state against the snapshot table and inserting new rows for any changes detected.</p>
+              <p>The key interaction with fact tables: when a fact event occurs, the ETL must look up the CURRENT surrogate key for the dimension and store it in the fact row. This means the fact table permanently records which version of the dimension was active at transaction time. A query "what was the customer's segment when they placed order #1234?" joins fact_orders.customer_key to dim_customer.customer_key — automatically getting the historical version. For current-state reporting (total revenue by current segment), join on natural key WHERE is_current = TRUE, or use SCD Type 6 (add current_segment column to every row). Performance consideration in lakehouse: SCD2 dimensions with millions of historical rows can be large. Partition the dimension by is_current or use Z-ordering on customer_id to optimize lookups. For Iceberg, MERGE is efficient for applying changes — match on natural key, update expiry on old row, insert new row, in a single atomic operation.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare star schema vs OBT vs Data Vault. When would you choose each for a modern data platform?</div>
+            <div class="qa-answer">
+              <p>Star schema (Kimball) is my default for the gold/mart layer — it provides the best balance of query performance, analytical flexibility, and maintainability. Facts at atomic grain enable any aggregation. Conformed dimensions enable cross-process analysis. It's well-understood by analytics engineers and works with all BI tools. Choose star schema for: general-purpose analytical platforms, multiple consumer teams, complex multi-dimensional analysis requirements.</p>
+              <p>OBT works for specific dashboard-focused use cases where a single team needs a simple, pre-joined table. I'd use OBT for: a specific Looker Explore backing one dashboard (all fields in one table, no LookML joins needed), ML feature stores (wide tables for feature vectors), or small analytical domains where rebuild is cheap (<100M rows). OBT fails at scale — dimension updates become expensive, and it's inflexible for ad-hoc analysis beyond its designed use case.</p>
+              <p>Data Vault is for enterprise-scale data integration with 50+ source systems, strict audit requirements, and continuous source evolution. Its hub-link-satellite pattern handles merging disparate sources (multiple CRM systems with different customer IDs) and preserves complete audit history. Choose Data Vault for: regulated industries (banking, healthcare), large organizations with many source systems, platforms where schema changes daily. The tradeoff is complexity — Data Vault requires a presentation layer (star schema or OBT) on top for analyst consumption because raw hub-link-satellite queries are impractical for business users.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle late-arriving facts and retroactive dimension changes in a lakehouse?</div>
+            <div class="qa-answer">
+              <p>Late-arriving facts (events arriving after their logical time period) are common in mobile, IoT, and distributed systems. In a lakehouse with Iceberg/Delta, I handle them via MERGE operations that can update historical partitions efficiently. The key design decision: partition by event_date (logical time) not ingestion_date. When a late fact arrives for 3 days ago, the MERGE targets the correct historical partition. Iceberg's row-level operations make this efficient — only affected data files are rewritten, not the entire partition. Downstream consumers must be aware that historical partitions can change — I implement a "data stability" metadata column (is_final BOOLEAN) and a notification system that alerts when historical data is modified.</p>
+              <p>For retroactive dimension changes (customer's segment was corrected for the past 3 months): with SCD Type 2, this is handled by inserting a correction row with an effective_date in the past, adjusting the chain of valid_from/valid_to dates. Facts already written with the old surrogate key remain pointing to the old (incorrect) version — which may or may not be desired. If historical facts need to reference the corrected dimension, a backfill job re-assigns surrogate keys based on the corrected dimension timeline. This is expensive but necessary for accurate historical reporting. Alternatively, use SCD Type 6 where the current value is propagated to all historical rows — a single UPDATE fixes all historical rows when a correction is needed, since they always show current alongside effective values.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Describe the dbt modeling pattern of staging → intermediate → marts. How does this apply to a medallion lakehouse architecture?</div>
+            <div class="qa-answer">
+              <p>The dbt layering pattern maps cleanly to medallion architecture with subtle differences. Staging models (stg_) correspond to bronze-to-silver initial transformation — they're 1:1 with source tables, performing only structural changes: column renaming for consistency, type casting, basic null handling, and timestamp standardization. They're materialized as views (zero storage cost) since they're always consumed by downstream models, never queried directly. Each staging model references a dbt source declaration, creating a clean interface between raw data and the transformation layer.</p>
+              <p>Intermediate models (int_) represent complex business logic within the silver layer — joining related tables, deduplicating, calculating derived fields, and applying business rules. They're the "heavy lifting" layer but aren't exposed to end consumers. Examples: int_orders_with_payments joins orders + payment events to determine payment status. int_customer_order_history aggregates per-customer. Materialized as ephemeral (inlined into downstream queries) or views. The key principle: intermediate models make the final mart models simple and auditable.</p>
+              <p>Marts (dim_, fact_, obt_) are the gold layer — consumption-ready models materialized as tables for performance. They implement the chosen modeling paradigm (star schema, OBT). These are heavily tested (dbt tests for uniqueness, not-null, referential integrity, accepted values) and documented. Each mart serves a specific business domain: marts/marketing, marts/finance, marts/product. The mapping: bronze = dbt sources, silver = staging + intermediate, gold = marts. dbt provides the transformation logic; Iceberg/Delta provides the storage and transaction guarantees; Airflow/dbt Cloud provides the orchestration.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Platform</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

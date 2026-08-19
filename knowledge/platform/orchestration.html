@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Orchestration — Airflow DAG Patterns — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Platform</a>
+        <span>→</span>
+        <span>Orchestration</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Platform</span>
+            <span class="read-time">11 min read</span>
+          </div>
+          <h1>Orchestration — Airflow DAG Patterns</h1>
+          <p class="article-desc">Comprehensive guide to Apache Airflow architecture, DAG design principles (idempotency, atomicity), common patterns (sensor-transform-validate, backfill, dynamic DAGs), operator best practices, XCom strategies, error handling, scaling Airflow, and comparison with alternatives (Dagster, Prefect, Step Functions).</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#architecture">Airflow Architecture</a></li>
+            <li><a href="#dag-design">DAG Design Principles</a></li>
+            <li><a href="#common-patterns">Common DAG Patterns</a></li>
+            <li><a href="#operators">Operator Best Practices</a></li>
+            <li><a href="#xcom">XCom & Data Passing</a></li>
+            <li><a href="#error-handling">Error Handling</a></li>
+            <li><a href="#scaling">Airflow at Scale</a></li>
+            <li><a href="#alternatives">Airflow vs Alternatives</a></li>
+            <li><a href="#anti-patterns">Production Anti-Patterns</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="architecture">Airflow Architecture</h2>
+
+          <h3>Core Components</h3>
+          <ul>
+            <li><strong>Scheduler</strong>: The brain of Airflow. Parses DAG files, determines which tasks are ready to run (dependencies met, schedule triggered), and places them in the executor queue. In Airflow 2.x, supports multiple schedulers for HA (active-active with database row-level locking).</li>
+            <li><strong>Executor</strong>: Determines HOW tasks run. LocalExecutor (single machine, multiprocess), CeleryExecutor (distributed workers via message queue), KubernetesExecutor (each task runs in a dedicated pod), CeleryKubernetesExecutor (hybrid).</li>
+            <li><strong>Metadata Database</strong>: PostgreSQL/MySQL storing all state — DAG definitions, task instances, XComs, connections, variables, pools. The single source of truth. Must be highly available for production.</li>
+            <li><strong>Workers</strong>: Processes that execute tasks. With CeleryExecutor: long-running worker processes pulling from a queue. With KubernetesExecutor: ephemeral pods created per task.</li>
+            <li><strong>Webserver</strong>: Flask-based UI for DAG visualization, task logs, manual triggers, connection management. Reads from metadata DB — stateless and horizontally scalable.</li>
+            <li><strong>Triggerer</strong> (Airflow 2.2+): Async event loop that efficiently waits for external conditions (deferrable operators). Replaces polling sensors, reducing worker slot consumption.</li>
+          </ul>
+
+          <h3>Executor Comparison</h3>
+          <table>
+            <thead>
+              <tr><th>Executor</th><th>Concurrency</th><th>Isolation</th><th>Scaling</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>LocalExecutor</td><td>Limited by CPU cores</td><td>Process-level</td><td>Vertical only</td><td>Small teams, <50 DAGs</td></tr>
+              <tr><td>CeleryExecutor</td><td>Worker pool size</td><td>Process-level</td><td>Add workers</td><td>Medium-large, steady workloads</td></tr>
+              <tr><td>KubernetesExecutor</td><td>K8s cluster capacity</td><td>Pod-level (full)</td><td>Auto-scaling</td><td>Large, bursty, multi-tenant</td></tr>
+              <tr><td>CeleryKubernetes</td><td>Combined</td><td>Mixed</td><td>Both</td><td>Mix of quick + heavy tasks</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>KubernetesExecutor advantages:</strong> Perfect isolation (each task in its own pod with custom image/resources), auto-scaling (no idle workers), heterogeneous resource allocation (one task needs 1GB, another needs 64GB). The tradeoff is pod startup latency (15-45 seconds) — unsuitable for tasks that run in under a minute.
+          </div>
+
+          <h2 id="dag-design">DAG Design Principles</h2>
+
+          <h3>Idempotency</h3>
+          <ul>
+            <li>Every task must produce the same result when executed multiple times with the same input. Running a task twice should not corrupt data or produce duplicates.</li>
+            <li><strong>Pattern</strong>: Write to a staging location → validate → atomically swap into the final location. If the task reruns, it overwrites the staging location (same result) and swaps again (no change).</li>
+            <li><strong>Anti-pattern</strong>: <code>INSERT INTO target SELECT ... FROM source</code> without deduplication. Rerunning appends duplicates.</li>
+            <li><strong>Correct pattern</strong>: <code>INSERT OVERWRITE INTO target PARTITION (dt='{{ ds }}') SELECT ... FROM source</code>. Rerunning overwrites the same partition — idempotent.</li>
+          </ul>
+
+          <h3>Deterministic Outputs</h3>
+          <ul>
+            <li>Task output should depend only on its inputs and the logical execution date — not on wall-clock time or external mutable state.</li>
+            <li><strong>Use</strong>: <code>{{ ds }}</code> (logical date) for partition paths, NOT <code>datetime.now()</code>. This ensures backfills produce correct historical data.</li>
+            <li><strong>Data should be</strong>: Written to paths parameterized by execution date. <code>s3://lake/table/dt={{ ds }}/</code> — each run writes to its date partition.</li>
+          </ul>
+
+          <h3>Atomic Tasks</h3>
+          <ul>
+            <li>Each task should succeed or fail completely — no partial state left behind on failure.</li>
+            <li><strong>Pattern</strong>: Write to a temporary location. On success, move/rename to final location (atomic operation). On failure, temporary files are cleaned up on retry.</li>
+            <li><strong>Anti-pattern</strong>: A task that writes 50% of records then fails, leaving partial data in the target. Next retry appends the full set → 150% of expected data.</li>
+          </ul>
+
+          <h2 id="common-patterns">Common DAG Patterns</h2>
+
+          <h3>Sensor → Transform → Quality Check → Notify</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Standard ETL DAG Pattern</div>
+            <pre><code>from airflow import DAG
+from airflow.sensors.s3_key_sensor import S3KeySensor
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from airflow.operators.python import PythonOperator
+from airflow.operators.email import EmailOperator
+from datetime import datetime, timedelta
+
+default_args = {
+    'owner': 'data-platform',
+    'retries': 2,
+    'retry_delay': timedelta(minutes=5),
+    'retry_exponential_backoff': True,
+    'execution_timeout': timedelta(hours=2),
+    'sla': timedelta(hours=4),
+    'on_failure_callback': alert_oncall,
+}
+
+with DAG(
+    'daily_orders_pipeline',
+    default_args=default_args,
+    schedule_interval='0 6 * * *',
+    start_date=datetime(2026, 1, 1),
+    catchup=False,
+    max_active_runs=1,
+    tags=['production', 'orders', 'daily'],
+) as dag:
+
+    # Step 1: Wait for source data to arrive
+    wait_for_data = S3KeySensor(
+        task_id='wait_for_source_data',
+        bucket_name='raw-ingestion',
+        bucket_key='orders/dt={{ ds }}/_SUCCESS',
+        mode='reschedule',  # Release worker slot while waiting
+        timeout=3600 * 6,   # 6 hour timeout
+        poke_interval=300,  # Check every 5 minutes
+    )
+
+    # Step 2: Transform with Spark
+    transform = SparkSubmitOperator(
+        task_id='transform_orders',
+        application='s3://spark-jobs/orders_transform.py',
+        conf={
+            'spark.sql.adaptive.enabled': 'true',
+            'spark.sql.shuffle.partitions': '200',
+        },
+        application_args=['--date', '{{ ds }}', '--env', 'production'],
+        name='orders_transform_{{ ds_nodash }}',
+    )
+
+    # Step 3: Data quality validation
+    quality_check = PythonOperator(
+        task_id='validate_data_quality',
+        python_callable=run_great_expectations_suite,
+        op_kwargs={'suite': 'orders_suite', 'date': '{{ ds }}'},
+    )
+
+    # Step 4: Notify on success
+    notify = EmailOperator(
+        task_id='notify_success',
+        to='data-consumers@company.com',
+        subject='Orders pipeline complete for {{ ds }}',
+        html_content='Pipeline completed. Row count: {{ ti.xcom_pull(task_ids="validate_data_quality", key="row_count") }}',
+    )
+
+    wait_for_data >> transform >> quality_check >> notify</code></pre>
+          </div>
+
+          <h3>Backfill Pattern</h3>
+          <ul>
+            <li>Airflow's <code>catchup=True</code> with a <code>start_date</code> in the past will automatically create DAG runs for every missed interval.</li>
+            <li><strong>CLI backfill</strong>: <code>airflow dags backfill --start-date 2026-01-01 --end-date 2026-01-31 daily_orders_pipeline</code></li>
+            <li><strong>Key requirement</strong>: Tasks must be idempotent and parameterized by <code>{{ ds }}</code>. Backfill reruns historical dates — if a task uses <code>datetime.now()</code>, backfill produces wrong results.</li>
+            <li><strong>Concurrency control</strong>: Set <code>max_active_runs=3</code> to limit parallel backfill runs (prevent overwhelming source systems).</li>
+          </ul>
+
+          <h3>Dynamic DAGs</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Dynamic DAG Generation</div>
+            <pre><code># Generate DAGs dynamically from configuration
+import yaml
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+# Load table configuration from YAML
+with open('/opt/airflow/config/tables.yaml') as f:
+    tables = yaml.safe_load(f)
+
+def create_ingestion_dag(table_config):
+    dag_id = f"ingest_{table_config['schema']}_{table_config['name']}"
+    
+    with DAG(
+        dag_id=dag_id,
+        schedule_interval=table_config.get('schedule', '@daily'),
+        start_date=datetime(2026, 1, 1),
+        catchup=False,
+        tags=['ingestion', table_config['schema']],
+    ) as dag:
+        
+        extract = PythonOperator(
+            task_id='extract',
+            python_callable=extract_table,
+            op_kwargs={'table': table_config['name'], 'schema': table_config['schema']},
+        )
+        
+        load = PythonOperator(
+            task_id='load_to_lake',
+            python_callable=load_to_iceberg,
+            op_kwargs={'table': table_config['name']},
+        )
+        
+        extract >> load
+    
+    return dag
+
+# Create a DAG for each table in config
+for table in tables:
+    globals()[f"ingest_{table['schema']}_{table['name']}"] = create_ingestion_dag(table)</code></pre>
+          </div>
+
+          <h3>Conditional Branching</h3>
+          <ul>
+            <li>Use <code>BranchPythonOperator</code> to choose execution path at runtime based on conditions.</li>
+            <li><strong>Use case</strong>: If data volume > threshold, use Spark for processing. If small, use Pandas. If no new data, skip processing entirely.</li>
+            <li><strong>Important</strong>: Downstream tasks of non-chosen branches are skipped (not failed). Use <code>trigger_rule='none_failed_min_one_success'</code> on join tasks to handle convergence correctly.</li>
+          </ul>
+
+          <h2 id="operators">Operator Best Practices</h2>
+
+          <h3>When to Use Each Operator</h3>
+          <ul>
+            <li><strong>PythonOperator</strong>: Quick logic, API calls, data validation, XCom manipulation. Keep functions short (<100 lines). Don't process large datasets in-memory — delegate to Spark/SQL.</li>
+            <li><strong>BashOperator</strong>: Running CLI tools (dbt, spark-submit, aws cli). Useful for wrapping existing scripts. Avoid complex bash logic — use PythonOperator instead.</li>
+            <li><strong>SparkSubmitOperator</strong>: Spark jobs. Configure resources (executor memory, cores) per task based on data volume. Use <code>--conf</code> for runtime parameters.</li>
+            <li><strong>KubernetesPodOperator</strong>: Tasks needing custom environments (different Python version, specific libraries, GPU). Full isolation. Useful for ML training, heavy data processing, or tasks with conflicting dependencies.</li>
+            <li><strong>SqlOperator / BigQueryOperator</strong>: SQL transformations executed in the warehouse. Preferred for SQL-heavy workflows — push computation to the engine.</li>
+            <li><strong>DbtOperator</strong>: Running dbt models. <code>DbtRunOperator</code> for builds, <code>DbtTestOperator</code> for validation. Integrates dbt's DAG with Airflow's DAG.</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>Anti-pattern:</strong> Using PythonOperator to load a 50GB dataset into memory, transform it with Pandas, then write it back. This will OOM the worker and is incredibly slow. Delegate heavy data processing to distributed engines (Spark, BigQuery, Redshift) — Airflow should ORCHESTRATE, not PROCESS.
+          </div>
+
+          <h2 id="xcom">XCom & Data Passing</h2>
+
+          <h3>XCom Fundamentals</h3>
+          <ul>
+            <li>XCom (Cross-Communication) allows tasks to share small pieces of metadata. Stored in the metadata database.</li>
+            <li><strong>Size limit</strong>: Default backend stores XCom in the DB — practical limit ~48KB per value (serialized JSON). NOT for large data.</li>
+            <li><strong>Push/Pull</strong>: Tasks push via <code>return</code> value or <code>ti.xcom_push(key, value)</code>. Downstream tasks pull via <code>ti.xcom_pull(task_ids='upstream_task', key='key')</code> or Jinja template <code>{{ ti.xcom_pull(...) }}</code>.</li>
+          </ul>
+
+          <h3>Data Passing Strategies</h3>
+          <ul>
+            <li><strong>XCom for metadata</strong>: Row counts, file paths, partition values, status flags. Small values only.</li>
+            <li><strong>S3/GCS for data</strong>: Upstream task writes data to a known path (parameterized by execution date). Downstream task reads from that path. XCom passes the path string if it's dynamic.</li>
+            <li><strong>Custom XCom backend</strong>: Airflow 2.x supports custom XCom backends (S3XComBackend) — automatically serializes large XCom values to object storage. Transparent to task code.</li>
+            <li><strong>TaskFlow API</strong> (Airflow 2.x): Decorated functions with <code>@task</code> automatically handle XCom — return values from one task are passed as arguments to the next. Cleaner syntax, same underlying XCom mechanism.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">TaskFlow API — Clean Data Passing</div>
+            <pre><code>from airflow.decorators import dag, task
+from datetime import datetime
+
+@dag(schedule_interval='@daily', start_date=datetime(2026, 1, 1), catchup=False)
+def orders_pipeline():
+
+    @task
+    def extract(ds=None):
+        """Extract data, return metadata (not the data itself)"""
+        path = f's3://raw/orders/dt={ds}/'
+        row_count = run_extraction(path)  # Writes to S3
+        return {'path': path, 'row_count': row_count}
+
+    @task
+    def validate(extract_result):
+        """Validate data quality using metadata from extract"""
+        if extract_result['row_count'] == 0:
+            raise ValueError(f"No rows extracted to {extract_result['path']}")
+        run_quality_checks(extract_result['path'])
+        return extract_result['path']
+
+    @task
+    def transform(validated_path, ds=None):
+        """Transform data at the validated path"""
+        output_path = f's3://curated/orders/dt={ds}/'
+        spark_transform(input_path=validated_path, output_path=output_path)
+        return output_path
+
+    # Clean functional pipeline — XCom handled automatically
+    extracted = extract()
+    validated = validate(extracted)
+    transform(validated)
+
+orders_pipeline()</code></pre>
+          </div>
+
+          <h2 id="error-handling">Error Handling</h2>
+
+          <h3>Retry Configuration</h3>
+          <ul>
+            <li><strong>retries</strong>: Number of automatic retry attempts before marking task as failed. Set based on failure mode — transient errors (network, throttling) warrant 2-3 retries. Logic bugs warrant 0 retries (will never self-heal).</li>
+            <li><strong>retry_delay</strong>: Wait between retries. Use <code>retry_exponential_backoff=True</code> for exponential backoff (prevents thundering herd on shared resources).</li>
+            <li><strong>retry_delay + exponential</strong>: First retry after 5 min, second after 10 min, third after 20 min. Gives transient issues time to resolve.</li>
+          </ul>
+
+          <h3>SLA Monitoring</h3>
+          <ul>
+            <li>Set <code>sla=timedelta(hours=4)</code> on a task — if the task hasn't completed within 4 hours of the DAG's scheduled time, Airflow sends an SLA miss notification.</li>
+            <li><strong>Use case</strong>: "Orders must be available by 10 AM. DAG runs at 6 AM. SLA = 4 hours. If not done by 10 AM, page oncall."</li>
+            <li><strong>sla_miss_callback</strong>: Custom function called on SLA miss — send PagerDuty alert, post to Slack, create incident ticket.</li>
+          </ul>
+
+          <h3>Alerting Patterns</h3>
+          <ul>
+            <li><strong>on_failure_callback</strong>: Function called when a task fails all retries. Send alert with task details, log link, and runbook reference.</li>
+            <li><strong>on_retry_callback</strong>: Function called on each retry — useful for logging retry context or escalating if specific error types recur.</li>
+            <li><strong>on_success_callback</strong>: Useful for tracking successful completion metrics (pipeline runtime, data freshness).</li>
+          </ul>
+
+          <h3>Dead Letter Queue Pattern</h3>
+          <ul>
+            <li>For pipelines processing multiple items (e.g., 100 files), don't fail the entire DAG if one file fails. Process all files, collect failures, and route them to a dead letter queue for manual review.</li>
+            <li><strong>Implementation</strong>: Try/except within the task, log failures to a DLQ table/S3 path. Mark task as success if >95% succeeded. Separate DAG processes DLQ items with human review.</li>
+          </ul>
+
+          <h2 id="scaling">Airflow at Scale</h2>
+
+          <h3>Multiple Schedulers (Airflow 2.x)</h3>
+          <ul>
+            <li>Airflow 2.x supports multiple active schedulers — they coordinate via database row-level locking (no leader election needed).</li>
+            <li><strong>Benefit</strong>: HA (scheduler failure doesn't stop scheduling) and throughput (scheduling capacity scales horizontally).</li>
+            <li><strong>Requirement</strong>: Metadata database must support row-level locking (PostgreSQL recommended, MySQL with InnoDB).</li>
+          </ul>
+
+          <h3>Database Tuning</h3>
+          <ul>
+            <li>The metadata DB is the critical bottleneck at scale (>500 DAGs, >10K daily task instances).</li>
+            <li><strong>Connection pooling</strong>: Use PgBouncer between Airflow and PostgreSQL. Prevents connection exhaustion from many workers.</li>
+            <li><strong>Cleanup</strong>: Implement <code>airflow db clean</code> to purge old task instances, logs, and XComs. Without cleanup, the DB grows unbounded and queries slow down.</li>
+            <li><strong>Indexes</strong>: Ensure proper indexes on <code>dag_run</code>, <code>task_instance</code> tables. Default schema is optimized but verify with EXPLAIN on slow queries.</li>
+          </ul>
+
+          <h3>DAG Serialization</h3>
+          <ul>
+            <li>Enable <code>dag_serialization</code> (default in Airflow 2.x) — the scheduler serializes DAGs to the database instead of webserver parsing DAG files directly.</li>
+            <li><strong>Benefit</strong>: Webserver doesn't need access to DAG files. Faster UI page loads. Reduces DAG parsing overhead across components.</li>
+            <li><strong>Min file process interval</strong>: How often the scheduler re-parses DAG files. Default 30s. Increase for large DAG counts to reduce scheduler CPU.</li>
+          </ul>
+
+          <h2 id="alternatives">Airflow vs Alternatives</h2>
+
+          <table>
+            <thead>
+              <tr><th>Aspect</th><th>Airflow</th><th>Dagster</th><th>Prefect</th><th>Step Functions</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Philosophy</td><td>Task orchestration</td><td>Data-asset-centric</td><td>Workflow as code</td><td>State machine (AWS)</td></tr>
+              <tr><td>DAG definition</td><td>Python (operators)</td><td>Python (software-defined assets)</td><td>Python (flows + tasks)</td><td>JSON/YAML (ASL)</td></tr>
+              <tr><td>Testing</td><td>Difficult (requires Airflow context)</td><td>First-class (unit test assets)</td><td>Good (test flows locally)</td><td>Limited (Step Functions Local)</td></tr>
+              <tr><td>Data lineage</td><td>None (need external tools)</td><td>Built-in (asset dependencies)</td><td>None</td><td>None</td></tr>
+              <tr><td>Local dev</td><td>Heavy (docker-compose)</td><td>Light (dagster dev)</td><td>Light (prefect server)</td><td>N/A (cloud service)</td></tr>
+              <tr><td>Maturity</td><td>Battle-tested (10+ years)</td><td>Growing (3+ years)</td><td>Growing (4+ years)</td><td>Mature (AWS-only)</td></tr>
+              <tr><td>Community</td><td>Largest ecosystem</td><td>Growing rapidly</td><td>Medium</td><td>AWS-only</td></tr>
+              <tr><td>Best for</td><td>Complex ETL, large orgs</td><td>Data mesh, modern data stack</td><td>ML pipelines, dynamic workflows</td><td>AWS-native event-driven</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>When to choose Dagster over Airflow:</strong> If your team values testability, local development experience, and asset-based thinking (focusing on WHAT data exists rather than HOW tasks run), Dagster is increasingly the better choice for new projects. Its software-defined assets model makes lineage automatic and testing trivial. However, Airflow's ecosystem (2000+ providers, massive community) and battle-tested production track record still make it the safer choice for large enterprise environments.
+          </div>
+
+          <h2 id="anti-patterns">Production Anti-Patterns</h2>
+
+          <ul>
+            <li><strong>Fat DAGs</strong>: 200+ tasks in a single DAG. Causes slow scheduling, painful debugging, and cascading failures. Break into smaller DAGs connected via sensors or datasets.</li>
+            <li><strong>Using Airflow as a data processor</strong>: PythonOperator loading 100GB into memory. Airflow orchestrates — it should trigger Spark/SQL, not replace them.</li>
+            <li><strong>Non-idempotent tasks</strong>: INSERT without OVERWRITE. Rerunning creates duplicates. Always design for safe rerunning.</li>
+            <li><strong>Hardcoded dates</strong>: Using <code>datetime.now()</code> instead of <code>{{ ds }}</code>. Breaks backfills and makes testing impossible.</li>
+            <li><strong>Shared global state</strong>: Tasks communicating via global variables or shared files outside XCom/S3. Breaks with distributed executors (CeleryExecutor, KubernetesExecutor).</li>
+            <li><strong>Long-running sensors in worker slots</strong>: A <code>mode='poke'</code> sensor occupies a worker slot while waiting (potentially hours). Use <code>mode='reschedule'</code> or deferrable operators instead.</li>
+            <li><strong>No alerting</strong>: Tasks fail silently. Always set <code>on_failure_callback</code> with PagerDuty/Slack integration for production DAGs.</li>
+            <li><strong>Ignoring execution_timeout</strong>: A stuck task runs forever, blocking the worker slot. Always set a reasonable timeout.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you design Airflow DAGs for a data platform with 200 tables needing daily ingestion, transformation, and quality checks?</div>
+            <div class="qa-answer">
+              <p>I'd use a layered DAG architecture with dynamic generation. First, a configuration-driven approach: maintain a YAML file per table defining source, schedule, quality rules, and dependencies. A factory function generates one DAG per table from this config — giving 200 individual DAGs with independent scheduling and failure isolation (one table's failure doesn't block others). Each generated DAG follows the pattern: S3Sensor (wait for source) → SparkSubmitOperator (transform) → PythonOperator (Great Expectations validation) → notification. Cross-table dependencies (e.g., dim_customer must complete before fact_orders) are handled via Airflow 2.x Datasets — the upstream DAG produces a Dataset on completion, the downstream DAG's schedule triggers when its input Datasets are updated. This decouples the DAGs while maintaining correct execution order. For the transformation layer (silver → gold), I'd use a separate set of DAGs that depend on multiple upstream Datasets completing. Monitoring: a meta-DAG that runs every hour checking which table DAGs have missed their SLA, aggregating across all 200 into a single dashboard. KubernetesExecutor for heterogeneous resource needs — small tables get minimal pods, large tables get high-memory pods configured per DAG.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Airflow scheduler is falling behind — DAGs are being scheduled minutes or hours late. Diagnose and fix.</div>
+            <div class="qa-answer">
+              <p>Scheduler performance issues typically stem from four areas. First, DAG parsing overhead: if the scheduler takes 30+ seconds to parse all DAG files, scheduling frequency drops. Check <code>dagbag_import_timeout</code> and the scheduler's DAG processing time in metrics. Fix: reduce DAG complexity (no expensive imports at parse time), increase <code>min_file_process_interval</code>, use DAG serialization (default in 2.x), and move expensive initialization inside task functions (not at module level). Second, metadata DB bottleneck: check DB query latency, connection pool exhaustion, and table sizes. Fix: deploy PgBouncer, run <code>airflow db clean</code> to purge old records, verify indexes on task_instance and dag_run tables, consider upgrading the DB instance. Third, worker pool exhaustion: all worker slots occupied by running/queued tasks. Sensors in poke mode are the #1 cause — each holds a slot while waiting. Fix: switch sensors to mode='reschedule' or deferrable operators, increase worker count, set appropriate pool limits per DAG category. Fourth, too many concurrent DAGs: if max_active_runs is high across hundreds of DAGs, the scheduler spends all time managing state rather than scheduling new work. Fix: lower max_active_runs, add multiple schedulers (Airflow 2.x HA), or split into multiple Airflow deployments per team/domain.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare KubernetesExecutor vs CeleryExecutor. When would you choose each?</div>
+            <div class="qa-answer">
+              <p>CeleryExecutor maintains a pool of long-running workers that pull tasks from a Redis/RabbitMQ queue. Tasks start instantly (no pod startup) but share the worker environment (same Python version, same libraries). Choose Celery when: tasks are homogeneous (similar resource needs), latency matters (sub-second task start), steady workload patterns (predictable capacity), and the team doesn't run Kubernetes. KubernetesExecutor creates a new pod per task — full isolation, custom Docker images per task, and auto-scaling via the K8s cluster autoscaler. Tasks have 15-45 second startup latency (pod scheduling + image pull). Choose Kubernetes when: tasks have vastly different resource needs (one needs 2GB, another needs 64GB), you need dependency isolation (tasks with conflicting library versions), workloads are bursty (scale to zero during off-hours), or multi-tenancy requires strong isolation. For most data platform teams already on Kubernetes, KubernetesExecutor is the better default — the auto-scaling and isolation benefits outweigh the startup latency for ETL workloads (which typically run for minutes to hours, making 30 seconds negligible).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you make Airflow DAGs testable? What's your testing strategy for pipeline code?</div>
+            <div class="qa-answer">
+              <p>I test at three levels. Unit tests: extract business logic from operators into pure Python functions — these are trivially testable with pytest. A transform function that takes a DataFrame and returns a DataFrame is tested with sample data, asserting output schema and values. No Airflow context needed. Integration tests: test the DAG structure itself — verify task dependencies are correct, required parameters are set, and no import errors exist. Airflow provides <code>DagBag</code> for loading DAGs and asserting structure: <code>assert dag.task_dict['transform'].upstream_task_ids == {'extract'}</code>. Also test that templated parameters render correctly: <code>ti.render_templates()</code> and assert rendered values match expectations. End-to-end tests: run the DAG against a test environment with synthetic data. Use Airflow's test mode (<code>airflow tasks test dag_id task_id execution_date</code>) for individual tasks. For full DAG runs, maintain a staging Airflow environment that processes test datasets daily. Mock external dependencies (use LocalStack for S3, testcontainers for databases) to avoid flaky tests from network issues. The key principle: keep task callables thin (just wiring) and business logic in testable modules.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Platform</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

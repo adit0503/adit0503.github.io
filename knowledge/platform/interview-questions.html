@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Interview Prep — System Design & Scenarios — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Platform</a>
+        <span>→</span>
+        <span>Interview Prep</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Platform</span>
+            <span class="read-time">20 min read</span>
+          </div>
+          <h1>Interview Prep — System Design & Scenarios</h1>
+          <p class="article-desc">The definitive lead data engineer interview preparation guide — system design questions (real-time analytics, lakehouse from scratch, CDC at scale, multi-tenant platforms), debugging scenarios (slow pipelines, corrupt data, OOM errors, sub-second queries), behavioral/leadership questions, and 15 rapid-fire technical Q&A covering Spark, Iceberg, Delta, Kafka, Airflow, SQL, modeling, and governance.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#system-design">System Design Questions</a></li>
+            <li><a href="#scenario-questions">Scenario & Debugging Questions</a></li>
+            <li><a href="#behavioral">Behavioral & Leadership Questions</a></li>
+            <li><a href="#rapid-fire">Rapid-Fire Technical Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="system-design">System Design Questions</h2>
+
+          <div class="callout">
+            <strong>System design interview framework:</strong> (1) Clarify requirements — functional, non-functional, scale. (2) High-level architecture — draw the boxes and arrows. (3) Deep dive — choose 2-3 components to detail. (4) Trade-offs — why this choice over alternatives. (5) Failure modes — what breaks and how you handle it. Always lead with requirements and constraints before jumping to solutions.
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a real-time analytics platform: Kafka → Spark Streaming → Iceberg → query layer. The platform must handle 500K events/second with sub-10-second freshness for dashboards.</div>
+            <div class="qa-answer">
+              <p><strong>Requirements clarification:</strong> 500K events/sec ingest rate, sub-10-second end-to-end latency (event generated → queryable in dashboard), support for 50 concurrent dashboard users with p95 query latency <2 seconds, 30-day hot data retention with full historical archive, schema evolution support for event payloads.</p>
+              <p><strong>Ingestion layer (Kafka):</strong> MSK cluster with 6 brokers (m5.4xlarge), 3 AZs for durability. Events produced by applications to topic-per-domain (user_events, order_events, etc.). Target partition count per topic = 2x consumer parallelism = 128 partitions for high-volume topics. Retention = 72 hours (enough for reprocessing). Schema enforcement via Confluent Schema Registry with BACKWARD compatibility — producers register Avro schemas, consumers tolerate evolution. Key by entity_id (user_id, order_id) for ordering guarantees per entity. Throughput at 500K events/sec × 1KB avg = 500MB/sec — well within MSK capacity with 6 brokers.</p>
+              <p><strong>Processing layer (Spark Structured Streaming):</strong> Databricks or EMR running Spark Structured Streaming jobs with trigger(processingTime='5 seconds') micro-batches. Each domain has a dedicated streaming job reading from its Kafka topic. Processing: deserialize Avro, apply business transformations (enrich, filter, aggregate), write to Iceberg tables. Use foreachBatch sink with MERGE INTO for upsert semantics. Checkpointing to S3 for exactly-once guarantees. Cluster sizing: 4 drivers + 32 executors (r5.2xlarge) with autoscaling up to 64 executors during peak. Watermark-based late data handling — accept events up to 1 hour late.</p>
+              <p><strong>Storage layer (Iceberg):</strong> Iceberg tables partitioned by hour(event_ts) for time-range queries. Write commit interval = 5 seconds (matching Spark trigger). Small files managed via Iceberg's auto-compaction (target file size 256MB). Iceberg's snapshot isolation ensures readers never see partial writes. Metadata management: expire snapshots older than 7 days, compact data files every hour via a maintenance job. Storage on S3 with Standard tier for hot data (30 days), lifecycle to IA after 30 days, Glacier after 180 days.</p>
+              <p><strong>Query layer:</strong> Trino/Starburst cluster (10 workers, r5.4xlarge) with Iceberg connector for interactive queries. Alluxio caching layer between Trino and S3 — caches recent partitions (last 24 hours) in memory for sub-second repeated queries. For dashboards: Looker/Superset connected to Trino. Pre-computed materialized views for the top 20 most-hit dashboard queries (refresh every 5 minutes). Result caching at the BI layer for identical repeated queries. P95 <2 seconds achieved via: partition pruning (only scan relevant hours), column pruning (Parquet columnar), Alluxio cache hits for recent data, materialized views for heavy aggregations.</p>
+              <p><strong>Failure modes:</strong> (1) Kafka broker failure — handled by replication factor 3, producers retry with acks=all. (2) Spark streaming job failure — restart from checkpoint, reprocess from last committed offset (Kafka retention covers 72 hours). (3) S3 temporary unavailability — Spark retries with exponential backoff, Iceberg's optimistic concurrency handles concurrent writes. (4) Query spike overwhelming Trino — auto-scaling worker pool + query queuing with priority (dashboards > ad-hoc). Monitoring: end-to-end latency metric (event_ts vs. query availability_ts), Kafka consumer lag, Spark streaming batch duration, Trino query P95.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a data lakehouse from scratch: ingestion → medallion → serving. The organization has 100 source databases, 50 analysts, and needs to support both batch and real-time use cases.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture overview:</strong> Three-layer medallion architecture on S3/ADLS with Iceberg as the table format, Spark for processing, Airflow for orchestration, and a multi-engine query layer.</p>
+              <p><strong>Ingestion layer (→ Bronze):</strong> Two parallel paths. Batch: AWS DMS for initial full load + ongoing CDC from 100 source databases to S3 as Parquet files (one DMS task per source, date-partitioned output). Real-time: Debezium for the 10-15 highest-priority sources that need sub-minute freshness — CDC events to Kafka topics, consumed by Spark Structured Streaming into bronze Iceberg tables. All bronze tables are append-only (raw CDC events with operation type), preserving the complete change history. Schema: match source schemas exactly, adding metadata columns (_ingestion_ts, _source_system, _operation).</p>
+              <p><strong>Silver layer (Cleaned/Conformed):</strong> Airflow-orchestrated Spark jobs (daily for batch sources, micro-batch streaming for real-time sources) that apply CDC operations (MERGE) into silver Iceberg tables. Transformations: deduplication, type standardization (all timestamps to UTC, all strings to UTF-8), null handling, PII detection and tagging (flag columns containing emails/phones in catalog), schema enforcement (reject rows failing validation → dead letter table). Silver tables follow enterprise naming conventions (e.g., silver.production.customers, silver.billing.invoices). Data quality: Great Expectations suite runs after each silver table update — row counts, null rates, referential integrity, value range checks. Failed quality checks pause downstream propagation and alert the data team.</p>
+              <p><strong>Gold layer (Business consumption):</strong> Star schema dimensional models built with dbt: dim_customer (SCD2), dim_product, dim_date, fact_orders, fact_sessions, fact_payments. Domain-specific marts: marketing_mart (attribution, campaigns), finance_mart (revenue, costs), product_mart (usage metrics). OBTs for specific dashboards. All gold tables are materialized as Iceberg tables with partition optimization for common query patterns. Refresh: batch gold tables run daily via Airflow triggered by silver table Dataset signals. Real-time gold tables (live dashboards) use Spark Streaming reading from silver tables.</p>
+              <p><strong>Serving layer:</strong> Multi-engine approach — Trino for interactive SQL queries (analysts, Looker), Spark for heavy analytical workloads and ML, Redshift Spectrum for teams already on Redshift. All engines read from the same Iceberg tables (single source of truth). Unity Catalog / Glue Catalog as the central metastore with RBAC enforcement — analysts see only gold tables, engineers see silver and gold, admins see all. API layer (FastAPI) for programmatic access to specific metrics/datasets.</p>
+              <p><strong>Governance:</strong> DataHub as the metadata catalog with automated ingestion from Airflow (lineage), dbt (model docs), and Spark (OpenLineage). Data contracts between source teams (database owners) and the platform team — defining schema stability guarantees and change notification SLAs. Cost attribution via AWS tags (team, project) with monthly showback reports. PII governance: column-level tagging in catalog, dynamic masking for analyst-facing queries, GDPR delete automation via lineage-driven impact analysis.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a CDC pipeline for 50 source tables across 5 different databases (2 PostgreSQL, 2 MySQL, 1 Oracle). Requirements: near-real-time freshness, exactly-once semantics at the target, schema evolution support.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture choice:</strong> Debezium + Kafka + Spark Structured Streaming → Iceberg. I choose Debezium over DMS because: (1) unified approach across all three database types with consistent configuration, (2) Kafka as the transport enables multiple consumers, (3) superior schema evolution handling with Avro + Schema Registry, (4) community-driven with rapid bug fixes for edge cases.</p>
+              <p><strong>Source configuration:</strong> Deploy a Kafka Connect cluster (6 workers on m5.xlarge for HA) running 5 Debezium connectors — one per source database. PostgreSQL connectors use pgoutput plugin with dedicated replication slots. MySQL connectors use binlog with GTID for reliable position tracking. Oracle connector uses LogMiner mode (simpler setup, acceptable performance for 10 tables). Each connector publishes to topics named cdc.{database}.{schema}.{table} — 50 total topics. Serialization: Avro with Confluent Schema Registry (BACKWARD compatibility enforced).</p>
+              <p><strong>Transport (Kafka):</strong> MSK cluster sized for the aggregate CDC throughput. Topic configuration: 6 partitions per table topic (balances parallelism with ordering), retention 7 days (allows week-long reprocessing window), replication factor 3. Message key = primary key of the source table (ensures ordering per entity). Compaction enabled for dimension-like tables (retain only latest state per key for bootstrapping new consumers).</p>
+              <p><strong>Processing (Spark Structured Streaming):</strong> One streaming job per logical domain (grouping related tables). Each job reads from multiple Kafka topics, applies the CDC operations, and writes to Iceberg tables. Processing logic per micro-batch: (1) Deserialize Avro events, (2) Deduplicate within batch (keep latest per key by source.ts_ms), (3) Apply schema evolution — compare incoming schema with target Iceberg schema, auto-add new columns, (4) MERGE INTO target: WHEN MATCHED AND op='d' THEN DELETE, WHEN MATCHED THEN UPDATE SET *, WHEN NOT MATCHED THEN INSERT *. Exactly-once at target: Spark checkpoints + Iceberg's atomic MERGE = idempotent apply. Even if a micro-batch retries, the MERGE produces the same result.</p>
+              <p><strong>Schema evolution handling:</strong> When a source table adds a column, Debezium publishes a new Avro schema version to the registry. The Spark consumer detects the new field and issues ALTER TABLE ADD COLUMN on the Iceberg target (Iceberg supports this as a metadata operation — no data rewrite). For type changes (widening), the consumer maps types appropriately. For breaking changes (drop/rename), the Schema Registry rejects the incompatible schema — alerting the team to handle manually before data is lost.</p>
+              <p><strong>Monitoring:</strong> Debezium: MilliSecondsBehindSource per connector, snapshot progress, error counts. Kafka: consumer lag per topic, broker disk usage, under-replicated partitions. Spark: batch processing time, records processed per batch, failed MERGE operations. End-to-end: source commit timestamp vs. Iceberg snapshot timestamp = total pipeline latency (target <30 seconds). PostgreSQL-specific: WAL slot lag monitoring with automated alerts if lag exceeds 5GB (prevents disk exhaustion).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a multi-tenant data platform with cost isolation. The platform serves 10 internal teams, each with their own data, budgets, and SLAs. Teams should not be able to access each other's data or consume each other's resources.</div>
+            <div class="qa-answer">
+              <p><strong>Data isolation:</strong> Unity Catalog (Databricks) or Lake Formation (AWS) with three-level namespace: catalog.schema.table where catalog = team. Each team gets their own catalog (marketing_catalog, finance_catalog) with full ownership. Shared data (conformed dimensions, company-wide metrics) lives in a shared_catalog readable by all. RBAC: team members get USAGE on their catalog only. Cross-team data sharing requires explicit GRANT from the data owner. Row-level security for shared tables where teams should see only their subset (e.g., regional data filtering). All access is audited — every query logged with user, team, tables accessed, rows returned.</p>
+              <p><strong>Compute isolation:</strong> Dedicated compute per team to prevent noisy-neighbor effects. With Databricks: separate workspaces per team (strongest isolation) or team-specific cluster policies (restrict instance types, max nodes, auto-termination). With EMR: team-specific clusters launched by their Airflow DAGs, terminated after completion. With a shared Trino cluster: resource groups per team — each team gets a guaranteed slice of cluster capacity (e.g., 20% of workers) with ability to burst into idle capacity. Memory limits per query prevent one team's monster query from starving others.</p>
+              <p><strong>Cost isolation:</strong> AWS accounts per team (strongest financial boundary) or tags-based cost allocation (more flexible). Every resource tagged with team=X. AWS Cost Explorer shows per-team spend with service breakdown. Per-team budgets in AWS Budgets with alerts at 80% and 100%. Monthly chargeback: compute costs directly attributed via tags, shared infrastructure (Kafka, Airflow, networking) split proportionally by usage metrics (Kafka bytes consumed, Airflow task count). Databricks: DBU consumption tracked per workspace/cluster policy → attributed to teams. Team leads receive weekly cost reports showing trends and top-cost pipelines.</p>
+              <p><strong>SLA isolation:</strong> Each team defines their data freshness SLAs (Team A: 4-hour freshness, Team B: 15-minute freshness). Platform provides tiered service levels — real-time tier (Debezium → Streaming → Iceberg, higher cost) and batch tier (DMS → daily Spark, lower cost). Priority queuing: critical team pipelines get higher Airflow pool priority. Monitoring: per-team SLA dashboards showing freshness compliance percentage. If Team A's pipeline is slow, it doesn't impact Team B's compute or scheduling because they run on separate clusters/pools.</p>
+              <p><strong>Self-service with guardrails:</strong> Teams can create tables, run jobs, and build pipelines within their sandbox without platform team involvement. Guardrails prevent abuse: max cluster size (cost control), required data quality checks before publishing to shared catalog (quality control), schema validation against data contracts (compatibility control), auto-termination for idle resources (waste control). Platform team provides templates (Terraform modules for infra, dbt project templates, Airflow DAG templates) that encode best practices and governance requirements.</p>
+            </div>
+          </div>
+
+          <h2 id="scenario-questions">Scenario & Debugging Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your pipeline is 3x slower than yesterday — same data volume, same code, no recent deployments. Debug it.</div>
+            <div class="qa-answer">
+              <p><strong>Step 1 — Confirm the baseline:</strong> Verify that data volume truly hasn't changed (check input partition sizes, row counts). Sometimes "same volume" hides a 10x increase in one partition due to source schema changes or backfill from upstream. Check Airflow task duration history — exactly when did the slowdown start?</p>
+              <p><strong>Step 2 — Infrastructure layer:</strong> Check the compute environment. (a) Spot instance reclamation — if task nodes were reclaimed, effective cluster size dropped (fewer executors = slower). Check EMR events or Spark UI executor tab for removed executors. (b) Cluster resource contention — another job running simultaneously that wasn't there yesterday (shared cluster). Check YARN queue utilization and memory allocation. (c) Storage throttling — S3 503 SlowDown errors if partition has too many requests. Check Spark driver logs for retry warnings. (d) Network — check if data moved to a different region/AZ, or if cross-AZ traffic increased.</p>
+              <p><strong>Step 3 — Data layer:</strong> Even if total volume is the same, data distribution may have changed. (a) Data skew — one partition key now has 100x more records than others (e.g., a new bot generating events with one user_id). Check Spark UI stage details for task duration variance — if one task takes 100x longer than others, it's skew. (b) Small files — source produced many tiny files instead of fewer large ones (common after CDC). Check file sizes in the input path. Many small files = excessive task overhead. (c) Schema change — a new large column (BLOB, nested JSON) was added upstream, increasing per-row processing cost.</p>
+              <p><strong>Step 4 — Query plan changes:</strong> Spark's Adaptive Query Execution or catalyst optimizer may have chosen a different plan. Compare the physical plan (spark.sql.explain()) with a known-good run. Common issue: a broadcast join threshold was exceeded (table grew past spark.sql.autoBroadcastJoinThreshold), switching from fast BroadcastHashJoin to slow SortMergeJoin with full shuffle.</p>
+              <p><strong>Step 5 — External dependencies:</strong> Check if the pipeline reads from an external database (lookup joins) that's under heavy load, or if an API call has increased latency. Check task-level timing in Spark stages — identify which stage is the bottleneck.</p>
+              <p><strong>Remediation:</strong> Once the root cause is identified: skew → salting or pre-aggregation, small files → compaction job before processing, spot reclamation → increase on-demand minimum, plan change → pin broadcast hint or AQE settings, external dependency → cache the lookup data or parallelize differently.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">A critical table has corrupt data from a bad deploy that went out 6 hours ago. 50 downstream tables are affected. What's your recovery plan?</div>
+            <div class="qa-answer">
+              <p><strong>Immediate triage (first 15 minutes):</strong> (1) Stop the bad pipeline to prevent further corruption. (2) Assess blast radius using lineage graph — identify all 50 downstream tables and their consumers. (3) Communicate to stakeholders: "Data issue identified in [table], downstream impact being assessed, ETA for resolution: [X hours]." (4) Determine: Is the corruption additive (bad rows inserted alongside good ones) or destructive (good rows overwritten/deleted)?</p>
+              <p><strong>Source table recovery:</strong> If using Iceberg/Delta — TIME TRAVEL to restore the table to its pre-corruption state. Iceberg: <code>CALL system.rollback_to_snapshot('catalog.schema.table', snapshot_id_from_6_hours_ago)</code>. Delta: <code>RESTORE TABLE table TO VERSION AS OF version_before_deploy</code>. This is instantaneous (metadata operation) and restores the table to its exact state before the bad deploy. If using plain Parquet without time travel — restore from the last known-good backup (hopefully <6 hours old) or replay CDC from the source database to reconstruct the table.</p>
+              <p><strong>Downstream recovery:</strong> With lineage, identify the topological order of downstream dependencies. Reprocess in dependency order — table A depends only on the source (now restored), table B depends on A, table C depends on A and B, etc. Trigger reprocessing via Airflow backfill for the affected time range. If pipelines are idempotent (INSERT OVERWRITE or MERGE), reprocessing naturally produces correct results from the restored source. If pipelines are NOT idempotent (append-only), each downstream table also needs rollback before reprocessing — significantly more complex.</p>
+              <p><strong>Validation:</strong> After reprocessing, run data quality checks comparing current state against known invariants (row counts should match pre-corruption baselines, key metrics should be within expected ranges). Spot-check sample records manually. Verify that consumer-facing dashboards show expected values.</p>
+              <p><strong>Post-mortem:</strong> (1) Why did the bad deploy pass testing? Add integration tests with realistic data. (2) Why wasn't corruption detected for 6 hours? Add real-time data quality monitoring with anomaly detection. (3) How to reduce blast radius? Implement circuit breakers — downstream pipelines don't start until source table passes quality gates. (4) How to speed up recovery? Ensure all tables support time travel with adequate retention (7+ days of snapshots). Make all pipelines idempotent (golden rule).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Spark job is OOMing on a 5TB shuffle. The job aggregates user events across 30 days into daily summaries. How do you fix it?</div>
+            <div class="qa-answer">
+              <p><strong>Understand the OOM:</strong> A 5TB shuffle means the aggregation's intermediate data (group-by keys + partial aggregates) exceeds available memory. OOM can hit executors (during shuffle write/read) or the driver (if collecting results). Check Spark UI: which stage fails? Shuffle write stage (map side) or shuffle read stage (reduce side)?</p>
+              <p><strong>Fix 1 — Increase shuffle partitions:</strong> Default spark.sql.shuffle.partitions = 200 means 5TB / 200 = 25GB per partition. If executor memory is 16GB, this overflows. Increase to 2000-5000 partitions: 5TB / 5000 = 1GB per partition — fits in memory. Rule of thumb: target 128MB-512MB per shuffle partition.</p>
+              <p><strong>Fix 2 — Enable AQE (Adaptive Query Execution):</strong> spark.sql.adaptive.enabled=true with spark.sql.adaptive.coalescePartitions.enabled=true. AQE dynamically adjusts partition count based on actual data sizes. It also handles skew automatically via spark.sql.adaptive.skewJoin.enabled=true (splits oversized partitions).</p>
+              <p><strong>Fix 3 — Address data skew:</strong> If specific users have disproportionate event counts (power users, bots), their group-by partitions are massive while others are tiny. Identify: check for skew in the Spark UI task summary (max duration >> median duration). Fix: salting — add a random salt to the group-by key, perform partial aggregation with salt, then aggregate again without salt. Or filter out extreme outliers into a separate processing path.</p>
+              <p><strong>Fix 4 — Two-stage aggregation:</strong> Instead of aggregating 30 days at once (massive shuffle), pre-aggregate per day first (smaller shuffles), then aggregate the daily summaries into the 30-day result. Each daily aggregation shuffles only 1/30th of the data. The final aggregation operates on much smaller pre-aggregated data.</p>
+              <p><strong>Fix 5 — Increase executor memory:</strong> If the job legitimately needs to hold large aggregation state, increase executor memory. Switch from r5.2xlarge (32GB) to r5.4xlarge (64GB) or r5.8xlarge (128GB). Adjust spark.executor.memory and spark.memory.fraction accordingly.</p>
+              <p><strong>Fix 6 — Spill to disk:</strong> Ensure spark.memory.storageFraction allows spilling. Increase spark.local.dir to use fast NVMe instance storage (i3.xlarge). Spilling is slower but prevents OOM — trading speed for stability.</p>
+              <p><strong>Architecture fix (long-term):</strong> If 5TB daily shuffle is recurring, redesign the pipeline. Maintain a running aggregate table updated daily (incremental). Instead of reprocessing 30 days, add today's data and subtract the day-31 data (sliding window). This reduces the shuffle from 5TB to ~170GB (one day's data).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">A stakeholder needs sub-second dashboard queries on 100 billion rows of event data with flexible filtering and grouping. Design the serving architecture.</div>
+            <div class="qa-answer">
+              <p><strong>The challenge:</strong> 100B rows is ~10-50TB of data. Full scans take minutes even on fast engines. Sub-second requires either extreme parallelism, pre-computation, or intelligent data reduction. The answer depends on query patterns — "flexible filtering and grouping" is the hardest case (can't fully pre-compute).</p>
+              <p><strong>Tiered approach:</strong> (1) Pre-computed aggregates for known queries (materialized views). (2) Optimized interactive layer for semi-flexible queries. (3) Full-power engine for true ad-hoc (relaxed latency SLA).</p>
+              <p><strong>Layer 1 — Materialized views / OLAP cubes:</strong> For the top 20 most-hit dashboard views, pre-compute the results on a schedule (every 5-15 minutes). Store in a fast key-value store (Redis) or a specialized OLAP engine (Apache Druid, ClickHouse, Apache Pinot). These serve sub-100ms responses for known queries. Covers 80% of dashboard traffic with pre-built rollups (daily revenue by region, hourly active users by platform).</p>
+              <p><strong>Layer 2 — Column-oriented OLAP engine:</strong> Apache Druid or ClickHouse for flexible queries on pre-indexed data. Ingest the 100B rows with careful indexing: time-partition by day, sort by common filter columns (user_id, event_type, region), build bitmap indexes on low-cardinality dimensions. Druid achieves sub-second on billions of rows through: segment-level parallelism (thousands of segments queried simultaneously), time-based partition pruning, bitmap index filtering before scan, approximate algorithms (HyperLogLog for COUNT DISTINCT, quantile sketches for percentiles). Data retention: keep 90 days hot in Druid, archive older data in Iceberg for batch queries.</p>
+              <p><strong>Layer 3 — Caching and query optimization:</strong> BI-layer result caching (Looker PDTs, Superset cache). Dashboard filters map to specific partition/index patterns — the BI tool generates optimized queries. For "same dashboard, different filters" pattern: cache the base query result, apply filters in-memory at the BI layer (works for small filter cardinality).</p>
+              <p><strong>Data pipeline:</strong> Source events → Kafka → Spark Streaming → Iceberg (full fidelity, historical archive) AND → Druid real-time ingestion (indexed, time-limited). Druid's real-time ingestion provides sub-second queryability within seconds of event arrival. Iceberg serves as the system of record; Druid is the serving layer.</p>
+              <p><strong>Key trade-offs:</strong> Pre-computation trades storage and freshness for speed. Druid/ClickHouse trades flexibility (limited JOINs, pre-defined schema) for speed. True ad-hoc on full 100B rows requires Trino/Spark with relaxed latency expectations (10-30 seconds acceptable). Communicate this trade-off to stakeholders: "Sub-second is achievable for 90% of dashboard queries. True ad-hoc exploration on all 100B rows will take 10-30 seconds."</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your team needs to implement GDPR right-to-delete across 200 tables in a data lakehouse. The current architecture has no lineage system. Design the solution.</div>
+            <div class="qa-answer">
+              <p><strong>Phase 1 — Discovery (weeks 1-4):</strong> Before implementing deletion, we need to know WHERE personal data exists. Without automated lineage, this requires a manual audit supplemented by automation. (a) Scan all 200 tables for columns likely containing PII — name-based heuristics (email, phone, ssn, user_id, customer_id) plus pattern matching on actual data (regex for email formats, phone patterns). (b) Build a mapping: for each PII column, identify the join path to the master user table (which user_id FK chain connects this table to the identifiable user). (c) Document in a PII registry: table → PII columns → user_id join path → data owner. This registry becomes the lookup for deletion requests.</p>
+              <p><strong>Phase 2 — Implement lineage (weeks 2-6, parallel):</strong> Deploy OpenLineage integration for all Spark jobs and Airflow DAGs. This provides automated lineage going forward — new tables are automatically mapped. Backfill historical lineage from dbt documentation (if using dbt) or SQL parsing of existing queries. The lineage graph enables automated impact analysis for future PII discovery — "table X was derived from table Y which contains user_id, therefore X may contain user data."</p>
+              <p><strong>Phase 3 — Deletion service (weeks 4-8):</strong> Build an automated deletion pipeline. Input: deletion request queue (user_id to delete, request_id for audit). Processing: (a) Query PII registry for all tables containing this user_id. (b) For each table, generate and execute a DELETE statement (Iceberg/Delta ACID delete). Respect dependency order — delete from leaf tables first to avoid FK violations if any constraints exist. (c) After all deletes complete, run EXPIRE SNAPSHOTS to physically remove old data files. (d) Generate deletion certificate: list of tables processed, row counts deleted, timestamps. Store certificate for compliance audits.</p>
+              <p><strong>Phase 4 — Verification and hardening (ongoing):</strong> After deletion, run verification queries confirming zero rows for the user across all registered tables. Handle edge cases: raw S3 Parquet without table format (requires partition rewrite), backup systems (flag for deletion on restore), ML model training data (retrain models excluding deleted users), aggregated tables (determine if aggregates need adjustment or if aggregation provides sufficient anonymization). SLA: deletion completed within 30 days of request (GDPR requirement). Automate the entire flow — human involvement only for exception handling.</p>
+            </div>
+          </div>
+
+          <h2 id="behavioral">Behavioral & Leadership Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you prioritize technical debt vs new features? Give a specific example.</div>
+            <div class="qa-answer">
+              <p>I use a framework that classifies technical debt by business impact rather than engineering purity. High-priority debt directly causes incidents, slows feature delivery, or creates compliance risk — this gets prioritized alongside features. Low-priority debt is aesthetically unpleasant but functional — this goes on a backlog addressed during capacity gaps.</p>
+              <p>Specific example: our ingestion pipeline used a monolithic Spark job processing all 80 tables sequentially. Technical debt: no parallelism, single failure blocks everything, 6-hour runtime approaching SLA breach. New feature request: onboard 20 new source tables. I argued we couldn't responsibly add 20 tables to a system already at capacity — the technical debt WAS blocking the feature. We invested 3 sprints refactoring to parallel, per-table DAGs with independent failure isolation. This unblocked the feature (new tables added in days instead of weeks) AND reduced runtime from 6 hours to 45 minutes AND eliminated cascading failures. The key was framing technical debt in business terms: "We can't add these 20 tables without a 2-week refactor. Doing it without refactoring guarantees SLA breaches within a month." That framing gets stakeholder buy-in.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you mentor junior engineers on your team?</div>
+            <div class="qa-answer">
+              <p>I mentor through three channels: code reviews, design discussions, and progressive ownership. In code reviews, I don't just say "fix this" — I explain WHY. If a junior writes a non-idempotent pipeline, I walk through the failure scenario: "If this task retries, what happens to the data? Let me show you the INSERT OVERWRITE pattern and why it prevents duplicates." This builds intuition, not just compliance.</p>
+              <p>For design discussions, I involve juniors early in architecture decisions — before I've made up my mind. I'll present a problem ("we need CDC from 50 tables, here are three approaches") and ask them to evaluate trade-offs. Even if their analysis is incomplete, the exercise of THINKING about trade-offs is the learning. I provide guardrails, not answers.</p>
+              <p>Progressive ownership: start with well-scoped tasks (add a quality check to an existing pipeline), graduate to full pipeline ownership (design, implement, monitor), then to cross-cutting concerns (design the monitoring strategy for all pipelines). Each level requires more ambiguity tolerance and systems thinking. I track where each person is and what skill gap to address next. The goal is to make myself unnecessary — a junior I've mentored well should be independently designing and operating production pipelines within 6-12 months.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle disagreements on architecture decisions with peers?</div>
+            <div class="qa-answer">
+              <p>I start by distinguishing one-way doors from two-way doors. For reversible decisions (library choice, file format for a non-shared table), I defer to the person doing the implementation — disagree and commit. Their learning from the choice (even if suboptimal) is more valuable than mandating the "correct" approach. For irreversible decisions (table format for the entire platform, orchestrator choice, data model for shared gold tables), I invest more in alignment.</p>
+              <p>My approach for significant disagreements: (1) Write it down — document both positions with concrete pros/cons, not abstract preferences. "I prefer X" is weak. "X provides exactly-once semantics which prevents the data duplication issue we had last quarter" is strong. (2) Define success criteria — what are we optimizing for? Often disagreements dissolve when you realize you're optimizing for different things (one person prioritizes simplicity, another prioritizes performance). Make the criteria explicit. (3) Prototype when stakes are high — if the decision is worth a week of debate, it's worth 2 days of building a POC to test assumptions with real data. (4) Accept that good engineers can disagree in good faith — the goal is the best decision for the team, not winning. If my peer's argument is stronger after honest evaluation, I change my mind publicly and credit their reasoning. That builds trust for future disagreements.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Describe a time you improved a process significantly. What was the impact?</div>
+            <div class="qa-answer">
+              <p>Our data pipeline deployment process was fully manual — engineers wrote code locally, tested against a staging dataset (often stale), then asked a senior engineer to "deploy" by SSHing into the Airflow server and copying DAG files. Average deployment time: 2-3 days (waiting for reviewer availability). Deployment failures: ~30% (staging didn't catch issues because the data was different from production). Rollback: manual and terrifying.</p>
+              <p>I redesigned the entire process over 6 weeks. Implementation: (1) Git-based workflow — DAGs and Spark code in a monorepo with branch protection. PRs required automated CI checks to pass. (2) CI pipeline — on PR creation: lint DAG code, validate DAG imports (DagBag load test), run unit tests on transform functions with synthetic data, check for common anti-patterns (non-idempotent patterns, hardcoded dates). (3) CD pipeline — on merge to main: automatically sync DAGs to Airflow (GitSync sidecar), deploy Spark jars to S3, trigger a canary run against yesterday's data to verify correctness before enabling the schedule. (4) Rollback — revert the git commit, CD automatically deploys the previous version within minutes.</p>
+              <p>Impact: deployment time reduced from 2-3 days to 20 minutes (PR + CI + merge). Deployment failure rate dropped from 30% to under 5% (CI catches most issues). Rollback time from "hours + panic" to "git revert + 3 minutes." The team deployed 4x more frequently with higher confidence. Junior engineers could deploy independently (no senior gatekeeper needed). The biggest lesson: process improvements compound — each deployment being faster and safer means more iterations, which means better code, which means fewer incidents.</p>
+            </div>
+          </div>
+
+          <h2 id="rapid-fire">Rapid-Fire Technical Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between Spark's narrow and wide transformations? Give examples of each.</div>
+            <div class="qa-answer">
+              <p>Narrow transformations operate on data within a single partition — no data movement between executors. Examples: map(), filter(), select(), withColumn(). Each output partition depends on exactly one input partition. Wide transformations require data to move between partitions (shuffle). Examples: groupBy(), join() (except broadcast), repartition(), distinct(), orderBy(). Each output partition depends on data from ALL input partitions. The key practical impact: narrow transformations are pipelined (chained without materializing intermediate results), while wide transformations create stage boundaries requiring full materialization to disk (shuffle write) before the next stage can begin. Minimizing wide transformations = minimizing shuffles = faster jobs.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Iceberg handle schema evolution differently from Hive tables?</div>
+            <div class="qa-answer">
+              <p>Hive tables bind schema to the metastore — all files are read using the metastore schema. Adding a column requires all query engines to agree on the new schema, and old files return NULL for the new column only by convention (no tracking of which files have which schema). Dropping or renaming columns risks corrupting reads of old files. Iceberg tracks schema evolution in its metadata layer — each snapshot records which schema version it was written with. When reading old data files, Iceberg's reader knows those files use schema v1 and maps columns by ID (not by position or name). This means: ADD COLUMN is metadata-only (instant, no rewrite), RENAME COLUMN works correctly (column IDs stay stable), DROP COLUMN safely excludes old data files' columns, and TYPE PROMOTION (int → long) is handled automatically. Iceberg's column ID-based mapping makes schema evolution truly safe across file versions, unlike Hive's position-based or name-based fragile mapping.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain Kafka consumer groups and how partition rebalancing works.</div>
+            <div class="qa-answer">
+              <p>A consumer group is a set of consumer instances that cooperatively read from topic partitions — each partition is assigned to exactly one consumer in the group (no duplicate processing within a group). If there are 12 partitions and 4 consumers, each consumer reads 3 partitions. If a consumer dies, its partitions are reassigned to surviving consumers (rebalancing). Rebalancing is triggered by: consumer join/leave (scaling up/down), consumer failure (missed heartbeat), or topic partition count change. During rebalance, ALL consumers in the group pause processing (stop-the-world) while the group coordinator reassigns partitions. This causes a latency spike. Cooperative rebalancing (incremental) is the modern approach — only affected partitions are revoked, other consumers continue uninterrupted. After rebalancing, each consumer resumes from its last committed offset for newly-assigned partitions. If offsets are committed frequently, minimal reprocessing occurs. If not, events between last commit and rebalance are reprocessed (at-least-once delivery).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is Delta Lake's transaction log and how does it provide ACID guarantees?</div>
+            <div class="qa-answer">
+              <p>Delta Lake's transaction log (_delta_log/) is a sequence of JSON files (000000.json, 000001.json, ...) recording every change to the table — add file, remove file, metadata change, protocol change. Each JSON file represents one atomic transaction (commit). ACID works through optimistic concurrency: a writer reads the current log version, performs its operation, then attempts to write the next log version. If another writer committed in the meantime (version conflict), the operation fails and retries with the updated state. Isolation: readers see a consistent snapshot by reading the log up to a specific version — they see all files added before that version minus all files removed before that version. Every 10 commits, Delta writes a checkpoint Parquet file summarizing all active files — this speeds up reads by avoiding processing the entire log history. The transaction log is the single source of truth — file system state is derived from the log, not the other way around. This is what enables time travel (read log at version N), rollback (add a new commit that reverses a previous commit), and reliable MERGE operations (serialize concurrent writes through optimistic concurrency).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle data skew in a Spark join operation?</div>
+            <div class="qa-answer">
+              <p>Data skew in joins means one join key has disproportionately many rows (e.g., user_id=null or a power user with millions of events). This causes one executor to process 100x more data than others — the job takes as long as the slowest task. Solutions: (1) Broadcast join — if the smaller table fits in memory (<10GB), broadcast it to all executors, eliminating the shuffle entirely. (2) Salting — for the skewed key, append a random salt (0-N) to both sides: left side gets random salt, right side is replicated N times with each salt value. This spreads the skewed key across N partitions. After join, drop the salt column. (3) AQE skew join handling — Spark 3.x with spark.sql.adaptive.skewJoin.enabled=true automatically detects skewed partitions and splits them at runtime. (4) Separate processing — filter out the skewed keys, process them separately (maybe with a broadcast), then UNION the results. (5) Pre-aggregation — if possible, aggregate the skewed side before joining to reduce row count per key.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between Airflow's execution_date and logical_date? Why does it matter?</div>
+            <div class="qa-answer">
+              <p>In Airflow 2.x, execution_date was renamed to logical_date for clarity, but they represent the same concept: the START of the data interval a DAG run is responsible for. A daily DAG scheduled at midnight with logical_date=2026-01-15 processes data for January 15th, but actually runs on January 16th at midnight (after the interval closes). This confuses new users — the DAG runs AFTER the logical_date, not AT the logical_date. It matters because: templates like {{ ds }} resolve to the logical_date (2026-01-15), which is used for partition paths and data filtering. If you use datetime.now() instead, a backfill for January 15th would incorrectly process today's data. The data_interval_start and data_interval_end (Airflow 2.x) are more intuitive — they explicitly define the time range the run covers. Always use these template variables (not clock time) for deterministic, backfill-safe pipelines.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain partition pruning in Iceberg vs traditional Hive partitioning.</div>
+            <div class="qa-answer">
+              <p>Hive requires explicit partition columns in the table schema — you physically organize data into directories (year=2026/month=01/day=15/) and users must include the partition column in WHERE clauses for pruning to work. If the user writes WHERE event_ts BETWEEN '2026-01-15' AND '2026-01-16', Hive does NOT prune because event_ts is a data column, not the partition column (dt). The user must know to write WHERE dt = '2026-01-15'. Iceberg's hidden partitioning separates the partitioning scheme from the user-facing schema. You define partitioning as a transform: PARTITIONED BY (day(event_ts)). Users query naturally: WHERE event_ts BETWEEN '2026-01-15' AND '2026-01-16' — Iceberg's planner automatically derives that only day='2026-01-15' and day='2026-01-16' partitions are needed. Additionally, Iceberg stores min/max statistics per file in manifest files — enabling file-level pruning WITHIN a partition (further reducing scan). This decoupling means you can change partitioning (e.g., switch from daily to hourly) without rewriting data or changing user queries.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is the CAP theorem and how does it apply to distributed data systems you work with?</div>
+            <div class="qa-answer">
+              <p>CAP theorem states that a distributed system can guarantee at most two of three properties: Consistency (every read gets the latest write), Availability (every request receives a response), and Partition tolerance (system operates despite network partitions). Since network partitions are inevitable in distributed systems, the real choice is between CP (consistent but may reject requests during partitions) and AP (available but may serve stale data during partitions). In practice for data platforms: Kafka is AP — during a partition, producers can still write to available brokers, but consumers may read stale data until the partition heals. ZooKeeper/KRaft (Kafka's coordination layer) is CP — prefers consistency (leader election) over availability. S3 is eventually consistent for overwrites (AP-leaning). Iceberg/Delta provide serializable isolation (CP) through optimistic concurrency — conflicting writes fail rather than producing inconsistent state. Understanding CAP informs architecture decisions: for real-time dashboards, we accept eventual consistency (AP) for speed. For financial reporting, we require strong consistency (CP) even if it means slower writes.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you implement a slowly changing dimension Type 2 in SQL using MERGE?</div>
+            <div class="qa-answer">
+              <p>SCD Type 2 via MERGE requires two operations in a single atomic statement: close the existing current row (set end_date, clear is_current) and insert the new version. Implementation:</p>
+              <p><code>MERGE INTO dim_customer AS target USING staged_changes AS source ON target.customer_id = source.customer_id AND target.is_current = TRUE WHEN MATCHED AND (target.customer_segment != source.customer_segment OR target.city != source.city) THEN UPDATE SET target.end_date = source.effective_date, target.is_current = FALSE WHEN NOT MATCHED THEN INSERT (customer_id, customer_name, customer_segment, city, start_date, end_date, is_current) VALUES (source.customer_id, source.customer_name, source.customer_segment, source.city, source.effective_date, NULL, TRUE);</code></p>
+              <p>The catch: MERGE can't INSERT and UPDATE the same source row's target in one statement (for the new version row). The common pattern is a two-step process: Step 1 — MERGE to close existing rows (UPDATE SET end_date, is_current=FALSE). Step 2 — INSERT the new versions (all changed records with is_current=TRUE, start_date=today, end_date=NULL). Alternatively, use dbt snapshots which handle this logic automatically and correctly including edge cases (new records, deleted records, unchanged records).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between spark.sql.shuffle.partitions and the number of partitions in a DataFrame?</div>
+            <div class="qa-answer">
+              <p>They control different things. A DataFrame's partition count is determined by how data was read — reading from S3 with 1000 Parquet files creates ~1000 partitions. This controls parallelism for narrow transformations (map, filter). spark.sql.shuffle.partitions (default: 200) controls how many partitions are created AFTER a shuffle operation (groupBy, join, distinct). Regardless of input partition count, a groupBy will produce exactly spark.sql.shuffle.partitions output partitions. If your input has 5000 partitions but shuffle.partitions=200, data concentrates from 5000 → 200 partitions during shuffle. If data volume is large, 200 partitions may be too few (large partitions → OOM). If data is small, 200 may be too many (excessive overhead from tiny tasks). With AQE enabled, Spark auto-coalesces small shuffle partitions, so setting a high value (2000-5000) and letting AQE reduce it is a safe default strategy for variable workload sizes.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain the difference between batch and micro-batch processing in Spark Structured Streaming.</div>
+            <div class="qa-answer">
+              <p>Spark Structured Streaming uses a micro-batch execution model by default — it processes data in small, discrete batches at a configurable interval (trigger). With trigger(processingTime='10 seconds'), Spark collects all data arriving in each 10-second window, plans a batch query, executes it, and commits the results. Between triggers, no processing occurs. This provides exactly-once guarantees (each batch is atomic — checkpoint records the committed offset range) and uses the same optimizer as batch Spark (Catalyst). The trade-off is latency: minimum latency = trigger interval + processing time. For true continuous processing (sub-millisecond latency), Spark offered an experimental "continuous processing" mode (trigger(continuous='1 ms')) that processes records one-at-a-time without batching — but it's limited (only supports map-like operations, no aggregations, at-least-once only). In practice, micro-batch with 1-5 second triggers achieves <10 second end-to-end latency, which is sufficient for most "real-time" data platform use cases. For true sub-second needs, Flink's native streaming model is more appropriate.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the outbox pattern and why is it important for event-driven data platforms?</div>
+            <div class="qa-answer">
+              <p>The outbox pattern solves the dual-write problem: an application needs to update a database AND publish an event to Kafka within the same logical operation. Without the outbox pattern, these are two separate operations that can partially fail — database commits but Kafka publish fails (lost event) or Kafka publishes but database fails (phantom event). The outbox pattern makes the event a database write: the application writes domain data AND an event record to an "outbox" table in a single ACID transaction. A separate process (Debezium) captures the outbox table via CDC and publishes events to Kafka. Since the domain write and event write are in the same transaction, they're atomic — both commit or neither does. Debezium guarantees eventual delivery (at-least-once) of committed outbox rows to Kafka. This pattern is foundational for event-driven data platforms because it ensures the event stream is a reliable representation of database state — no missed events, no phantom events. It enables downstream consumers (data pipelines, other services) to trust that every event corresponds to an actual committed state change.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you decide between Parquet, ORC, and Avro for your data lake?</div>
+            <div class="qa-answer">
+              <p>Parquet is the default choice for analytical data lakes — columnar storage enables column pruning (read only needed columns), excellent compression ratios via column-level encoding (dictionary, RLE, bit-packing), and broad ecosystem support (Spark, Trino, Athena, BigQuery, every major engine). Choose Parquet for: all analytical/warehouse tables, Iceberg/Delta table format storage, any read-heavy workload. ORC is functionally similar to Parquet (columnar, compressed, predicate pushdown) but has tighter integration with the Hive/Presto ecosystem and slightly better compression in some benchmarks (ZLIB default). Choose ORC if: your platform is Hive-centric, or you have measured ORC performing better for your specific workload. In practice, Parquet has won the ecosystem war — more tools support it natively. Avro is row-oriented and schema-embedded — each file contains its schema definition. Choose Avro for: streaming data (Kafka messages), CDC events where row-level access matters, data where schema evolution is critical (Avro's schema resolution handles missing/extra fields gracefully), or landing zone data that's read once then converted to Parquet for analytics. The typical lakehouse uses Avro in Kafka → Parquet in S3/lakehouse tables.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the key differences between Iceberg and Delta Lake? When would you choose one over the other?</div>
+            <div class="qa-answer">
+              <p>Both provide ACID transactions, time travel, schema evolution, and partition evolution on data lakes. Key differences: (1) Ecosystem lock-in: Delta Lake was originally Databricks-only (OSS version lagged). Iceberg was designed vendor-neutral from day one — equal support across Spark, Trino, Flink, Hive, Dremio, Snowflake. If you're multi-engine, Iceberg avoids lock-in. (2) Catalog architecture: Iceberg uses a catalog abstraction (Hive, Glue, REST, Nessie) with sophisticated metadata management (manifest lists → manifests → data files). Delta uses a simple file-system-based transaction log (_delta_log/ in the same directory). Iceberg's approach scales better for tables with millions of files. (3) Partition evolution: Iceberg allows changing partition scheme without rewriting data (e.g., switch from daily to hourly partitioning — new data uses hourly, old data stays daily, queries span both transparently). Delta requires rewriting all data to change partitioning. (4) Hidden partitioning: Iceberg derives partitions from columns (month(ts)) — users query naturally without knowing partition structure. Delta requires explicit partition columns. Choose Iceberg for: multi-engine platforms, tables with frequently-changing partition strategies, very large tables (10B+ rows), vendor-neutral architectures. Choose Delta for: Databricks-centric platforms (best integration, Photon engine optimization), teams already invested in Delta ecosystem, when Databricks-specific features (Liquid Clustering, predictive optimization) are valuable.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain what a Spark execution plan looks like and how you read it to identify performance issues.</div>
+            <div class="qa-answer">
+              <p>A Spark execution plan has two levels: logical plan (what operations to perform) and physical plan (how to perform them on a distributed cluster). Use <code>df.explain(true)</code> to see all plan stages. Read the physical plan bottom-up (data flows from leaves to root). Key elements to look for: (1) Scan nodes — FileScan parquet shows partition pruning (PartitionFilters), pushed filters (PushedFilters), and columns read (ReadSchema). If PartitionFilters is empty on a partitioned table, you're doing a full scan (bad). (2) Exchange nodes — represent shuffles. Exchange hashpartitioning indicates a shuffle with the specified partitioning. Multiple exchanges = multiple shuffle stages = expensive. (3) BroadcastExchange — the small table is broadcast (good, avoids shuffle on the larger table). If you expected a broadcast but see SortMergeJoin with Exchange, the table exceeded autoBroadcastJoinThreshold. (4) Sort nodes before MergeJoin — sorting for sort-merge join is expensive. If one side is small enough, adding a broadcast hint avoids both the sort and shuffle. (5) Filter nodes position — filters pushed down close to the scan (before any join/shuffle) mean the optimizer is working correctly. Filters appearing after a join means unnecessary data went through the expensive join. (6) WholeStageCodegen — indicates Spark is generating optimized bytecode for this stage (good). If missing, the operator doesn't support codegen (potential performance concern).</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Platform</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

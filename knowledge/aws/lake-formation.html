@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Lake Formation — Governance & Access Control — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AWS</a>
+        <span>→</span>
+        <span>Lake Formation</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">AWS</span>
+            <span class="read-time">11 min read</span>
+          </div>
+          <h1>Lake Formation — Governance & Access Control</h1>
+          <p class="article-desc">Complete guide to AWS Lake Formation — table/column/row-level security, LF-Tags for tag-based access control, cross-account data sharing, governed tables, data location permissions, and comparison with Databricks Unity Catalog.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what-lf-adds">What Lake Formation Adds on Top of IAM</a></li>
+            <li><a href="#permissions-model">Data Lake Permissions Model vs IAM Policies</a></li>
+            <li><a href="#lf-tags">LF-Tags — Tag-Based Access Control</a></li>
+            <li><a href="#column-security">Column-Level Security</a></li>
+            <li><a href="#row-level-filtering">Row-Level Filtering</a></li>
+            <li><a href="#cross-account">Cross-Account Data Sharing</a></li>
+            <li><a href="#glue-catalog-integration">Integration with Glue Catalog</a></li>
+            <li><a href="#governed-tables">Governed Tables</a></li>
+            <li><a href="#data-location">Data Location Permissions</a></li>
+            <li><a href="#blueprints">Blueprints for Data Ingestion</a></li>
+            <li><a href="#unity-catalog-comparison">Comparison with Unity Catalog</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what-lf-adds">What Lake Formation Adds on Top of IAM</h2>
+
+          <p>Without Lake Formation, data lake access control relies on S3 IAM policies — which operate at the object/prefix level. This creates fundamental problems for analytics governance:</p>
+
+          <h3>IAM-Only Problems</h3>
+          <ul>
+            <li><strong>No column-level control</strong>: IAM can't restrict access to specific columns in a Parquet file. If you can read the S3 object, you can read ALL columns.</li>
+            <li><strong>No row-level control</strong>: Can't filter rows per-user at the storage level.</li>
+            <li><strong>Policy explosion</strong>: A data lake with 500 tables × 10 teams = thousands of IAM policies mapping principals to S3 prefixes. Unmanageable.</li>
+            <li><strong>No table abstraction</strong>: IAM knows about S3 paths, not logical tables. Renaming a table's S3 location breaks all policies.</li>
+            <li><strong>Cross-account complexity</strong>: Sharing a table across accounts requires bucket policies + IAM roles + resource policies. Each table = complex policy chain.</li>
+          </ul>
+
+          <h3>Lake Formation's Solution</h3>
+          <ul>
+            <li><strong>Database/Table/Column permissions</strong>: Grant access at the logical level — "User X can SELECT columns A, B, C from table Y in database Z."</li>
+            <li><strong>Centralized governance</strong>: Single admin console for all permissions. No scattered IAM policies.</li>
+            <li><strong>Tag-based access</strong>: Assign tags to tables/columns, grant access to tags. Scale permissions without per-table grants.</li>
+            <li><strong>Transparent enforcement</strong>: Athena, EMR, Glue, and Redshift Spectrum all enforce LF permissions automatically.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Lake Formation sits BETWEEN the user and the data. When Athena queries a table, it asks Lake Formation "does this principal have SELECT permission on these columns?" Lake Formation returns a filtered view — the user never sees unauthorized columns/rows. The underlying S3 permissions are granted to a Lake Formation service role, not to individual users.
+          </div>
+
+          <h2 id="permissions-model">Data Lake Permissions Model vs IAM Policies</h2>
+
+          <h3>How It Works — The "Vending Machine" Model</h3>
+          <ol>
+            <li><strong>Register S3 locations</strong>: Tell Lake Formation which S3 paths contain data lake tables.</li>
+            <li><strong>Revoke IAMAllowedPrincipals</strong>: By default, Glue Catalog grants "Super" permission to IAMAllowedPrincipals (effectively bypassing LF). You must revoke this to activate LF governance.</li>
+            <li><strong>Grant LF permissions</strong>: Use the Lake Formation API/console to grant specific principals (IAM users, roles, SAML groups) access to specific databases/tables/columns.</li>
+            <li><strong>Services enforce</strong>: When a principal queries via Athena/EMR/Glue, the service checks LF permissions before accessing data.</li>
+          </ol>
+
+          <h3>Permission Types</h3>
+          <table>
+            <thead>
+              <tr><th>Permission</th><th>Applies To</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>SELECT</td><td>Table, Column</td><td>Read data (query)</td></tr>
+              <tr><td>INSERT</td><td>Table</td><td>Add data</td></tr>
+              <tr><td>DELETE</td><td>Table</td><td>Remove data</td></tr>
+              <tr><td>DESCRIBE</td><td>Database, Table</td><td>View metadata/schema</td></tr>
+              <tr><td>ALTER</td><td>Database, Table</td><td>Modify schema/properties</td></tr>
+              <tr><td>DROP</td><td>Database, Table</td><td>Delete definition</td></tr>
+              <tr><td>CREATE_TABLE</td><td>Database</td><td>Create new tables</td></tr>
+              <tr><td>DATA_LOCATION_ACCESS</td><td>S3 Location</td><td>Write to a registered location</td></tr>
+            </tbody>
+          </table>
+
+          <div class="code-block">
+            <div class="code-block-header">Lake Formation Permission Grant (AWS CLI)</div>
+            <pre><code># Grant SELECT on specific columns to a role
+aws lakeformation grant-permissions \
+  --principal '{"DataLakePrincipalIdentifier": "arn:aws:iam::123456789:role/analyst-role"}' \
+  --resource '{
+    "TableWithColumns": {
+      "DatabaseName": "analytics",
+      "Name": "customer_events",
+      "ColumnNames": ["event_id", "event_type", "event_date", "category"]
+    }
+  }' \
+  --permissions '["SELECT"]'
+
+# Grant full table access to a data engineering role
+aws lakeformation grant-permissions \
+  --principal '{"DataLakePrincipalIdentifier": "arn:aws:iam::123456789:role/data-eng-role"}' \
+  --resource '{
+    "Table": {
+      "DatabaseName": "analytics",
+      "Name": "customer_events"
+    }
+  }' \
+  --permissions '["SELECT", "INSERT", "DELETE", "ALTER"]'</code></pre>
+          </div>
+
+          <h2 id="lf-tags">LF-Tags — Tag-Based Access Control</h2>
+
+          <p>LF-Tags enable attribute-based access control (ABAC) — assign tags to resources and principals, then define permissions based on tag matches. This scales to thousands of tables without individual grants.</p>
+
+          <h3>How LF-Tags Work</h3>
+          <ol>
+            <li><strong>Define tags</strong>: Create tag keys with allowed values. Example: <code>classification = [public, internal, confidential, restricted]</code></li>
+            <li><strong>Assign tags to resources</strong>: Tag databases, tables, or columns. <code>customer_events.email → classification:restricted</code></li>
+            <li><strong>Create tag-based permissions</strong>: "Analysts can SELECT where classification IN [public, internal]"</li>
+            <li><strong>Auto-inheritance</strong>: Tags on databases propagate to tables; tags on tables propagate to columns (unless overridden).</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">LF-Tag Based Access Control</div>
+            <pre><code># Step 1: Create LF-Tags
+aws lakeformation create-lf-tag \
+  --tag-key "classification" \
+  --tag-values '["public", "internal", "confidential", "restricted"]'
+
+aws lakeformation create-lf-tag \
+  --tag-key "domain" \
+  --tag-values '["marketing", "finance", "engineering", "hr"]'
+
+# Step 2: Assign tags to a table
+aws lakeformation add-lf-tags-to-resource \
+  --resource '{"Table": {"DatabaseName": "analytics", "Name": "revenue"}}' \
+  --lf-tags '[{"TagKey": "classification", "TagValues": ["confidential"]}, {"TagKey": "domain", "TagValues": ["finance"]}]'
+
+# Step 3: Grant access based on tags
+# "Finance team can SELECT any table tagged domain=finance AND classification IN [public, internal, confidential]"
+aws lakeformation grant-permissions \
+  --principal '{"DataLakePrincipalIdentifier": "arn:aws:iam::123456789:role/finance-team"}' \
+  --resource '{
+    "LFTagPolicy": {
+      "ResourceType": "TABLE",
+      "Expression": [
+        {"TagKey": "domain", "TagValues": ["finance"]},
+        {"TagKey": "classification", "TagValues": ["public", "internal", "confidential"]}
+      ]
+    }
+  }' \
+  --permissions '["SELECT", "DESCRIBE"]'</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Scaling advantage:</strong> Without LF-Tags, adding a new table requires explicit grants to every team that should access it. With LF-Tags, you just tag the new table with the appropriate domain/classification — existing tag-based policies automatically apply. This is the recommended approach for organizations with 100+ tables.
+          </div>
+
+          <h2 id="column-security">Column-Level Security</h2>
+
+          <ul>
+            <li><strong>Include mode</strong>: Grant SELECT on a whitelist of columns. User sees only those columns.</li>
+            <li><strong>Exclude mode</strong>: Grant SELECT on all columns EXCEPT a blacklist. Easier to maintain for tables with many columns where only a few are sensitive.</li>
+            <li><strong>Column-level tags</strong>: Tag individual columns (e.g., <code>email → pii:true</code>). Grant based on tags — all PII columns controlled by one policy.</li>
+            <li><strong>Enforcement</strong>: Athena's query plan is rewritten to exclude unauthorized columns. Selecting a restricted column returns an access denied error.</li>
+          </ul>
+
+          <h2 id="row-level-filtering">Row-Level Filtering</h2>
+
+          <p>Define filter expressions that restrict which rows a principal can see. Implemented as predicate pushdown at query time.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Row-Level Filter Definition</div>
+            <pre><code># Create a row filter — marketing team sees only marketing events
+aws lakeformation create-data-cells-filter \
+  --table-data '{
+    "DatabaseName": "analytics",
+    "Name": "events",
+    "TableCatalogId": "123456789012"
+  }' \
+  --data-cells-filter '{
+    "Name": "marketing-events-only",
+    "DatabaseName": "analytics",
+    "TableName": "events",
+    "TableCatalogId": "123456789012",
+    "RowFilter": {
+      "FilterExpression": "department = '\''marketing'\''"
+    },
+    "ColumnNames": ["event_id", "event_type", "event_date", "channel", "campaign_id"]
+  }'
+
+# Grant the filter-based permission
+aws lakeformation grant-permissions \
+  --principal '{"DataLakePrincipalIdentifier": "arn:aws:iam::123456789:role/marketing-analyst"}' \
+  --resource '{
+    "DataCellsFilter": {
+      "DatabaseName": "analytics",
+      "TableName": "events",
+      "Name": "marketing-events-only",
+      "TableCatalogId": "123456789012"
+    }
+  }' \
+  --permissions '["SELECT"]'</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Performance consideration:</strong> Row-level filters add a WHERE clause to every query. For heavily filtered tables (filter eliminates 99% of rows), ensure the filter column is a partition key — otherwise every query results in a full-table scan with post-scan filtering.
+          </div>
+
+          <h2 id="cross-account">Cross-Account Data Sharing</h2>
+
+          <h3>Sharing Methods</h3>
+          <ul>
+            <li><strong>Named Resource Method</strong>: Producer account grants specific databases/tables to consumer account ID. Consumer registers shared resources in their own LF console.</li>
+            <li><strong>LF-Tag Method</strong>: Share based on tags across accounts. Tag match = access. More scalable for organizations with many accounts.</li>
+            <li><strong>RAM (Resource Access Manager)</strong>: Under the hood, LF uses AWS RAM to share Glue Catalog resources. The consumer sees shared databases as "resource shares" in their account.</li>
+          </ul>
+
+          <h3>Cross-Account Flow</h3>
+          <ol>
+            <li>Producer grants permissions to consumer account (or OU).</li>
+            <li>Consumer accepts the resource share (auto-accept possible within org).</li>
+            <li>Consumer creates a resource link (pointer) in their local Glue Catalog.</li>
+            <li>Consumer queries via Athena/EMR using the resource link — transparent access.</li>
+            <li>Producer's LF permissions (including column/row filters) are enforced even for cross-account access.</li>
+          </ol>
+
+          <h2 id="glue-catalog-integration">Integration with Glue Catalog</h2>
+
+          <ul>
+            <li>Lake Formation permissions layer sits on TOP of the Glue Data Catalog — it doesn't replace it.</li>
+            <li>Tables, databases, and schemas are still defined in Glue Catalog.</li>
+            <li>LF adds a permissions evaluation step: Catalog API calls check LF grants before returning metadata.</li>
+            <li><strong>Hybrid mode</strong>: You can have some databases governed by LF and others using legacy IAM-only mode. Controlled by the <code>UseServiceLinkedRole</code> setting per database.</li>
+            <li><strong>Migration path</strong>: Enable LF on one database at a time. Revoke IAMAllowedPrincipals, grant explicit LF permissions, validate access, repeat.</li>
+          </ul>
+
+          <h2 id="governed-tables">Governed Tables</h2>
+
+          <p>Governed tables provide ACID transactions and automatic compaction managed by Lake Formation (distinct from Iceberg tables managed by Athena/Spark):</p>
+
+          <ul>
+            <li><strong>ACID writes</strong>: Multiple writers can safely write to the same table without conflicts.</li>
+            <li><strong>Automatic compaction</strong>: LF compacts small files in the background — no manual OPTIMIZE needed.</li>
+            <li><strong>Time travel</strong>: Query previous versions of governed tables.</li>
+            <li><strong>Limitation</strong>: Governed tables are AWS-proprietary (not Iceberg/Delta format). Vendor lock-in concerns. For most workloads, prefer Iceberg tables with LF permissions — get open format + governance.</li>
+          </ul>
+
+          <h2 id="data-location">Data Location Permissions</h2>
+
+          <p>Controls which principals can create tables pointing to specific S3 locations. Prevents a rogue IAM role from registering external data as a Catalog table to bypass governance.</p>
+
+          <ul>
+            <li><strong>Register locations</strong>: Register S3 paths with Lake Formation. Only principals with <code>DATA_LOCATION_ACCESS</code> permission can create tables at those paths.</li>
+            <li><strong>Service role</strong>: LF uses a service-linked role to access S3. Individual users don't need direct S3 access — LF vends temporary credentials.</li>
+            <li><strong>Unregistered paths</strong>: Tables at unregistered locations fall back to IAM-based access (bypassing LF governance). Register all data lake paths.</li>
+          </ul>
+
+          <h2 id="blueprints">Blueprints for Data Ingestion</h2>
+
+          <ul>
+            <li>Pre-built workflows (Glue jobs + crawlers) for common ingestion patterns.</li>
+            <li><strong>Database snapshot</strong>: Full JDBC table load into the data lake.</li>
+            <li><strong>Incremental database</strong>: CDC-style incremental loads from JDBC sources.</li>
+            <li><strong>Log file</strong>: Parse and catalog log files from S3.</li>
+            <li><strong>Limitation</strong>: Blueprints are basic templates — production teams usually outgrow them quickly. Better suited for proof-of-concepts than production pipelines.</li>
+          </ul>
+
+          <h2 id="unity-catalog-comparison">Comparison with Unity Catalog</h2>
+
+          <table>
+            <thead>
+              <tr><th>Aspect</th><th>Lake Formation</th><th>Unity Catalog (Databricks)</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Scope</td><td>AWS-only (Athena, EMR, Glue, Redshift)</td><td>Multi-cloud (AWS, Azure, GCP)</td></tr>
+              <tr><td>Table format support</td><td>Hive, Iceberg, governed tables</td><td>Delta Lake native, Iceberg via UniForm</td></tr>
+              <tr><td>Column security</td><td>Yes (include/exclude lists)</td><td>Yes (column masks, dynamic views)</td></tr>
+              <tr><td>Row security</td><td>Yes (filter expressions)</td><td>Yes (row filters with functions)</td></tr>
+              <tr><td>Tag-based access</td><td>LF-Tags</td><td>No direct equivalent (use groups)</td></tr>
+              <tr><td>Lineage</td><td>No built-in lineage</td><td>Automatic column-level lineage</td></tr>
+              <tr><td>Cross-account sharing</td><td>Via RAM + resource links</td><td>Delta Sharing (open protocol)</td></tr>
+              <tr><td>Audit</td><td>CloudTrail integration</td><td>Built-in audit logs + system tables</td></tr>
+              <tr><td>Data quality</td><td>Glue DQ (separate service)</td><td>Lakehouse Monitoring (integrated)</td></tr>
+              <tr><td>Compute governance</td><td>No (separate from compute)</td><td>Yes (cluster policies, serverless compute)</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Key difference:</strong> Unity Catalog is a unified governance layer for both data AND compute. Lake Formation governs data access but doesn't control compute resources (EMR clusters, Glue jobs). For full governance parity with Unity Catalog on AWS, you need LF + Service Control Policies + individual service-level controls.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your organization has 200 tables and 15 teams. How would you design access control using Lake Formation?</div>
+            <div class="qa-answer">
+              <p><strong>Step 1 — Define tag taxonomy</strong>: Create LF-Tags: <code>domain = [marketing, finance, engineering, product, hr, legal]</code>, <code>classification = [public, internal, sensitive, restricted]</code>, <code>pii = [true, false]</code>.</p>
+              <p><strong>Step 2 — Tag all resources</strong>: Assign domain and classification tags to every database and table. Override at column level for PII columns (e.g., email, SSN tagged <code>pii:true</code>, <code>classification:restricted</code>).</p>
+              <p><strong>Step 3 — Create IAM roles per team</strong>: <code>marketing-analyst-role</code>, <code>finance-analyst-role</code>, <code>data-eng-role</code> (superuser). Map SAML groups to roles via Identity Center.</p>
+              <p><strong>Step 4 — Grant tag-based permissions</strong>: "Marketing team → SELECT on domain=marketing, classification IN [public, internal]". "Data engineering → ALL on all domains, all classifications". "Finance → SELECT on domain=finance, all classifications". "All teams → SELECT on classification=public (shared reference tables)".</p>
+              <p><strong>Step 5 — Add row-level filters where needed</strong>: Finance can only see their region's data: <code>region = 'us'</code> filter on revenue tables.</p>
+              <p><strong>Scaling advantage</strong>: When table 201 is created and tagged <code>domain:marketing, classification:internal</code>, the marketing team automatically gets access. Zero manual grants needed.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the common pitfalls when migrating from IAM-only to Lake Formation?</div>
+            <div class="qa-answer">
+              <p><strong>Pitfall 1 — IAMAllowedPrincipals</strong>: The default "Super" grant to IAMAllowedPrincipals effectively disables LF governance. You MUST revoke this on each database/table you want governed. Forgetting this = false sense of security.</p>
+              <p><strong>Pitfall 2 — Breaking existing access</strong>: When you revoke IAMAllowedPrincipals and enable LF, all existing IAM-based access STOPS immediately. You must pre-create LF grants before revoking. Sequence: grant LF permissions → test → revoke IAM fallback.</p>
+              <p><strong>Pitfall 3 — S3 direct access bypass</strong>: LF only governs access through integrated services (Athena, EMR, Glue). A user with direct S3:GetObject IAM permission can bypass LF entirely by reading Parquet files directly. Mitigation: remove direct S3 data access from user roles; only the LF service role should have S3 access.</p>
+              <p><strong>Pitfall 4 — EMR integration complexity</strong>: EMR requires specific session tags and EMRFS credential provider configuration to enforce LF permissions. Without proper setup, EMR jobs run with full S3 access bypassing LF.</p>
+              <p><strong>Pitfall 5 — Cross-account resource links</strong>: Shared tables appear as resource links in consumer accounts. Some services (older Glue versions) don't follow resource links properly. Test cross-account queries thoroughly.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you implement GDPR right-to-deletion in a Lake Formation-governed data lake?</div>
+            <div class="qa-answer">
+              <p><strong>Challenge</strong>: GDPR Article 17 requires deleting a user's personal data across all tables when requested. In a data lake with 200+ tables, this is operationally complex.</p>
+              <p><strong>Architecture</strong>:</p>
+              <p><strong>1. Discovery (LF-Tags)</strong>: Tag all PII columns with <code>pii:true</code>. Use Glue Catalog search to find every table containing PII. LF-Tags make this discoverable — query all resources where <code>pii=true</code>.</p>
+              <p><strong>2. Deletion pipeline</strong>: Use Iceberg tables (support row-level DELETE). Build a Step Function workflow: receive deletion request → query LF tag API to find all PII tables → submit DELETE WHERE user_id = X to each table → log compliance proof.</p>
+              <p><strong>3. Verification</strong>: After deletion, run a verification query across all PII-tagged tables confirming zero rows for the user. Store audit trail (deletion request timestamp, affected tables, row counts deleted).</p>
+              <p><strong>4. Access control during processing</strong>: The deletion service needs broad SELECT + DELETE permissions. Use a dedicated LF permission grant: <code>deletion-service-role</code> → DELETE on all tables where <code>pii=true</code>.</p>
+              <p><strong>Non-Iceberg tables</strong>: For Hive/Parquet tables that don't support DELETE, the workflow must: (a) identify affected partitions, (b) rewrite partitions excluding the user's rows via Spark/Glue, (c) update Catalog to point to new files. This is why Iceberg is strongly recommended for GDPR-subject tables.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Lake Formation's access model to a row-level security implementation in a data warehouse like Redshift or Snowflake.</div>
+            <div class="qa-answer">
+              <p><strong>Warehouse approach (Redshift/Snowflake)</strong>: Row-level security (RLS) policies are database objects — SQL functions evaluated at query time by the engine. Policies reference session context (current_user, current_role) to filter rows. Implementation is within the compute engine itself.</p>
+              <p><strong>Lake Formation approach</strong>: Row filters are metadata in the LF governance layer — external to the compute engine. LF injects filter predicates into the query plan before execution. The compute engine (Athena, EMR) receives a pre-filtered plan.</p>
+              <p><strong>Key differences</strong>: (1) Warehouse RLS is engine-specific (Redshift policy won't work in Athena). LF row filters apply across ALL integrated compute engines from one definition. (2) Warehouse RLS can use complex SQL functions (dynamic user context, session variables). LF filters are simpler expressions (column = value, column IN list). (3) Warehouse RLS is invisible to the optimizer until execution. LF filters can be pushed to partition pruning (if filter column is a partition key). (4) Performance: Warehouse RLS adds negligible overhead (optimized by query engine). LF row filters on non-partition columns require full file scan + post-filter — potentially expensive.</p>
+              <p><strong>Recommendation</strong>: Use LF row filters for coarse-grained access (department, region). For complex per-user RLS (multi-tenant isolation, attribute-based policies), consider Redshift with native RLS or dbt-generated secure views as a complementary layer.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AWS</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

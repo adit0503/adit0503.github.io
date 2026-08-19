@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>EMR Deep-Dive & Cluster Configuration — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AWS</a>
+        <span>→</span>
+        <span>EMR Deep-Dive</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">AWS</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>EMR Deep-Dive & Cluster Configuration</h1>
+          <p class="article-desc">Complete guide to Amazon EMR architecture — node types, instance fleets, spot strategies, EMR on EKS, Spark tuning, EMRFS internals, managed scaling, and production cluster configuration for large-scale data engineering workloads.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#emr-architecture">EMR Architecture — Node Types</a></li>
+            <li><a href="#instance-fleets">Instance Fleets vs Uniform Instance Groups</a></li>
+            <li><a href="#spot-strategies">Spot vs On-Demand Strategies</a></li>
+            <li><a href="#emr-eks">EMR on EKS vs EMR on EC2</a></li>
+            <li><a href="#bootstrap-actions">Bootstrap Actions</a></li>
+            <li><a href="#step-vs-persistent">Step Execution vs Persistent Clusters</a></li>
+            <li><a href="#spark-on-emr">Spark Configuration on EMR</a></li>
+            <li><a href="#emrfs-hdfs">EMRFS vs HDFS</a></li>
+            <li><a href="#managed-scaling">Managed Scaling</a></li>
+            <li><a href="#graviton-instances">Graviton Instances</a></li>
+            <li><a href="#emr-serverless">EMR Serverless</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="emr-architecture">EMR Architecture — Node Types</h2>
+
+          <p>An EMR cluster consists of three logical node types, each serving a distinct purpose in the distributed computing model:</p>
+
+          <h3>Master Node (Primary Node)</h3>
+          <ul>
+            <li><strong>Role</strong>: Runs the cluster's control plane — YARN ResourceManager, HDFS NameNode, Spark Driver (in cluster mode), Hive Metastore, Ganglia, and the EMR agent.</li>
+            <li><strong>Count</strong>: Exactly 1 for standard clusters; 3 for high-availability (HA) clusters (multi-master with ZooKeeper-based leader election).</li>
+            <li><strong>Sizing</strong>: Memory-intensive (r5/r6g family). The master holds all HDFS metadata in memory — plan ~1GB heap per million HDFS blocks.</li>
+            <li><strong>Failure impact</strong>: Single-master cluster terminates on master failure. HA clusters survive one master loss.</li>
+          </ul>
+
+          <h3>Core Nodes</h3>
+          <ul>
+            <li><strong>Role</strong>: Run YARN NodeManager (execute containers/tasks) AND HDFS DataNode (store data blocks).</li>
+            <li><strong>Scaling</strong>: Can scale up but <strong>never scale down</strong> safely without HDFS decommission (risk of data loss). EMR managed scaling handles graceful decommission.</li>
+            <li><strong>Best practice</strong>: Use On-Demand or Reserved for core nodes to protect HDFS data. Minimum core nodes = replication factor (default 3 for clusters ≥10 nodes, 2 for 4–9, 1 for ≤3).</li>
+          </ul>
+
+          <h3>Task Nodes</h3>
+          <ul>
+            <li><strong>Role</strong>: Run YARN NodeManager ONLY — pure compute, no HDFS storage.</li>
+            <li><strong>Best for Spot</strong>: Can be terminated without data loss. Ideal for burst capacity.</li>
+            <li><strong>Use case</strong>: When your bottleneck is compute (CPU/memory for Spark executors) not storage. With EMRFS (S3), most modern workloads have no HDFS dependency — making task nodes the primary scaling mechanism.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> In S3-backed architectures (EMRFS), core nodes only need enough capacity to run the YARN NodeManager. The real workhorse is task nodes — scale them aggressively with Spot instances since no data lives on local HDFS.
+          </div>
+
+          <h2 id="instance-fleets">Instance Fleets vs Uniform Instance Groups</h2>
+
+          <h3>Uniform Instance Groups</h3>
+          <ul>
+            <li>Each group contains a single instance type (e.g., all m5.xlarge).</li>
+            <li>One group per node role (master group, core group, task group).</li>
+            <li>Simpler to reason about — predictable resource allocation per container.</li>
+            <li>Limited flexibility: if your chosen instance type is unavailable in the AZ, the cluster creation fails.</li>
+          </ul>
+
+          <h3>Instance Fleets</h3>
+          <ul>
+            <li>Specify up to 30 instance types per fleet — EMR picks from available capacity.</li>
+            <li>Define target capacity in units (vCPU or custom weighting) rather than instance count.</li>
+            <li>Allocation strategy: <code>lowest-price</code> (legacy) or <code>capacity-optimized</code> (recommended — minimizes Spot interruptions).</li>
+            <li>Mix On-Demand and Spot within a fleet: set <code>TargetOnDemandCapacity</code> for baseline + <code>TargetSpotCapacity</code> for burst.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Instance Fleet Configuration (AWS CLI)</div>
+            <pre><code>aws emr create-cluster \
+  --instance-fleets '[
+    {
+      "InstanceFleetType": "MASTER",
+      "TargetOnDemandCapacity": 1,
+      "InstanceTypeConfigs": [
+        {"InstanceType": "r6g.2xlarge", "WeightedCapacity": 1},
+        {"InstanceType": "r5.2xlarge", "WeightedCapacity": 1}
+      ]
+    },
+    {
+      "InstanceFleetType": "CORE",
+      "TargetOnDemandCapacity": 4,
+      "InstanceTypeConfigs": [
+        {"InstanceType": "r6g.xlarge", "WeightedCapacity": 1},
+        {"InstanceType": "r5.xlarge", "WeightedCapacity": 1},
+        {"InstanceType": "r5a.xlarge", "WeightedCapacity": 1}
+      ]
+    },
+    {
+      "InstanceFleetType": "TASK",
+      "TargetOnDemandCapacity": 0,
+      "TargetSpotCapacity": 20,
+      "LaunchSpecifications": {
+        "SpotSpecification": {
+          "TimeoutDurationMinutes": 15,
+          "TimeoutAction": "SWITCH_TO_ON_DEMAND",
+          "AllocationStrategy": "capacity-optimized"
+        }
+      },
+      "InstanceTypeConfigs": [
+        {"InstanceType": "m6g.2xlarge", "WeightedCapacity": 4},
+        {"InstanceType": "m5.2xlarge", "WeightedCapacity": 4},
+        {"InstanceType": "m5a.2xlarge", "WeightedCapacity": 4},
+        {"InstanceType": "c5.2xlarge", "WeightedCapacity": 4},
+        {"InstanceType": "r5.xlarge", "WeightedCapacity": 2}
+      ]
+    }
+  ]'</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Best practice:</strong> Always use Instance Fleets for production. Specify at least 5–10 instance types per fleet to maximize Spot availability. Use <code>capacity-optimized</code> allocation — it draws from Spot pools with the most unused capacity, reducing interruption rates by 60–80% vs <code>lowest-price</code>.
+          </div>
+
+          <h2 id="spot-strategies">Spot vs On-Demand Strategies</h2>
+
+          <table>
+            <thead>
+              <tr><th>Component</th><th>Recommendation</th><th>Reasoning</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Master</td><td>On-Demand (always)</td><td>Master failure = cluster termination</td></tr>
+              <tr><td>Core (HDFS)</td><td>On-Demand or Reserved</td><td>Protects HDFS data blocks from loss</td></tr>
+              <tr><td>Core (EMRFS only)</td><td>50-80% Spot acceptable</td><td>No local data at risk; YARN can reschedule</td></tr>
+              <tr><td>Task</td><td>100% Spot</td><td>Pure compute — interruptions just retry tasks</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Spot Interruption Handling</h3>
+          <ul>
+            <li><strong>YARN decommission timeout</strong>: Set <code>yarn.resourcemanager.nodemanager-graceful-decommission-timeout-secs</code> to allow containers to finish before node loss (default 3600s on EMR).</li>
+            <li><strong>Spark speculation</strong>: Enable <code>spark.speculation=true</code> — if a task on an interrupted node is slow/missing, a duplicate launches elsewhere.</li>
+            <li><strong>Spot block (deprecated)</strong>: Use capacity-optimized allocation instead.</li>
+            <li><strong>Diversification</strong>: More instance types = lower interruption probability. A fleet with 15 types sees ~3% interruption vs ~15% for single-type.</li>
+          </ul>
+
+          <h2 id="emr-eks">EMR on EKS vs EMR on EC2</h2>
+
+          <h3>EMR on EC2 (Classic)</h3>
+          <ul>
+            <li>Dedicated EC2 instances managed by EMR.</li>
+            <li>Full Hadoop ecosystem: HDFS, Hive, Pig, HBase, Presto, etc.</li>
+            <li>Bootstrap actions for custom software installation.</li>
+            <li>Best for: workloads needing HDFS locality, HBase, or legacy Hadoop tools.</li>
+          </ul>
+
+          <h3>EMR on EKS</h3>
+          <ul>
+            <li>Spark jobs run as pods on an existing EKS cluster — shared Kubernetes infrastructure.</li>
+            <li>No separate EMR cluster to manage — submit jobs via virtual clusters.</li>
+            <li>Share compute across data engineering and microservices workloads.</li>
+            <li>Up to 3x faster start times (no cluster bootstrap — pods spin in seconds).</li>
+            <li>Custom Docker images for dependency management (no bootstrap actions needed).</li>
+            <li>Supports Karpenter/Cluster Autoscaler for node provisioning.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">EMR on EKS Job Submission</div>
+            <pre><code>aws emr-containers start-job-run \
+  --virtual-cluster-id vc-abc123 \
+  --name "daily-etl-job" \
+  --execution-role-arn arn:aws:iam::123456789:role/emr-eks-role \
+  --release-label emr-6.15.0-latest \
+  --job-driver '{
+    "sparkSubmitJobDriver": {
+      "entryPoint": "s3://my-bucket/scripts/etl.py",
+      "sparkSubmitParameters": "--conf spark.executor.instances=50 --conf spark.executor.memory=8g --conf spark.executor.cores=4 --conf spark.dynamicAllocation.enabled=true"
+    }
+  }' \
+  --configuration-overrides '{
+    "applicationConfiguration": [{
+      "classification": "spark-defaults",
+      "properties": {
+        "spark.kubernetes.executor.podTemplateFile": "s3://my-bucket/pod-templates/executor.yaml",
+        "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
+      }
+    }]
+  }'</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Limitation:</strong> EMR on EKS supports only Spark (not Hive, HBase, Presto natively). If you need the full Hadoop ecosystem, stay on EMR on EC2. For pure Spark/PySpark workloads, EKS is operationally superior.
+          </div>
+
+          <h2 id="bootstrap-actions">Bootstrap Actions</h2>
+
+          <p>Shell scripts that run on every node before applications start. Execute order: after EC2 launch → after EMR agent installs software → before YARN/HDFS/Spark start.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Bootstrap Action Example</div>
+            <pre><code>#!/bin/bash
+# install-python-deps.sh — runs on ALL nodes
+set -e
+
+# Install system packages
+sudo yum install -y gcc python3-devel
+
+# Install Python libraries (only on master + core for driver code)
+if grep -q '"isMaster": true' /mnt/var/lib/info/instance.json || \
+   grep -q '"isMaster": false' /mnt/var/lib/info/instance.json; then
+  sudo pip3 install pandas==2.1.0 pyarrow==13.0.0 boto3==1.28.0
+fi
+
+# Increase open file limits for Spark shuffle
+echo "* soft nofile 65536" | sudo tee -a /etc/security/limits.conf
+echo "* hard nofile 65536" | sudo tee -a /etc/security/limits.conf
+
+# Install custom JARs for all nodes (needed by executors)
+aws s3 cp s3://my-bucket/jars/custom-udf.jar /usr/lib/spark/jars/</code></pre>
+          </div>
+
+          <h2 id="step-vs-persistent">Step Execution vs Persistent Clusters</h2>
+
+          <h3>Transient (Step) Clusters</h3>
+          <ul>
+            <li>Cluster launches → runs steps sequentially → auto-terminates on completion.</li>
+            <li><strong>Cost</strong>: Pay only for job duration. No idle costs.</li>
+            <li><strong>Overhead</strong>: 5–10 min cluster startup time per job run.</li>
+            <li><strong>Best for</strong>: Scheduled batch ETL (daily/hourly), infrequent large jobs, cost-sensitive workloads.</li>
+          </ul>
+
+          <h3>Persistent (Long-Running) Clusters</h3>
+          <ul>
+            <li>Cluster stays up indefinitely; jobs submitted via YARN, Spark submit, Livy, or notebooks.</li>
+            <li><strong>Cost</strong>: Continuous charges even when idle (mitigate with managed scaling to minimum).</li>
+            <li><strong>Best for</strong>: Interactive analysis (notebooks), streaming jobs, ad-hoc queries, jobs with shared state (HBase, Hive Metastore).</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Modern pattern:</strong> Use transient clusters orchestrated by Step Functions or Airflow for batch. Use EMR on EKS or EMR Serverless for interactive/ad-hoc — they eliminate the cluster lifecycle entirely.
+          </div>
+
+          <h2 id="spark-on-emr">Spark Configuration on EMR</h2>
+
+          <h3>spark-defaults.conf on EMR</h3>
+
+          <p>EMR provides <code>maximizeResourceAllocation</code> — a flag that auto-calculates Spark settings based on cluster hardware:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">EMR Classification Configuration</div>
+            <pre><code>[
+  {
+    "Classification": "spark",
+    "Properties": {
+      "maximizeResourceAllocation": "true"
+    }
+  },
+  {
+    "Classification": "spark-defaults",
+    "Properties": {
+      "spark.sql.adaptive.enabled": "true",
+      "spark.sql.adaptive.coalescePartitions.enabled": "true",
+      "spark.sql.adaptive.skewJoin.enabled": "true",
+      "spark.dynamicAllocation.enabled": "true",
+      "spark.dynamicAllocation.minExecutors": "2",
+      "spark.dynamicAllocation.maxExecutors": "100",
+      "spark.dynamicAllocation.executorIdleTimeout": "60s",
+      "spark.shuffle.service.enabled": "true",
+      "spark.serializer": "org.apache.spark.serializer.KryoSerializer",
+      "spark.sql.parquet.mergeSchema": "false",
+      "spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version": "2",
+      "spark.speculation": "true",
+      "spark.speculation.multiplier": "1.5"
+    }
+  },
+  {
+    "Classification": "spark-hive-site",
+    "Properties": {
+      "hive.metastore.client.factory.class": "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
+    }
+  }
+]</code></pre>
+          </div>
+
+          <h3>What maximizeResourceAllocation Does</h3>
+          <ul>
+            <li><code>spark.executor.memory</code> = (node RAM - YARN overhead - system reserve) / executors-per-node</li>
+            <li><code>spark.executor.cores</code> = (node vCPU - 1 for OS) / executors-per-node</li>
+            <li><code>spark.executor.instances</code> = total-nodes × executors-per-node</li>
+            <li><code>spark.default.parallelism</code> = executor-instances × executor-cores × 2</li>
+            <li>Sets <code>spark.driver.memory</code> equal to executor memory on the master</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>Pitfall:</strong> <code>maximizeResourceAllocation</code> disables dynamic allocation by default and creates 1 large executor per node. This can lead to GC pressure on big instances. For r5.4xlarge (128GB RAM), consider splitting into 2–3 executors per node with 40GB each + manual overhead calculation: <code>spark.executor.memoryOverhead = max(384MB, 0.10 × executorMemory)</code>.
+          </div>
+
+          <h2 id="emrfs-hdfs">EMRFS vs HDFS</h2>
+
+          <h3>EMRFS (S3-Backed Storage)</h3>
+          <ul>
+            <li><strong>Architecture</strong>: Translates Hadoop FileSystem API calls to S3 API calls. Appears as <code>s3://</code> paths.</li>
+            <li><strong>Consistency</strong>: S3 now provides strong read-after-write consistency (since Dec 2020). EMRFS consistent view (DynamoDB-based) is legacy and no longer needed.</li>
+            <li><strong>Advantages</strong>: Decoupled storage from compute (resize/terminate clusters freely), 11 9's durability, pay-per-GB, no replication factor, unlimited capacity.</li>
+            <li><strong>Drawbacks</strong>: Higher latency per operation (50-100ms per S3 GET vs 5ms HDFS), no data locality (network bottleneck for shuffle-heavy jobs).</li>
+          </ul>
+
+          <h3>HDFS (Local Cluster Storage)</h3>
+          <ul>
+            <li><strong>Use cases</strong>: Intermediate shuffle data, iterative ML algorithms (repeated reads of same data), HBase storage.</li>
+            <li><strong>Instance storage</strong>: Use i3/i3en instances with NVMe SSDs for HDFS — massive IOPS for shuffle-heavy workloads.</li>
+            <li><strong>Configuration</strong>: <code>dfs.replication=2</code> for transient clusters (data reconstructible from S3), <code>3</code> for persistent.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">EMRFS Optimization Settings</div>
+            <pre><code>{
+  "Classification": "emrfs-site",
+  "Properties": {
+    "fs.s3.maxConnections": "200",
+    "fs.s3.multipart.th.fraction.parts.completed": "0.95",
+    "fs.s3.maxRetries": "20",
+    "fs.s3.sleepTimeSeconds": "10",
+    "fs.s3.enableServerSideEncryption": "true",
+    "fs.s3.serverSideEncryption.kms.keyId": "arn:aws:kms:us-east-1:123:key/abc"
+  }
+}</code></pre>
+          </div>
+
+          <h2 id="managed-scaling">Managed Scaling</h2>
+
+          <p>EMR Managed Scaling automatically adds/removes instances based on workload metrics (YARN pending containers, memory utilization). No custom CloudWatch alarms or scaling policies needed.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Managed Scaling Policy</div>
+            <pre><code>aws emr put-managed-scaling-policy \
+  --cluster-id j-ABC123 \
+  --managed-scaling-policy '{
+    "ComputeLimits": {
+      "UnitType": "InstanceFleetUnits",
+      "MinimumCapacityUnits": 4,
+      "MaximumCapacityUnits": 100,
+      "MaximumOnDemandCapacityUnits": 20,
+      "MaximumCoreCapacityUnits": 10
+    }
+  }'</code></pre>
+          </div>
+
+          <ul>
+            <li><strong>Scale-up trigger</strong>: YARN pending containers exist for >30 seconds.</li>
+            <li><strong>Scale-down trigger</strong>: Idle task nodes with no running containers (after decommission timeout).</li>
+            <li><strong>Limits</strong>: <code>MaximumCoreCapacityUnits</code> caps core node growth (protecting HDFS). Excess scaling uses task nodes.</li>
+            <li><strong>Cool-down</strong>: Internal cool-down prevents thrashing (typically 2–5 minutes between scaling actions).</li>
+          </ul>
+
+          <h2 id="graviton-instances">Graviton Instances</h2>
+
+          <ul>
+            <li>ARM-based processors (r6g, m6g, c6g) offer 20–30% better price-performance vs x86 equivalents (r5, m5, c5).</li>
+            <li>EMR 6.x+ fully supports Graviton — Spark, Hive, Presto all run natively on ARM.</li>
+            <li><strong>Caveat</strong>: Custom native libraries (C/C++ JNI, Python extensions compiled for x86) may not work. Test all UDFs and dependencies before migrating.</li>
+            <li><strong>Migration path</strong>: Start with task nodes (lowest risk), validate performance, then move core/master.</li>
+          </ul>
+
+          <h2 id="emr-serverless">EMR Serverless</h2>
+
+          <p>Fully managed Spark/Hive/Presto runtime — no clusters, no instances, no capacity planning. You submit a job with resource requirements and EMR provisions workers automatically.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">EMR Serverless Job Submission</div>
+            <pre><code>aws emr-serverless start-job-run \
+  --application-id app-abc123 \
+  --execution-role-arn arn:aws:iam::123456789:role/emr-serverless-role \
+  --job-driver '{
+    "sparkSubmit": {
+      "entryPoint": "s3://my-bucket/scripts/etl.py",
+      "entryPointArguments": ["--date", "2024-01-15"],
+      "sparkSubmitParameters": "--conf spark.executor.cores=4 --conf spark.executor.memory=16g --conf spark.driver.cores=4 --conf spark.driver.memory=16g"
+    }
+  }' \
+  --configuration-overrides '{
+    "monitoringConfiguration": {
+      "s3MonitoringConfiguration": {
+        "logUri": "s3://my-bucket/emr-serverless-logs/"
+      }
+    }
+  }'</code></pre>
+          </div>
+
+          <ul>
+            <li><strong>Pre-initialized capacity</strong>: Keep workers warm for sub-second startup (costs money when idle but eliminates cold-start).</li>
+            <li><strong>Cost model</strong>: Pay per vCPU-hour and GB-hour of worker runtime. No idle charges without pre-initialized capacity.</li>
+            <li><strong>Limits</strong>: Max 4000 vCPUs per application (soft limit, increaseable). Max 15-minute startup without pre-init.</li>
+            <li><strong>Best for</strong>: Variable workloads, teams that don't want to manage infrastructure, dev/test environments.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Decision framework:</strong> EMR Serverless for simplicity + variable workloads. EMR on EKS for Kubernetes-native teams with existing clusters. EMR on EC2 for full Hadoop ecosystem needs or strict performance/cost control at scale.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">You're seeing 30% Spot interruptions on your EMR cluster, causing job failures. How do you fix this?</div>
+            <div class="qa-answer">
+              <p><strong>Root cause</strong>: Likely using too few instance types or the <code>lowest-price</code> allocation strategy (which concentrates in cheapest pools — also the most contested).</p>
+              <p><strong>Solution</strong>: (1) Switch to <code>capacity-optimized</code> allocation strategy — draws from Spot pools with the most spare capacity. (2) Diversify: add 10–15 instance types across multiple families (m5, m5a, m5n, m6g, c5, r5). (3) Move to Instance Fleets if using Instance Groups. (4) Ensure interruptible work is on task nodes only; core nodes should be On-Demand. (5) Enable Spark speculation: <code>spark.speculation=true</code> to re-launch tasks from interrupted nodes. (6) Increase YARN decommission timeout to let in-progress containers complete during the 2-minute Spot warning.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain the tradeoffs between maximizeResourceAllocation and manual Spark executor tuning on EMR.</div>
+            <div class="qa-answer">
+              <p><strong>maximizeResourceAllocation</strong> creates one large executor per node, using all available memory and cores. This minimizes JVM overhead (fewer processes) and maximizes memory for caching/broadcast.</p>
+              <p><strong>Drawbacks of single-large-executor</strong>: (1) GC pauses — one executor with 100GB heap can have 10+ second full GC. (2) HDFS throughput limited to 5 concurrent threads per executor regardless of cores. (3) One executor failure loses all its cached data. (4) Uneven memory utilization if tasks vary in size.</p>
+              <p><strong>Manual tuning approach</strong>: Split into multiple executors per node. Rule of thumb: 4–8 cores per executor, ~5GB executor memory per core, leave 1 core + 2–4GB for OS/YARN overhead. Example for r5.4xlarge (16 vCPU, 128GB): 3 executors × 5 cores × 38GB memory + 10% overhead = efficient use without GC pain.</p>
+              <p><strong>When to use each</strong>: <code>maximizeResourceAllocation</code> for simple jobs, small clusters, or proof-of-concepts. Manual tuning for production workloads at scale where GC, shuffle, and stability matter.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your EMR job reads from S3 and is 3x slower than expected. Walk through your debugging process.</div>
+            <div class="qa-answer">
+              <p><strong>Step 1 — Check S3 request patterns</strong>: Look at CloudTrail/S3 access logs. If you see millions of LIST calls, your table isn't registered in a catalog (Glue/Hive) and Spark is doing directory listing. Fix: use Glue Catalog or Delta/Iceberg tables.</p>
+              <p><strong>Step 2 — Check file sizes</strong>: Run <code>aws s3 ls --recursive</code> and analyze file size distribution. Thousands of files under 1MB → "small file problem" — each S3 GET has 50-100ms latency overhead. Fix: run compaction (OPTIMIZE) to create 128MB–1GB files.</p>
+              <p><strong>Step 3 — Check S3 throttling</strong>: Look for HTTP 503 SlowDown errors in EMR logs. S3 allows 5,500 GET/s per prefix. If all files share a prefix pattern, you're hitting rate limits. Fix: use hashed prefixes or partition structure that distributes requests.</p>
+              <p><strong>Step 4 — Check EMRFS config</strong>: Ensure <code>fs.s3.maxConnections</code> is high enough (default 50 is too low for large clusters). Set to 200+. Ensure multipart upload thresholds are tuned.</p>
+              <p><strong>Step 5 — Check Spark parallelism</strong>: If <code>spark.sql.files.maxPartitionBytes</code> is too large, few tasks read lots of data each (under-parallelized). If too small, too many tasks with S3 overhead dominate. Default 128MB is usually good.</p>
+              <p><strong>Step 6 — Check output committer</strong>: Ensure you're using <code>EMRFS S3-optimized committer</code> (algorithm v2 or EMR's proprietary committer) rather than v1 which does expensive rename operations on S3.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you choose EMR Serverless over EMR on EC2? What are the limitations?</div>
+            <div class="qa-answer">
+              <p><strong>Choose EMR Serverless when</strong>: (1) Team lacks Hadoop/EMR operational expertise. (2) Workloads are sporadic — don't want idle cluster costs. (3) Jobs are pure Spark/Hive/Presto with S3 I/O (no HDFS, HBase). (4) You want per-job cost isolation without managing cluster sharing. (5) Dev/test environments where fast iteration matters more than fine-tuned performance.</p>
+              <p><strong>Limitations</strong>: (1) No HDFS — all data must live in S3. (2) No persistent state between jobs (no shared Spark cache, no HBase). (3) Max vCPU caps per application (4000 default). (4) Cold start latency of 30–60s without pre-initialized capacity. (5) Less Spark tuning control — can't set certain JVM flags or use custom YARN configs. (6) No SSH access for debugging — rely entirely on S3 logs. (7) Higher per-vCPU-hour cost vs well-utilized On-Demand EC2 ($0.052/vCPU-hr Serverless vs ~$0.034/vCPU-hr m5.xlarge).</p>
+              <p><strong>Bottom line</strong>: EMR Serverless trades fine-grained control and cost efficiency (at steady-state) for operational simplicity and elasticity. It's not cheaper for 24/7 workloads but wins on total cost for bursty/variable patterns when you factor in idle cluster waste.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a cost-optimized EMR architecture for a data platform running 50 daily batch jobs of varying sizes (1GB to 5TB input).</div>
+            <div class="qa-answer">
+              <p><strong>Architecture</strong>: Hybrid approach using transient clusters + EMR Serverless based on job size.</p>
+              <p><strong>Small jobs (input &lt; 50GB, ~35 jobs)</strong>: Route to EMR Serverless. No cluster overhead, fast start, pay-per-use. These finish in minutes and the Serverless premium is offset by zero idle time.</p>
+              <p><strong>Large jobs (input &gt; 50GB, ~15 jobs)</strong>: Group into 3–4 transient EMR clusters by schedule window. Use Instance Fleets with capacity-optimized Spot for task nodes (80% Spot, 20% On-Demand baseline). Graviton instances (m6g, r6g) for 25% savings.</p>
+              <p><strong>Orchestration</strong>: Airflow/Step Functions dispatches jobs to Serverless or creates transient clusters based on estimated input size (from Glue Catalog table stats).</p>
+              <p><strong>Shared components</strong>: Single Glue Data Catalog for metadata. S3 for all storage. CloudWatch dashboards per job for cost attribution.</p>
+              <p><strong>Expected savings vs persistent cluster</strong>: 40–60% — eliminating 8–12 hours of daily idle time on a persistent cluster that's only busy during batch windows.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AWS</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

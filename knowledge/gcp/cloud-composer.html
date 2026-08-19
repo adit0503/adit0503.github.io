@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Cloud Composer & Airflow on GCP — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">GCP</a>
+        <span>→</span>
+        <span>Cloud Composer & Airflow</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">GCP</span>
+            <span class="read-time">10 min read</span>
+          </div>
+          <h1>Cloud Composer & Airflow on GCP</h1>
+          <p class="article-desc">Deep dive into Cloud Composer — managed Airflow on GKE, Composer 1 vs 2 architecture, environment sizing, DAG design patterns, GCP operator ecosystem, dependency management, monitoring, CI/CD for DAGs, cost optimization, and Airflow 2.x features for production data orchestration.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#architecture">Cloud Composer Architecture</a></li>
+            <li><a href="#composer-versions">Composer 1 vs Composer 2</a></li>
+            <li><a href="#environment-sizing">Environment Sizing</a></li>
+            <li><a href="#dag-patterns">DAG Design Patterns</a></li>
+            <li><a href="#gcp-operators">GCP Operator Ecosystem</a></li>
+            <li><a href="#dependency-management">Dependency Management</a></li>
+            <li><a href="#monitoring">Monitoring & Alerting</a></li>
+            <li><a href="#cicd-dags">CI/CD for DAGs</a></li>
+            <li><a href="#cost-optimization">Cost Optimization</a></li>
+            <li><a href="#airflow-2x">Airflow 2.x Features</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="architecture">Cloud Composer Architecture</h2>
+
+          <p>Cloud Composer is a fully managed Apache Airflow service running on Google Kubernetes Engine (GKE). Understanding the architecture helps with sizing, debugging, and cost optimization:</p>
+
+          <h3>Core Components</h3>
+          <ul>
+            <li><strong>Airflow Scheduler</strong>: Runs as a GKE pod. Parses DAG files, schedules task instances, triggers task execution. Heart of the system — if the scheduler is unhealthy, nothing runs.</li>
+            <li><strong>Airflow Workers</strong>: GKE pods that execute tasks. Use CeleryExecutor (Composer 1) or KubernetesExecutor (Composer 2) to run task instances.</li>
+            <li><strong>Airflow Webserver</strong>: GKE pod serving the Airflow UI. Accessed via Identity-Aware Proxy (IAP) for authentication.</li>
+            <li><strong>Triggerer</strong>: (Composer 2 / Airflow 2.2+) Lightweight process for deferred operators — holds thousands of waiting tasks without consuming worker resources.</li>
+            <li><strong>Cloud SQL (PostgreSQL)</strong>: Managed metadata database storing DAG state, task instances, XCom values, connections, variables.</li>
+            <li><strong>GCS DAG Bucket</strong>: DAG files synced from a GCS bucket to the scheduler/workers. Upload DAGs to GCS, and Composer picks them up automatically.</li>
+            <li><strong>Redis</strong>: (Composer 1 only) Message broker for Celery task queue between scheduler and workers.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Cloud Composer 2's biggest architectural improvement is autoscaling workers via KubernetesExecutor. Each task runs in its own pod — pods spin up on demand and terminate after task completion. No idle workers consuming resources between task executions. This fundamentally changes the cost model from "always-on infrastructure" to "pay-per-task-execution."
+          </div>
+
+          <h2 id="composer-versions">Composer 1 vs Composer 2</h2>
+
+          <table>
+            <thead>
+              <tr><th>Feature</th><th>Composer 1</th><th>Composer 2</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Executor</td><td>CeleryExecutor (fixed worker pool)</td><td>CeleryKubernetesExecutor or KubernetesExecutor (auto-scaling pods)</td></tr>
+              <tr><td>Worker scaling</td><td>Fixed count (manual scaling)</td><td>Autoscaling (0 to max workers based on task queue)</td></tr>
+              <tr><td>Cost model</td><td>Pay for fixed cluster 24/7</td><td>Pay for scheduler + workers only when tasks execute</td></tr>
+              <tr><td>Startup time</td><td>Worker always running (instant dispatch)</td><td>Pod spin-up ~30–60s per task (mitigated with worker min count)</td></tr>
+              <tr><td>Environment size</td><td>Small/Medium/Large (fixed GKE node pool)</td><td>Small/Medium/Large scheduler + autoscale workers</td></tr>
+              <tr><td>Triggerer</td><td>Not available</td><td>Built-in (supports deferrable operators)</td></tr>
+              <tr><td>Airflow version</td><td>1.x and 2.x</td><td>2.x only (recommended: 2.6+)</td></tr>
+              <tr><td>Private IP</td><td>Supported</td><td>Supported (default in Composer 2)</td></tr>
+              <tr><td>Resilience</td><td>Single scheduler instance</td><td>HA scheduler (2 scheduler pods default)</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout-warning">
+            <strong>Pitfall:</strong> Composer 1 to Composer 2 migration is NOT in-place. You must create a new Composer 2 environment, migrate DAGs, connections, variables, and pools, then cut over. There's no "upgrade" button. Plan for: (1) Export connections/variables via CLI, (2) Test all DAGs in new env, (3) Parallel run period, (4) DNS/trigger cutover.
+          </div>
+
+          <h2 id="environment-sizing">Environment Sizing</h2>
+
+          <h3>Scheduler Sizing</h3>
+          <ul>
+            <li><strong>Small</strong> (0.5 vCPU, 2GB): Up to ~100 DAGs, ~200 task instances/hour. Dev/test environments.</li>
+            <li><strong>Medium</strong> (2 vCPU, 4GB): 100–500 DAGs, ~1000 task instances/hour. Production with moderate complexity.</li>
+            <li><strong>Large</strong> (4 vCPU, 8GB): 500+ DAGs, thousands of task instances/hour. Large-scale production.</li>
+            <li><strong>Key metric</strong>: Scheduler heartbeat rate and parsing time. If DAG parsing takes &gt;30s for a file, the scheduler is undersized or DAGs need optimization.</li>
+          </ul>
+
+          <h3>Worker Configuration (Composer 2)</h3>
+          <ul>
+            <li><strong>Min workers</strong>: Set to 1–2 for always-warm capacity (avoids cold-start on first task). Set to 0 for maximum cost savings (but 30–60s startup delay).</li>
+            <li><strong>Max workers</strong>: Based on peak concurrent tasks. Each worker handles 1 task by default (configurable with <code>worker_concurrency</code>).</li>
+            <li><strong>CPU/Memory per worker</strong>: Default 0.5 vCPU, 2GB. Increase for memory-intensive tasks (large pandas operations, local Spark). Keep small if tasks are just API calls or operator invocations.</li>
+          </ul>
+
+          <h3>Triggerer Sizing</h3>
+          <ul>
+            <li>Handles deferrable operators (tasks waiting on external events). Very lightweight — one triggerer handles thousands of deferred tasks.</li>
+            <li>Default: 1 triggerer pod (0.5 vCPU, 0.5GB). Only scale if you have &gt;1000 concurrent deferred tasks.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Create Composer 2 Environment (gcloud CLI)</div>
+            <pre><code># Create a production Composer 2 environment
+gcloud composer environments create prod-orchestration \
+  --location=us-central1 \
+  --image-version=composer-2.7.1-airflow-2.7.3 \
+  --environment-size=medium \
+  --scheduler-cpu=2 \
+  --scheduler-memory=4 \
+  --scheduler-storage=2 \
+  --scheduler-count=2 \
+  --min-workers=2 \
+  --max-workers=16 \
+  --worker-cpu=1 \
+  --worker-memory=4 \
+  --worker-storage=2 \
+  --triggerer-count=1 \
+  --triggerer-cpu=0.5 \
+  --triggerer-memory=1 \
+  --service-account=composer-sa@my-project.iam.gserviceaccount.com \
+  --network=projects/my-project/global/networks/prod-vpc \
+  --subnetwork=projects/my-project/regions/us-central1/subnetworks/composer-subnet \
+  --enable-private-environment \
+  --enable-private-endpoint \
+  --master-ipv4-cidr=172.16.0.0/28
+
+# Set Airflow configuration overrides
+gcloud composer environments update prod-orchestration \
+  --location=us-central1 \
+  --update-airflow-configs=\
+core-parallelism=64,\
+core-max_active_runs_per_dag=3,\
+scheduler-dag_dir_list_interval=60,\
+celery-worker_concurrency=4,\
+webserver-dag_default_view=grid</code></pre>
+          </div>
+
+          <h2 id="dag-patterns">DAG Design Patterns</h2>
+
+          <h3>Idempotent Tasks</h3>
+          <ul>
+            <li><strong>Rule</strong>: Every task must produce the same result whether run once or N times. This enables safe retries and backfills.</li>
+            <li><strong>Pattern</strong>: Overwrite target partition (not append). Use MERGE/upsert instead of INSERT. Delete-then-write for non-Delta targets.</li>
+            <li><strong>Anti-pattern</strong>: INSERT INTO without deduplication — retried tasks create duplicate rows.</li>
+          </ul>
+
+          <h3>XComs (Cross-Communication)</h3>
+          <ul>
+            <li>Pass small data between tasks via the metadata database (stored in PostgreSQL).</li>
+            <li><strong>Limit</strong>: Keep XCom values small (&lt;48KB). Large XComs slow down the metadata DB and can cause serialization issues.</li>
+            <li><strong>Pattern for large data</strong>: Write to GCS, pass the GCS path as XCom value. Downstream task reads from GCS.</li>
+          </ul>
+
+          <h3>Dynamic DAGs</h3>
+          <ul>
+            <li>Generate DAGs programmatically from configuration (YAML/JSON files or database queries).</li>
+            <li><strong>Best practice</strong>: Generate at parse time (not execution time). Keep the config in GCS alongside DAGs — scheduler reads config during parsing.</li>
+            <li><strong>Gotcha</strong>: Don't query external databases during DAG parsing — this runs on every scheduler heartbeat (every 30s) and can overwhelm the DB.</li>
+          </ul>
+
+          <h3>Task Groups</h3>
+          <ul>
+            <li>Visual grouping of related tasks in the Airflow UI — replaces the deprecated SubDagOperator.</li>
+            <li>Lightweight — no separate DAG run, no scheduler overhead.</li>
+            <li>Use for: grouping transform tasks by domain, grouping quality checks, or creating reusable task patterns.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Production DAG with TaskFlow API & Task Groups</div>
+            <pre><code>from airflow.decorators import dag, task, task_group
+from airflow.providers.google.cloud.operators.bigquery import (
+    BigQueryInsertJobOperator,
+    BigQueryCheckOperator
+)
+from airflow.providers.google.cloud.transfers.gcs_to_bigquery import GCSToBigQueryOperator
+from datetime import datetime, timedelta
+
+default_args = {
+    "owner": "data-engineering",
+    "depends_on_past": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+    "retry_exponential_backoff": True,
+    "execution_timeout": timedelta(hours=2),
+    "sla": timedelta(hours=3),
+}
+
+@dag(
+    dag_id="daily_sales_pipeline",
+    schedule="0 6 * * *",  # 6 AM daily
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    default_args=default_args,
+    tags=["production", "sales", "daily"],
+    doc_md="""## Daily Sales Pipeline
+    Ingests raw sales data from GCS, transforms in BigQuery,
+    builds gold aggregates, and runs quality checks.
+    """,
+    max_active_runs=1,
+)
+def daily_sales_pipeline():
+
+    @task_group(group_id="ingest")
+    def ingest_raw():
+        """Ingest raw files from GCS to BigQuery staging."""
+        
+        load_orders = GCSToBigQueryOperator(
+            task_id="load_orders",
+            bucket="raw-data-landing",
+            source_objects=["sales/orders/dt={{ ds }}/*.parquet"],
+            destination_project_dataset_table="staging.raw_orders${{ ds_nodash }}",
+            source_format="PARQUET",
+            write_disposition="WRITE_TRUNCATE",  # Idempotent: overwrite partition
+            autodetect=True,
+        )
+
+        load_returns = GCSToBigQueryOperator(
+            task_id="load_returns",
+            bucket="raw-data-landing",
+            source_objects=["sales/returns/dt={{ ds }}/*.parquet"],
+            destination_project_dataset_table="staging.raw_returns${{ ds_nodash }}",
+            source_format="PARQUET",
+            write_disposition="WRITE_TRUNCATE",
+            autodetect=True,
+        )
+        
+        return [load_orders, load_returns]
+
+    @task_group(group_id="transform")
+    def transform_silver():
+        """Clean and conform raw data into silver tables."""
+        
+        transform_sql = BigQueryInsertJobOperator(
+            task_id="transform_orders",
+            configuration={
+                "query": {
+                    "query": """
+                        MERGE silver.orders AS target
+                        USING staging.raw_orders AS source
+                        ON target.order_id = source.order_id
+                        WHEN MATCHED AND source.updated_at > target.updated_at THEN
+                          UPDATE SET
+                            target.status = source.status,
+                            target.amount = source.amount,
+                            target.updated_at = source.updated_at
+                        WHEN NOT MATCHED THEN
+                          INSERT (order_id, customer_id, amount, status, created_at, updated_at)
+                          VALUES (source.order_id, source.customer_id, source.amount,
+                                  source.status, source.created_at, source.updated_at)
+                    """,
+                    "useLegacySql": False,
+                }
+            },
+        )
+        return transform_sql
+
+    @task_group(group_id="quality_checks")
+    def run_quality_checks():
+        """Data quality validation on silver tables."""
+        
+        check_row_count = BigQueryCheckOperator(
+            task_id="check_order_count",
+            sql="""
+                SELECT COUNT(*) > 0
+                FROM silver.orders
+                WHERE DATE(created_at) = '{{ ds }}'
+            """,
+            use_legacy_sql=False,
+        )
+
+        check_nulls = BigQueryCheckOperator(
+            task_id="check_no_null_amounts",
+            sql="""
+                SELECT COUNT(*) = 0
+                FROM silver.orders
+                WHERE amount IS NULL AND DATE(created_at) = '{{ ds }}'
+            """,
+            use_legacy_sql=False,
+        )
+        
+        return [check_row_count, check_nulls]
+
+    @task
+    def build_gold_aggregates():
+        """Build daily revenue aggregates."""
+        from google.cloud import bigquery
+        client = bigquery.Client()
+        query = """
+            CREATE OR REPLACE TABLE gold.daily_revenue
+            PARTITION BY order_date
+            CLUSTER BY region
+            AS
+            SELECT
+                DATE(created_at) AS order_date,
+                region,
+                COUNT(*) AS order_count,
+                SUM(amount) AS total_revenue,
+                AVG(amount) AS avg_order_value
+            FROM silver.orders
+            GROUP BY 1, 2
+        """
+        client.query(query).result()
+        return "Gold aggregates built successfully"
+
+    # DAG dependency chain
+    ingest_raw() >> transform_silver() >> run_quality_checks() >> build_gold_aggregates()
+
+daily_sales_pipeline()</code></pre>
+          </div>
+
+          <h2 id="gcp-operators">GCP Operator Ecosystem</h2>
+
+          <h3>Key GCP Operators</h3>
+          <table>
+            <thead>
+              <tr><th>Operator</th><th>Use Case</th><th>Key Parameters</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>BigQueryInsertJobOperator</td><td>Run SQL queries, DML, DDL</td><td>configuration (query config), project_id</td></tr>
+              <tr><td>BigQueryCheckOperator</td><td>Data quality assertions</td><td>sql (must return truthy value)</td></tr>
+              <tr><td>DataprocSubmitJobOperator</td><td>Submit Spark/Hive jobs</td><td>job (Spark job config), region, cluster_name</td></tr>
+              <tr><td>DataprocCreateClusterOperator</td><td>Create ephemeral Dataproc cluster</td><td>cluster_config, region, delete_on_error</td></tr>
+              <tr><td>GCSToBigQueryOperator</td><td>Load files from GCS to BQ</td><td>bucket, source_objects, destination</td></tr>
+              <tr><td>GCSObjectExistenceSensor</td><td>Wait for file arrival</td><td>bucket, object (supports glob patterns)</td></tr>
+              <tr><td>DataflowStartFlexTemplateOperator</td><td>Launch Dataflow jobs</td><td>body (FlexTemplate config), location</td></tr>
+              <tr><td>PubSubPublishMessageOperator</td><td>Publish event messages</td><td>topic, messages</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Deferrable Operators (Async)</h3>
+          <ul>
+            <li>Traditional sensors block a worker slot while waiting (polling every N seconds). Expensive at scale.</li>
+            <li>Deferrable operators free the worker and register with the Triggerer — zero worker resources consumed while waiting.</li>
+            <li><strong>Example</strong>: <code>BigQueryInsertJobOperator(deferrable=True)</code> — submits the BQ job and immediately frees the worker. Triggerer polls for completion.</li>
+          </ul>
+
+          <h2 id="dependency-management">Dependency Management</h2>
+
+          <h3>PyPI Packages</h3>
+          <ul>
+            <li>Install via environment config: <code>gcloud composer environments update ... --update-pypi-packages-from-file=requirements.txt</code></li>
+            <li><strong>Limitation</strong>: Package installs trigger environment update (5–15 min downtime). Plan installs during maintenance windows.</li>
+            <li><strong>Conflicts</strong>: Composer pins many packages (airflow, google-cloud-*). Adding packages with conflicting version requirements fails silently or causes import errors.</li>
+          </ul>
+
+          <h3>Custom Images (Composer 2)</h3>
+          <ul>
+            <li>Build custom Docker images extending the Composer base image — install OS-level dependencies, custom binaries, or pre-compiled wheels.</li>
+            <li><strong>Best practice</strong>: Use for heavy dependencies (pandas, numpy, dbt) that are slow to install via PyPI at pod startup.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Custom Composer Image (Dockerfile)</div>
+            <pre><code># Extend the official Composer image
+FROM us-docker.pkg.dev/cloud-airflow-releaser/airflow-worker-scheduler-2/airflow-worker-scheduler-2:composer-2.7.1-airflow-2.7.3
+
+# Install system dependencies
+USER root
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages (pinned versions)
+USER airflow
+COPY requirements.txt /opt/requirements.txt
+RUN pip install --no-cache-dir -r /opt/requirements.txt
+
+# requirements.txt:
+# dbt-bigquery==1.7.4
+# great-expectations==0.18.8
+# pandas==2.1.4
+# pyarrow==14.0.2</code></pre>
+          </div>
+
+          <h2 id="monitoring">Monitoring & Alerting</h2>
+
+          <h3>Airflow-Level Monitoring</h3>
+          <ul>
+            <li><strong>Airflow UI Grid View</strong>: Visual timeline of DAG runs and task states (success/failed/running/queued).</li>
+            <li><strong>Task duration trends</strong>: Detect performance degradation — tasks taking 2x longer than historical average.</li>
+            <li><strong>SLAs</strong>: Define expected completion time per task. SLA misses trigger email notifications and appear in the SLA Misses view.</li>
+          </ul>
+
+          <h3>Cloud Monitoring Metrics</h3>
+          <ul>
+            <li><code>composer.googleapis.com/environment/scheduler_heartbeat</code> — scheduler health (should be ~5s interval).</li>
+            <li><code>composer.googleapis.com/environment/worker/pod_eviction_count</code> — indicates memory pressure.</li>
+            <li><code>composer.googleapis.com/environment/dag_processing/total_parse_time</code> — DAG parsing performance.</li>
+            <li><code>composer.googleapis.com/environment/database/health</code> — metadata DB health.</li>
+            <li><strong>Alert policy</strong>: Alert if scheduler heartbeat &gt;30s, worker evictions &gt;0, or parse time &gt;60s.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Alerting DAG — Slack Notification on Failure</div>
+            <pre><code>from airflow.providers.slack.notifications.slack import send_slack_notification
+
+def task_failure_alert(context):
+    """Send Slack alert on task failure with context."""
+    send_slack_notification(
+        slack_conn_id="slack_webhook",
+        text=f"""
+:red_circle: *Task Failed*
+• DAG: `{context['dag'].dag_id}`
+• Task: `{context['task_instance'].task_id}`
+• Execution Date: {context['execution_date']}
+• Log URL: {context['task_instance'].log_url}
+• Exception: {context.get('exception', 'N/A')}
+        """,
+    )(context)
+
+# Apply to DAG
+default_args = {
+    "on_failure_callback": task_failure_alert,
+    "on_retry_callback": lambda ctx: print(f"Retrying {ctx['task_instance'].task_id}"),
+}</code></pre>
+          </div>
+
+          <h2 id="cicd-dags">CI/CD for DAGs</h2>
+
+          <h3>DAG Deployment Pipeline</h3>
+          <ul>
+            <li><strong>Source</strong>: DAGs stored in git repo (not edited directly in GCS).</li>
+            <li><strong>Validation</strong>: Pre-commit hooks run <code>python -c "import dag_file"</code> to catch syntax errors. Airflow CLI <code>dags test</code> for logical validation.</li>
+            <li><strong>Deploy</strong>: CI/CD pipeline (Cloud Build, GitHub Actions) syncs DAG files to the Composer GCS bucket on merge to main.</li>
+            <li><strong>Promotion</strong>: dev → staging → prod environments. Same DAGs, different connections/variables per environment.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Cloud Build CI/CD for Composer DAGs</div>
+            <pre><code># cloudbuild.yaml — Deploy DAGs to Composer
+steps:
+  # Step 1: Validate DAG syntax
+  - name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install apache-airflow==2.7.3 \
+          apache-airflow-providers-google==10.12.0 --quiet
+        for dag_file in dags/*.py; do
+          echo "Validating $dag_file..."
+          python -c "
+import sys
+sys.path.insert(0, 'dags')
+exec(open('$dag_file').read())
+print('  ✓ Valid')
+          " || exit 1
+        done
+
+  # Step 2: Run unit tests
+  - name: 'python:3.11'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -r requirements-test.txt --quiet
+        pytest tests/ -v --tb=short
+
+  # Step 3: Sync to Composer GCS bucket
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        DAGS_BUCKET=$(gcloud composer environments describe prod-orchestration \
+          --location=us-central1 \
+          --format="value(config.dagGcsPrefix)")
+        gsutil -m rsync -r -d dags/ ${DAGS_BUCKET}/
+        echo "DAGs synced to ${DAGS_BUCKET}"
+
+# Trigger on push to main branch
+trigger:
+  branch: main
+  includedFiles:
+    - 'dags/**'
+    - 'plugins/**'</code></pre>
+          </div>
+
+          <h2 id="cost-optimization">Cost Optimization</h2>
+
+          <h3>Composer 2 Cost Levers</h3>
+          <ul>
+            <li><strong>Right-size scheduler</strong>: Monitor CPU/memory utilization. Most teams over-provision schedulers — "medium" handles 500+ DAGs.</li>
+            <li><strong>Min workers = 0 or 1</strong>: For non-time-critical environments, set min_workers=0 to avoid idle worker costs. Accept 30–60s cold start.</li>
+            <li><strong>Deferrable operators</strong>: Use deferrable=True for sensors and long-running operators — frees worker pods (cost) while the triggerer (cheap) monitors completion.</li>
+            <li><strong>Task consolidation</strong>: Combine many tiny tasks into fewer batch tasks — reduces pod spin-up overhead and scheduler load.</li>
+            <li><strong>Environment sharing</strong>: One Composer environment for multiple teams (separate DAGs via folder conventions) rather than one environment per team.</li>
+          </ul>
+
+          <h3>Cost Breakdown</h3>
+          <ul>
+            <li><strong>Compute (GKE nodes)</strong>: ~60% of cost. Scheduler, workers, triggerer, webserver all run on GKE.</li>
+            <li><strong>Cloud SQL</strong>: ~20% of cost. Metadata database (fixed cost regardless of usage).</li>
+            <li><strong>GCS</strong>: ~5%. DAG storage, logs.</li>
+            <li><strong>Networking</strong>: ~15%. VPC, Private Google Access, IAP for webserver.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> The biggest cost optimization in Composer 2 vs Composer 1 is autoscaling workers. A typical data team has 50 DAGs running 6 AM–9 AM and mostly idle the rest of the day. Composer 1 pays for workers 24/7. Composer 2 with min_workers=1 scales to 10 workers during peak and back to 1 during off-hours — ~70% compute savings.
+          </div>
+
+          <h2 id="airflow-2x">Airflow 2.x Features</h2>
+
+          <h3>TaskFlow API</h3>
+          <ul>
+            <li>Pythonic syntax for defining tasks using <code>@task</code> decorator — XCom passing is implicit via return values.</li>
+            <li>Replaces verbose PythonOperator boilerplate. Type annotations enable auto-serialization.</li>
+            <li>Supports task dependencies via function call chaining — more readable than <code>&gt;&gt;</code> operator for complex flows.</li>
+          </ul>
+
+          <h3>Data-Aware Scheduling (Datasets)</h3>
+          <ul>
+            <li><strong>Datasets</strong>: Logical identifiers representing data produced by a task (e.g., a BigQuery table, a GCS path).</li>
+            <li><strong>Producer DAG</strong>: Declares that a task produces a dataset via <code>outlets=[Dataset("bq://project.dataset.table")]</code>.</li>
+            <li><strong>Consumer DAG</strong>: Scheduled on dataset updates instead of cron. <code>schedule=[Dataset("bq://project.dataset.table")]</code> triggers the DAG when the producer completes.</li>
+            <li><strong>Benefit</strong>: Event-driven orchestration without sensors or polling. Eliminates arbitrary cron offsets ("run 30min after the upstream DAG probably finishes").</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Data-Aware Scheduling with Datasets</div>
+            <pre><code>from airflow.decorators import dag, task
+from airflow.datasets import Dataset
+from datetime import datetime
+
+# Define datasets (logical identifiers)
+orders_dataset = Dataset("bq://my-project.silver.orders")
+revenue_dataset = Dataset("bq://my-project.gold.daily_revenue")
+
+# Producer DAG — runs on cron, produces a dataset
+@dag(
+    dag_id="ingest_orders",
+    schedule="0 6 * * *",
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+)
+def ingest_orders():
+    @task(outlets=[orders_dataset])  # Declares this task produces the orders dataset
+    def load_and_transform():
+        """Load raw orders and write to silver.orders."""
+        from google.cloud import bigquery
+        client = bigquery.Client()
+        client.query("INSERT INTO silver.orders SELECT * FROM staging.raw_orders").result()
+        return "Orders loaded"
+
+    load_and_transform()
+
+# Consumer DAG — triggers when orders_dataset is updated (no cron!)
+@dag(
+    dag_id="build_revenue_aggregates",
+    schedule=[orders_dataset],  # Event-driven: runs when orders_dataset updates
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+)
+def build_revenue():
+    @task(outlets=[revenue_dataset])
+    def aggregate_revenue():
+        """Build daily revenue from silver.orders."""
+        from google.cloud import bigquery
+        client = bigquery.Client()
+        client.query("""
+            CREATE OR REPLACE TABLE gold.daily_revenue AS
+            SELECT DATE(created_at) AS dt, SUM(amount) AS revenue
+            FROM silver.orders GROUP BY 1
+        """).result()
+        return "Revenue aggregated"
+
+    aggregate_revenue()
+
+ingest_orders()
+build_revenue()</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Cloud Composer environment is experiencing scheduler lag — DAGs are not being picked up on time. How do you diagnose and fix this?</div>
+            <div class="qa-answer">
+              <p><strong>Diagnosis steps:</strong></p>
+              <p>(1) <strong>Check scheduler heartbeat</strong>: Cloud Monitoring metric <code>scheduler_heartbeat</code>. If interval &gt;10s (normal is ~5s), the scheduler is overloaded.</p>
+              <p>(2) <strong>Check DAG parsing time</strong>: <code>dag_processing/total_parse_time</code> metric. If parsing takes &gt;30s, complex/numerous DAG files are bottlenecking the scheduler. Airflow re-parses ALL DAG files every <code>dag_dir_list_interval</code> (default 300s in Composer).</p>
+              <p>(3) <strong>Check metadata DB</strong>: If Cloud SQL CPU &gt;80%, the scheduler's metadata queries are slow. Common with large XCom tables or many task instances.</p>
+              <p>(4) <strong>Check worker queue depth</strong>: If tasks are queued but not starting, workers are saturated or pods can't schedule (GKE node pool exhausted).</p>
+              <p><strong>Fixes:</strong></p>
+              <p>(1) <strong>Reduce DAG complexity</strong>: Move top-level code out of DAG files (imports, configs). Use <code>.airflowignore</code> to exclude non-DAG files. Reduce DAG count by combining related DAGs.</p>
+              <p>(2) <strong>Scale scheduler</strong>: Increase scheduler CPU/memory. In Composer 2, add a second scheduler pod (HA mode) for parallelized parsing.</p>
+              <p>(3) <strong>Tune config</strong>: Increase <code>dag_dir_list_interval</code> (less frequent re-parsing). Increase <code>min_file_process_interval</code>. Reduce <code>max_active_runs_per_dag</code>.</p>
+              <p>(4) <strong>Database cleanup</strong>: Purge old task instances: <code>airflow db clean --clean-before-timestamp 2024-01-01</code>. Clear old XCom entries. Reduce log retention.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a CI/CD pipeline for deploying Airflow DAGs to Cloud Composer with proper validation and rollback capability.</div>
+            <div class="qa-answer">
+              <p><strong>Pipeline stages:</strong></p>
+              <p>(1) <strong>Static validation</strong> (PR check): Import each DAG file in a clean Python environment — catches syntax/import errors. Run <code>airflow dags test dag_id execution_date</code> for logical validation. Lint with ruff/pylint. Check for banned patterns (no top-level DB queries, no hardcoded credentials).</p>
+              <p>(2) <strong>Unit tests</strong> (PR check): Test custom operators, sensor logic, and transform functions in isolation (mock external services). Test DAG structure (correct dependencies, no cycles, expected task count).</p>
+              <p>(3) <strong>Deploy to staging</strong> (on merge to main): gsync DAG files to staging Composer GCS bucket. Wait for scheduler to parse (check <code>dag_processing/last_duration</code>). Run integration tests — trigger DAG runs with test data, verify output.</p>
+              <p>(4) <strong>Deploy to production</strong> (manual approval or automated after staging success): Sync to prod GCS bucket. Monitor for 1 hour — check for import errors, task failures, SLA misses.</p>
+              <p><strong>Rollback</strong>: GCS versioning enabled on DAG bucket. Rollback = copy previous version from GCS version history. Alternative: keep last-known-good commit SHA, gsync from that commit on failure. Automation: if &gt;3 task failures in 30 min post-deploy, auto-rollback to previous version.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain Airflow Datasets (data-aware scheduling). How does this compare to sensor-based triggering? What are the limitations?</div>
+            <div class="qa-answer">
+              <p><strong>How Datasets work:</strong> Producer tasks declare <code>outlets=[Dataset("uri")]</code>. When the task succeeds, Airflow records that the dataset was updated. Consumer DAGs with <code>schedule=[Dataset("uri")]</code> are triggered by dataset update events — no polling, no sensors.</p>
+              <p><strong>Advantages over sensors:</strong> (1) Zero resource consumption while waiting — no worker slots blocked. (2) Guaranteed triggering — the scheduler handles event propagation (no missed polling intervals). (3) Multi-dataset triggers: <code>schedule=[dataset_a, dataset_b]</code> waits for ALL datasets before triggering (implicit AND). (4) Clear dependency visualization in the Airflow UI (Dataset tab).</p>
+              <p><strong>Limitations:</strong> (1) Only works within the same Airflow instance — cross-environment triggers still need sensors or external events. (2) URI is a logical identifier only — Airflow doesn't verify the dataset actually changed (the producer task completing is the signal). (3) No conditional triggering (e.g., "trigger only if dataset has &gt;1000 rows"). (4) OR logic not natively supported (workaround: intermediate DAG). (5) Limited to DAG scheduling — can't use datasets to trigger individual tasks within a DAG.</p>
+              <p><strong>Best practice:</strong> Use Datasets for all intra-Airflow dependencies (replaces ExternalTaskSensor). Keep sensors for external system dependencies (waiting for a file in GCS, an API to return success, or a partition to appear in BigQuery).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Cloud Composer with self-managed Airflow on GKE. When would you choose each?</div>
+            <div class="qa-answer">
+              <p><strong>Choose Cloud Composer when:</strong> (1) Team size &lt;5 data engineers — don't want to dedicate 0.5–1 FTE to Airflow ops. (2) Standard Airflow usage (DAGs, operators, sensors) without exotic customization. (3) Need managed upgrades — Composer handles Airflow version upgrades, security patches, GKE node pool management. (4) Compliance requirements — Composer provides SLA guarantees and integrates with GCP audit logging. (5) Fast time-to-value — environment ready in 30 min vs days for self-managed.</p>
+              <p><strong>Choose self-managed Airflow on GKE when:</strong> (1) Need custom Airflow components (custom executors, non-standard auth backends, heavily modified webserver). (2) Very large scale (1000+ DAGs, 50K+ task instances/day) where Composer's fixed architecture limits performance. (3) Cost sensitivity at scale — Composer adds ~40% premium over raw GKE costs. At high scale, self-managing saves significant money. (4) Need latest Airflow version immediately (Composer lags by 1–3 months). (5) Multi-cluster Airflow (separate schedulers for different teams with shared metadata).</p>
+              <p><strong>Hybrid approach:</strong> Start with Composer for fast iteration. If you hit limitations (cost, customization, scale), migrate to self-managed — DAGs are portable, only infrastructure changes.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">GCP</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

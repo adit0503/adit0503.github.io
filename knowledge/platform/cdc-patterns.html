@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CDC Patterns — DMS, GoldenGate & Debezium — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Platform</a>
+        <span>→</span>
+        <span>CDC Patterns</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Platform</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>CDC Patterns — DMS, GoldenGate & Debezium</h1>
+          <p class="article-desc">Deep dive into Change Data Capture fundamentals — log-based vs query-based vs trigger-based approaches, binlog/WAL/redo log internals, AWS DMS architecture, Oracle GoldenGate bidirectional replication, Debezium with Kafka Connect, CDC-to-lakehouse patterns, exactly-once delivery challenges, schema evolution, and production monitoring.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#cdc-fundamentals">CDC Fundamentals</a></li>
+            <li><a href="#log-based-internals">Log-Based CDC Internals</a></li>
+            <li><a href="#aws-dms">AWS DMS Architecture & Patterns</a></li>
+            <li><a href="#goldengate">Oracle GoldenGate</a></li>
+            <li><a href="#debezium">Debezium & Kafka Connect</a></li>
+            <li><a href="#cdc-lakehouse">CDC to Lakehouse Patterns</a></li>
+            <li><a href="#exactly-once">Exactly-Once Delivery Challenges</a></li>
+            <li><a href="#schema-evolution">Schema Evolution in CDC</a></li>
+            <li><a href="#ordering">Ordering Guarantees</a></li>
+            <li><a href="#monitoring">Monitoring CDC Pipelines</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="cdc-fundamentals">CDC Fundamentals</h2>
+
+          <p>Change Data Capture (CDC) is the process of identifying and capturing changes made to data in a source system, then delivering those changes to downstream consumers in near real-time. Three fundamental approaches exist:</p>
+
+          <h3>Log-Based CDC</h3>
+          <ul>
+            <li>Reads the database's transaction log (binlog, WAL, redo log) to extract committed changes. The transaction log is an append-only record of every modification.</li>
+            <li><strong>Advantages</strong>: Minimal impact on source database (reads log files, not query tables), captures all changes including DELETEs, preserves transaction ordering, sub-second latency achievable.</li>
+            <li><strong>Disadvantages</strong>: Requires database-specific knowledge, log format can change between versions, log retention management needed, initial snapshot separate from ongoing CDC.</li>
+            <li><strong>Used by</strong>: Debezium, DMS, GoldenGate, Maxwell, Canal.</li>
+          </ul>
+
+          <h3>Query-Based CDC</h3>
+          <ul>
+            <li>Polls the source database periodically using SQL queries to detect changes (usually via a <code>last_modified</code> timestamp or version column).</li>
+            <li><strong>Pattern</strong>: <code>SELECT * FROM orders WHERE updated_at > :last_check_timestamp</code></li>
+            <li><strong>Advantages</strong>: Simple to implement, database-agnostic, no special permissions needed.</li>
+            <li><strong>Disadvantages</strong>: Cannot capture DELETEs (row is gone), higher source load (repeated full-table scans), latency limited by polling interval, misses changes between polls if timestamp resolution is insufficient.</li>
+            <li><strong>Used by</strong>: Kafka Connect JDBC Source (timestamp+incrementing mode), Sqoop incremental imports, custom ETL scripts.</li>
+          </ul>
+
+          <h3>Trigger-Based CDC</h3>
+          <ul>
+            <li>Database triggers fire on INSERT/UPDATE/DELETE and write changes to a shadow/audit table. CDC consumer reads from the shadow table.</li>
+            <li><strong>Advantages</strong>: Captures all operations (including DELETEs), works with any database supporting triggers, captures before/after images.</li>
+            <li><strong>Disadvantages</strong>: Significant performance impact on source (trigger fires on every write), doubles write load, complex trigger maintenance, schema changes require trigger updates.</li>
+            <li><strong>Used by</strong>: Legacy CDC implementations, audit logging systems. Generally discouraged for high-volume production CDC.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Decision framework:</strong> Log-based CDC is the gold standard for production systems. Use query-based only when log access is impossible (managed databases without log export, third-party systems). Never use trigger-based for high-throughput OLTP systems — the performance penalty makes it impractical above ~1000 TPS.
+          </div>
+
+          <h2 id="log-based-internals">Log-Based CDC Internals</h2>
+
+          <h3>MySQL Binary Log (Binlog)</h3>
+          <ul>
+            <li><strong>What it is</strong>: An ordered sequence of events describing data modifications. Used for replication and point-in-time recovery.</li>
+            <li><strong>Formats</strong>: STATEMENT (logs SQL), ROW (logs actual row changes — required for CDC), MIXED (combination). CDC requires ROW format.</li>
+            <li><strong>Row format details</strong>: Each binlog event contains table_id, column values BEFORE (for UPDATE/DELETE) and AFTER (for INSERT/UPDATE). Controlled by <code>binlog_row_image</code>: FULL (all columns), MINIMAL (only changed + PK columns), NOBLOB.</li>
+            <li><strong>CDC reads binlog by</strong>: Connecting as a replication replica — using the MySQL replication protocol (<code>COM_BINLOG_DUMP</code> command). This is a streaming connection — changes are pushed as they're committed.</li>
+            <li><strong>GTID (Global Transaction ID)</strong>: MySQL 5.6+ supports GTIDs which provide unique transaction identifiers across the cluster. CDC tools use GTIDs for reliable position tracking (no more binlog file + position fragility).</li>
+          </ul>
+
+          <h3>PostgreSQL Write-Ahead Log (WAL)</h3>
+          <ul>
+            <li><strong>What it is</strong>: PostgreSQL's transaction log — every committed change is written to WAL before being applied to data files. Ensures durability and crash recovery.</li>
+            <li><strong>Logical decoding</strong>: PostgreSQL 9.4+ can decode WAL entries into logical change events (INSERT, UPDATE, DELETE with row data). Requires <code>wal_level = logical</code>.</li>
+            <li><strong>Replication slots</strong>: A slot reserves WAL segments for a consumer. Ensures no WAL is recycled before the consumer reads it. Critical for reliable CDC — but dangerous if consumer stops (WAL accumulates unbounded).</li>
+            <li><strong>Output plugins</strong>: <code>pgoutput</code> (native, used by Debezium), <code>wal2json</code> (JSON output), <code>test_decoding</code> (text output for debugging).</li>
+            <li><strong>Publication/Subscription</strong>: PostgreSQL 10+ native logical replication. Define a PUBLICATION (set of tables) and SUBSCRIPTION (consumer). Debezium uses this mechanism internally.</li>
+          </ul>
+
+          <h3>Oracle Redo Log</h3>
+          <ul>
+            <li><strong>What it is</strong>: Oracle's transaction log. Online redo logs are circular (overwritten). Archive logs are sequential copies preserved for recovery.</li>
+            <li><strong>LogMiner</strong>: Oracle's SQL-based interface to read redo/archive logs. Returns change records as SQL statements. Used by DMS (default mode) and some Debezium configurations.</li>
+            <li><strong>Supplemental logging</strong>: Must be enabled for CDC — ensures redo logs contain enough column data to reconstruct before/after images. Without it, only changed columns are logged (insufficient for MERGE operations downstream).</li>
+            <li><strong>Binary Reader</strong>: Direct binary parsing of redo logs. Faster than LogMiner, lower source impact. Used by GoldenGate and DMS Binary Reader mode.</li>
+            <li><strong>ASM (Automatic Storage Management)</strong>: If redo logs are on ASM, binary reader needs ASM access. LogMiner works regardless of storage.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">MySQL Binlog CDC Setup</div>
+            <pre><code>-- Enable ROW-based binlog (my.cnf or RDS parameter group)
+[mysqld]
+server-id = 1
+log_bin = mysql-bin
+binlog_format = ROW
+binlog_row_image = FULL
+expire_logs_days = 7
+gtid_mode = ON
+enforce_gtid_consistency = ON
+
+-- Create CDC user with replication privileges
+CREATE USER 'cdc_user'@'%' IDENTIFIED BY 'secure_password';
+GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'cdc_user'@'%';
+FLUSH PRIVILEGES;
+
+-- Verify binlog is working
+SHOW MASTER STATUS;
+SHOW BINARY LOGS;
+SHOW BINLOG EVENTS IN 'mysql-bin.000042' LIMIT 10;</code></pre>
+          </div>
+
+          <h2 id="aws-dms">AWS DMS Architecture & Patterns</h2>
+
+          <h3>Architecture Components</h3>
+          <ul>
+            <li><strong>Replication Instance</strong>: EC2-based engine that performs the data movement. Sized by vCPU/memory. Multi-AZ for production HA.</li>
+            <li><strong>Source/Target Endpoints</strong>: Connection configurations with credentials, SSL, and engine-specific settings.</li>
+            <li><strong>Replication Task</strong>: Defines the migration — table mappings, transformations, task type (Full Load, CDC, or both).</li>
+          </ul>
+
+          <h3>DMS CDC Patterns</h3>
+          <ul>
+            <li><strong>Pattern 1 — Database to S3 Lake</strong>: DMS captures CDC → writes Parquet to S3 with date partitions → downstream job MERGEs into Iceberg/Delta. Most common lakehouse ingestion pattern.</li>
+            <li><strong>Pattern 2 — Database to Kafka</strong>: DMS publishes CDC events to MSK topics (one topic per table). Downstream consumers process independently. Lower latency than S3 pattern.</li>
+            <li><strong>Pattern 3 — Database to Database</strong>: DMS replicates between OLTP databases (Oracle to PostgreSQL migration). Full load + ongoing CDC until cutover.</li>
+            <li><strong>Pattern 4 — Multi-task fan-out</strong>: Multiple DMS tasks from same source to different targets (S3 + Kafka + Redshift simultaneously). Each task reads from the same log position independently.</li>
+          </ul>
+
+          <h3>DMS Limitations</h3>
+          <ul>
+            <li>At-least-once delivery only — duplicates possible during restarts. Downstream must handle idempotency.</li>
+            <li>Limited DDL support — complex schema changes may require task restart.</li>
+            <li>No transformation beyond basic rename/filter — complex logic needs a downstream processing layer.</li>
+            <li>Managed black box — limited debugging visibility when issues occur.</li>
+          </ul>
+
+          <h2 id="goldengate">Oracle GoldenGate</h2>
+
+          <h3>Architecture</h3>
+          <ul>
+            <li><strong>Extract process</strong>: Reads source transaction log (redo/archive logs) and writes changes to local trail files. Runs on or near the source database server.</li>
+            <li><strong>Trail files</strong>: Proprietary binary format storing captured changes. Sequential, append-only. Stored locally or on shared storage. Configurable retention and sizing.</li>
+            <li><strong>Data Pump</strong>: Optional process that moves trail files from source system to target system over the network. Handles network interruptions gracefully.</li>
+            <li><strong>Replicat process</strong>: Reads trail files on the target side and applies changes to the target database. Supports parallel apply, conflict detection, and custom mapping.</li>
+            <li><strong>Manager process</strong>: Controls all other processes, manages ports, handles trail file cleanup, reports status.</li>
+          </ul>
+
+          <h3>Bidirectional Replication</h3>
+          <ul>
+            <li>GoldenGate supports active-active (bidirectional) replication between two or more databases. Both sides can receive writes.</li>
+            <li><strong>Conflict Detection</strong>: When the same row is modified on both sides, GoldenGate detects the conflict using before-image comparison.</li>
+            <li><strong>Conflict Resolution</strong>: Configurable strategies — timestamp-based (latest wins), site priority (primary site wins), custom PL/SQL resolution procedures.</li>
+            <li><strong>Loop prevention</strong>: Each transaction is tagged with its origin. Replicat skips changes that originated from its own site — preventing infinite replication loops.</li>
+          </ul>
+
+          <h3>GoldenGate for Big Data</h3>
+          <ul>
+            <li>GoldenGate for Big Data extends replication to non-Oracle targets: HDFS, Kafka, HBase, Cassandra, Elasticsearch, S3.</li>
+            <li><strong>Handlers</strong>: Java-based handlers format and write data to each target type. Kafka handler supports Avro/JSON with schema registry integration.</li>
+            <li><strong>Use case</strong>: Oracle OLTP → GoldenGate → Kafka → Spark Streaming → Data Lake. Sub-second latency from Oracle to analytics.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">GoldenGate Extract Configuration</div>
+            <pre><code>-- Extract process configuration (source side)
+EXTRACT ext_prod
+USERID ogg_user, PASSWORD ogg_pass
+EXTTRAIL ./dirdat/aa
+TRANLOGOPTIONS EXCLUDETAG 00
+REPORTCOUNT EVERY 60 SECONDS, RATE
+
+-- Capture all DML on specified tables
+TABLE hr.employees;
+TABLE hr.departments;
+TABLE sales.orders, COLS (order_id, customer_id, amount, status, updated_at);
+
+-- Filter: only capture rows where region = 'US'
+TABLE sales.transactions, FILTER (@STREQ(region, 'US'));
+
+-- Replicat process configuration (target side)
+REPLICAT rep_target
+USERID target_user, PASSWORD target_pass
+ASSUMETARGETDEFS
+DISCARDFILE ./dirrpt/rep_target.dsc, PURGE
+
+-- Apply with conflict resolution
+MAP hr.employees, TARGET hr.employees,
+  RESOLVECONFLICT (UPDATEROWEXISTS, (DEFAULT, USEMAX (updated_at))),
+  RESOLVECONFLICT (INSERTROWEXISTS, (DEFAULT, OVERWRITE));
+
+MAP sales.orders, TARGET analytics.orders_replica;</code></pre>
+          </div>
+
+          <h2 id="debezium">Debezium & Kafka Connect</h2>
+
+          <h3>Architecture</h3>
+          <ul>
+            <li>Debezium is a set of Kafka Connect source connectors that capture changes from databases and publish them as events to Kafka topics.</li>
+            <li><strong>Kafka Connect framework</strong>: Provides distributed, fault-tolerant, scalable execution. Handles offset management, task distribution, and worker coordination.</li>
+            <li><strong>Connectors available</strong>: MySQL, PostgreSQL, MongoDB, SQL Server, Oracle, Cassandra, Vitess, DB2, Spanner.</li>
+            <li><strong>Output format</strong>: Each change event contains: before (previous row state), after (new row state), source (metadata — database, table, position), op (c=create, u=update, d=delete, r=read/snapshot).</li>
+          </ul>
+
+          <h3>Snapshotting</h3>
+          <ul>
+            <li><strong>Initial snapshot</strong>: On first start, Debezium reads the entire current state of each table (SELECT *) and publishes as "read" events. Then switches to streaming mode for ongoing changes.</li>
+            <li><strong>Snapshot modes</strong>: <code>initial</code> (full snapshot then streaming), <code>schema_only</code> (capture schema but skip data — start streaming from current position), <code>never</code> (only streaming, must have valid offsets), <code>when_needed</code> (re-snapshot if offsets are lost).</li>
+            <li><strong>Incremental snapshots</strong> (Debezium 1.6+): Snapshot specific tables without stopping streaming. Uses a signaling table — INSERT a signal row to trigger snapshot of a table. Interleaves snapshot chunks with streaming changes.</li>
+          </ul>
+
+          <h3>Outbox Pattern</h3>
+          <ul>
+            <li>Application writes business events to an outbox table within the same database transaction as the domain change. Debezium captures the outbox table changes and publishes to Kafka.</li>
+            <li><strong>Why</strong>: Ensures exactly-once semantics between database state and Kafka — no dual-write problem. If the transaction commits, the event is guaranteed to be published (eventually).</li>
+            <li><strong>Implementation</strong>: Debezium's <code>outbox.event.router</code> SMT routes events from the outbox table to the appropriate Kafka topic based on the event's aggregate type.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Debezium PostgreSQL Connector Configuration</div>
+            <pre><code>{
+  "name": "pg-source-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "prod-db.internal",
+    "database.port": "5432",
+    "database.user": "debezium",
+    "database.password": "${secrets:pg-password}",
+    "database.dbname": "production",
+    "topic.prefix": "cdc.production",
+    "schema.include.list": "public,sales",
+    "table.include.list": "public.customers,public.orders,sales.transactions",
+    
+    "plugin.name": "pgoutput",
+    "slot.name": "debezium_slot",
+    "publication.name": "dbz_publication",
+    
+    "snapshot.mode": "initial",
+    "snapshot.fetch.size": 10240,
+    
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry:8081",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry:8081",
+    
+    "transforms": "unwrap,route",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.add.fields": "op,table,source.ts_ms",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "([^.]+)\\.([^.]+)\\.([^.]+)",
+    "transforms.route.replacement": "cdc_$3",
+    
+    "heartbeat.interval.ms": 10000,
+    "tombstones.on.delete": true,
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "adaptive_time_microseconds"
+  }
+}</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Debezium best practice:</strong> Always use Avro + Schema Registry for production CDC topics. JSON is convenient for development but 3-5x larger and lacks schema evolution guarantees. Avro ensures consumers can handle schema changes gracefully through compatibility checks.
+          </div>
+
+          <h2 id="cdc-lakehouse">CDC to Lakehouse Patterns</h2>
+
+          <h3>Pattern 1: CDC → S3 → MERGE into Iceberg</h3>
+          <ol>
+            <li><strong>Ingestion</strong>: DMS/Debezium writes CDC events as Parquet files to S3, date-partitioned (s3://raw/table/dt=2026-01-15/).</li>
+            <li><strong>Apply job</strong>: Scheduled Spark job reads new CDC files, applies operations to the target Iceberg table using MERGE INTO.</li>
+            <li><strong>MERGE logic</strong>: Match on primary key. WHEN MATCHED AND op='d' THEN DELETE. WHEN MATCHED AND op='u' THEN UPDATE. WHEN NOT MATCHED AND op='c' THEN INSERT.</li>
+            <li><strong>Frequency</strong>: Every 5-15 minutes for near-real-time. Hourly for batch-oriented platforms. Micro-batch with Spark Structured Streaming for sub-minute.</li>
+          </ol>
+
+          <h3>Pattern 2: CDC → Kafka → Spark Streaming → Delta</h3>
+          <ol>
+            <li><strong>Ingestion</strong>: Debezium publishes CDC events to Kafka topics in real-time.</li>
+            <li><strong>Processing</strong>: Spark Structured Streaming reads from Kafka, applies business logic (deduplication, enrichment), writes to Delta Lake using <code>foreachBatch</code> with MERGE.</li>
+            <li><strong>Latency</strong>: End-to-end 10-60 seconds depending on micro-batch interval.</li>
+            <li><strong>Advantage</strong>: Single pipeline handles both streaming and late-arriving data. Delta's ACID guarantees prevent partial writes.</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">CDC MERGE into Iceberg (Spark SQL)</div>
+            <pre><code>-- Read new CDC files from S3 (incremental — only new files since last run)
+CREATE TEMPORARY VIEW cdc_changes AS
+SELECT *, ROW_NUMBER() OVER (
+    PARTITION BY primary_key 
+    ORDER BY _dms_ingestion_timestamp DESC
+) as rn
+FROM parquet.`s3://raw-cdc/orders/dt=2026-01-15/`
+WHERE rn = 1;  -- Deduplicate: keep only latest change per key
+
+-- Apply CDC operations to target Iceberg table
+MERGE INTO catalog.curated.orders AS target
+USING cdc_changes AS source
+ON target.order_id = source.order_id
+WHEN MATCHED AND source.Op = 'D' THEN DELETE
+WHEN MATCHED AND source.Op IN ('U', 'I') THEN UPDATE SET
+    target.customer_id = source.customer_id,
+    target.amount = source.amount,
+    target.status = source.status,
+    target.updated_at = source.updated_at,
+    target._cdc_timestamp = source._dms_ingestion_timestamp
+WHEN NOT MATCHED AND source.Op IN ('I', 'U') THEN INSERT (
+    order_id, customer_id, amount, status, updated_at, _cdc_timestamp
+) VALUES (
+    source.order_id, source.customer_id, source.amount, 
+    source.status, source.updated_at, source._dms_ingestion_timestamp
+);</code></pre>
+          </div>
+
+          <h2 id="exactly-once">Exactly-Once Delivery Challenges</h2>
+
+          <ul>
+            <li><strong>The fundamental problem</strong>: CDC involves two systems (source database + target). Ensuring each change is applied exactly once requires distributed transaction coordination — which is impractical at scale.</li>
+            <li><strong>At-least-once reality</strong>: All CDC tools (DMS, Debezium, GoldenGate) provide at-least-once delivery. Duplicates occur during restarts, rebalances, and network partitions.</li>
+            <li><strong>Idempotent apply</strong>: The target must handle duplicates gracefully. MERGE INTO is naturally idempotent (applying the same update twice produces the same result). INSERT-only targets need deduplication.</li>
+            <li><strong>Kafka exactly-once</strong>: Debezium with Kafka transactions (EOS) provides exactly-once within Kafka — but not end-to-end to the final target. The consumer-to-target leg must still be idempotent.</li>
+            <li><strong>Deduplication strategies</strong>: (1) Primary key-based MERGE (most common), (2) Event ID + dedup window (track processed event IDs in a state store), (3) Optimistic locking (version column comparison before apply).</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>Common mistake:</strong> Teams assume Kafka's exactly-once semantics solve the entire problem. EOS only guarantees exactly-once within the Kafka ecosystem (produce → topic → consume). The final write to a database/lake is still at-least-once unless the consumer implements idempotent writes. Always design your target apply logic to be idempotent — MERGE with primary key matching, or upsert with version/timestamp comparison.
+          </div>
+
+          <h2 id="schema-evolution">Schema Evolution in CDC</h2>
+
+          <h3>Types of Schema Changes</h3>
+          <ul>
+            <li><strong>Additive (safe)</strong>: ADD COLUMN — new records have the column, old records have NULL. All CDC tools handle this gracefully.</li>
+            <li><strong>Type widening (mostly safe)</strong>: INT → BIGINT, VARCHAR(50) → VARCHAR(200). Log-based CDC captures the new type. Target schema needs updating.</li>
+            <li><strong>Breaking</strong>: DROP COLUMN, RENAME COLUMN, ALTER TYPE (narrowing), table RENAME. These can break CDC pipelines.</li>
+          </ul>
+
+          <h3>Handling Strategies</h3>
+          <ul>
+            <li><strong>Debezium</strong>: Publishes schema change events to a dedicated topic (<code>schema-changes.inventory</code>). Consumers can react to schema changes proactively. Avro schema registry enforces compatibility — breaking changes are rejected at the registry level.</li>
+            <li><strong>DMS</strong>: Limited DDL handling. ADD COLUMN works. Breaking DDL may require task stop → manual schema sync → restart. Use EventBridge to automate detection and response.</li>
+            <li><strong>GoldenGate</strong>: DDL replication supported (can replicate CREATE/ALTER/DROP statements). Most robust DDL handling among the three.</li>
+            <li><strong>Target-side evolution</strong>: Iceberg and Delta Lake support schema evolution natively (mergeSchema, addColumns). The apply layer should enable schema evolution to absorb new columns automatically.</li>
+          </ul>
+
+          <h2 id="ordering">Ordering Guarantees</h2>
+
+          <ul>
+            <li><strong>Within a single row</strong>: All CDC tools guarantee ordering for changes to the same primary key. An INSERT → UPDATE → DELETE sequence will be delivered in order.</li>
+            <li><strong>Across rows in same transaction</strong>: GoldenGate preserves transaction boundaries. Debezium preserves ordering within a topic partition. DMS applies in transaction order (with BatchApplyPreserveTransaction).</li>
+            <li><strong>Kafka partitioning</strong>: Debezium uses the primary key as the Kafka message key → same key always goes to same partition → ordering within a key is guaranteed. Cross-key ordering requires single-partition topics (which limits throughput).</li>
+            <li><strong>Multi-table transactions</strong>: If a transaction spans tables A and B, and they map to different Kafka topics, the consumer sees changes independently. Reconstructing the original transaction boundary requires the transaction ID metadata field.</li>
+            <li><strong>Out-of-order handling</strong>: For targets receiving events out of order (possible with multi-partition topics), use a "latest wins" strategy — compare <code>source.ts_ms</code> (source transaction timestamp) and only apply if newer than current target row.</li>
+          </ul>
+
+          <h2 id="monitoring">Monitoring CDC Pipelines</h2>
+
+          <h3>Key Metrics</h3>
+          <ul>
+            <li><strong>Replication lag</strong>: Time between source commit and target apply. The primary health indicator. Alarm threshold depends on SLA (sub-second for real-time, minutes for near-real-time).</li>
+            <li><strong>Throughput</strong>: Events/second being captured and applied. Monitor for drops (source issue) or spikes (batch jobs, migrations).</li>
+            <li><strong>Consumer lag (Kafka)</strong>: Difference between latest offset and consumer's current offset. Growing lag = consumer can't keep up.</li>
+            <li><strong>Source log retention</strong>: Available log history. If CDC falls behind and logs expire, a re-snapshot is needed (expensive). Monitor WAL size (PostgreSQL), binlog retention (MySQL).</li>
+            <li><strong>Error rate</strong>: Failed applies (constraint violations, type mismatches, missing tables). Non-zero error rate = data loss risk.</li>
+          </ul>
+
+          <h3>Alerting Strategy</h3>
+          <ul>
+            <li><strong>P1 (page)</strong>: Replication lag > 5 minutes (for real-time SLA), error rate > 0 on critical tables, connector/task in FAILED state.</li>
+            <li><strong>P2 (ticket)</strong>: Replication lag > 30 minutes, WAL/binlog approaching retention limit, throughput drop > 50% from baseline.</li>
+            <li><strong>P3 (review)</strong>: Schema change detected, new table added without CDC coverage, minor throughput variance.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Debezium Monitoring — JMX Metrics</div>
+            <pre><code># Key Debezium JMX metrics to monitor
+# (expose via Prometheus JMX exporter)
+
+# Streaming metrics
+debezium.metrics:type=connector-metrics,context=streaming,server=*
+  - MilliSecondsBehindSource  # Replication lag in ms
+  - NumberOfEventsFiltered    # Events matching filter criteria
+  - TotalNumberOfEventsSeen   # Total events captured
+  - LastEvent                 # Timestamp of last event
+  
+# Snapshot metrics  
+debezium.metrics:type=connector-metrics,context=snapshot,server=*
+  - RemainingTableCount       # Tables left to snapshot
+  - SnapshotCompleted         # Boolean — snapshot done
+  - RowsScanned              # Rows read during snapshot
+
+# Kafka Connect worker metrics
+kafka.connect:type=connect-worker-metrics
+  - connector-count           # Active connectors
+  - task-count               # Running tasks
+  - connector-startup-failure-total
+
+# Prometheus alert rules
+groups:
+  - name: cdc_alerts
+    rules:
+      - alert: CDCLagHigh
+        expr: debezium_metrics_MilliSecondsBehindSource > 300000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CDC replication lag exceeds 5 minutes"</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a CDC pipeline to replicate 50 source tables from PostgreSQL to a data lakehouse with near-real-time freshness and exactly-once semantics.</div>
+            <div class="qa-answer">
+              <p>I'd implement Debezium with Kafka as the CDC backbone. Deploy a Debezium PostgreSQL connector configured with <code>pgoutput</code> plugin, capturing all 50 tables into individual Kafka topics (cdc.production.{table_name}). Use Avro serialization with Schema Registry for efficient serialization and schema evolution support. For the apply layer, I'd use Spark Structured Streaming reading from all 50 Kafka topics, processing micro-batches every 30 seconds. Each micro-batch applies changes to Iceberg tables using MERGE INTO — this provides idempotent apply (exactly-once semantics at the target) even though Kafka delivery is at-least-once. The MERGE key is the table's primary key, and I'd deduplicate within each micro-batch by keeping only the latest event per key (using source.ts_ms). For tables with high change volume (>10K events/sec), I'd increase Kafka topic partitions and use parallel MERGE operations. Monitoring: track Debezium's MilliSecondsBehindSource metric, Kafka consumer lag, and post-apply freshness checks (compare latest source timestamp in Iceberg metadata vs current time). Schema evolution is handled automatically — Debezium publishes schema changes, Iceberg's mergeSchema absorbs new columns.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare DMS, GoldenGate, and Debezium. When would you choose each, and what are their critical limitations?</div>
+            <div class="qa-answer">
+              <p>Choose AWS DMS for simple, managed CDC to AWS targets (S3, Redshift, Kafka). Its strength is zero infrastructure management — provision a replication instance and start a task. Best for: one-time migrations with ongoing replication, database-to-S3 lake ingestion, teams without Kafka expertise. Limitations: at-least-once only, limited transformation, poor DDL handling, AWS-only targets, debugging is difficult in the managed black box.</p>
+              <p>Choose Oracle GoldenGate for Oracle-centric environments requiring bidirectional replication, sub-second latency, or complex conflict resolution. It's the only production-grade tool for active-active Oracle replication. Best for: Oracle-to-Oracle HA, financial systems requiring zero data loss, bidirectional sync between data centers. Limitations: expensive licensing ($17.5K/processor), complex configuration, Oracle-centric (limited non-Oracle source support), requires DBA expertise.</p>
+              <p>Choose Debezium for Kafka-native architectures where CDC events are first-class citizens consumed by multiple downstream systems. Best for: event-driven microservices, real-time analytics, multi-consumer CDC (publish once, consume many), outbox pattern implementations. Limitations: requires Kafka infrastructure (Connect cluster, ZooKeeper/KRaft, brokers), operational complexity of managing connectors at scale, snapshot phase can overwhelm source databases if not throttled, replication slot management for PostgreSQL requires careful monitoring.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Debezium connector is showing increasing replication lag. The MilliSecondsBehindSource metric has grown from 100ms to 45 minutes over the past hour. Diagnose and resolve.</div>
+            <div class="qa-answer">
+              <p>First, I'd check if the lag growth correlates with a source event (batch job, data migration, high-traffic event). If source TPS spiked from 1K to 50K temporarily, the lag will naturally grow then recover — confirm by checking event throughput metrics. If throughput is normal but lag grows, the issue is on the consumer side.</p>
+              <p>Check Kafka Connect worker health: CPU, memory, GC pauses. A single-task connector processing 50 tables might be CPU-bound on serialization (especially with Avro and schema lookups). Solution: increase <code>tasks.max</code> to parallelize capture across multiple tasks (each task handles a subset of tables).</p>
+              <p>Check if a specific table is the bottleneck: large TOAST columns in PostgreSQL, tables with no primary key (requires full row comparison), or tables receiving massive bulk INSERTs. Solution: exclude problematic tables into a separate connector with dedicated tuning, or add missing primary keys.</p>
+              <p>Check Kafka broker throughput: if the broker cluster is saturated (disk I/O, network), producers back-pressure slows Debezium. Solution: add brokers, increase topic partitions, tune producer batch.size and linger.ms for better throughput.</p>
+              <p>Immediate mitigation: if lag exceeds WAL retention risk, temporarily increase <code>max_slot_wal_keep_size</code> on PostgreSQL to prevent slot being dropped. Long-term fix: right-size the connector configuration, add tasks, or split into multiple connectors.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle schema evolution in a CDC pipeline without breaking downstream consumers?</div>
+            <div class="qa-answer">
+              <p>Schema evolution in CDC requires coordination across three layers: source, transport, and target. At the source layer, I'd enforce a change management process — additive changes (ADD COLUMN) are safe and can be deployed without coordination. Breaking changes (DROP, RENAME, TYPE change) require a deprecation workflow: announce 14 days ahead, verify no consumers depend on the affected column/type, then execute.</p>
+              <p>At the transport layer (Kafka), Schema Registry enforces compatibility. I'd configure BACKWARD compatibility — new schemas can read data written with old schemas. This means consumers with the new schema can process historical events. When a schema change occurs, Debezium automatically registers the new schema version. Incompatible changes are rejected by the registry, preventing accidental breaks.</p>
+              <p>At the target layer (lakehouse), I'd enable schema evolution on the Iceberg/Delta tables. New columns from CDC are automatically absorbed — Iceberg's <code>spark.sql.catalog.spark_catalog.add-columns-on-schema-mismatch=true</code> or Delta's <code>mergeSchema=true</code>. For type changes, the apply layer maps source types to compatible target types (INT→BIGINT is widening, safe; BIGINT→INT is narrowing, needs explicit handling).</p>
+              <p>For consumers, I'd implement a schema change notification system: Debezium's schema change topic alerts downstream teams, giving them time to update their processing logic before the change fully propagates through the pipeline.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain the Debezium outbox pattern. Why is it needed, and how does it solve the dual-write problem?</div>
+            <div class="qa-answer">
+              <p>The dual-write problem occurs when an application needs to update a database AND publish an event to Kafka atomically. If you write to the database then publish to Kafka, the Kafka publish might fail — leaving the database updated but no event sent. If you publish first then write to the database, the database write might fail — event was sent for a change that didn't happen. There's no distributed transaction that spans both systems reliably.</p>
+              <p>The outbox pattern solves this by making the event a database write within the same ACID transaction as the domain change. The application writes the domain data AND an event record to an "outbox" table in a single transaction. If the transaction commits, both the domain change and the event record are guaranteed to exist. Debezium captures changes to the outbox table via CDC and publishes them to Kafka. Even if Debezium temporarily fails, the events are safely stored in the outbox table and will be published once Debezium recovers.</p>
+              <p>Implementation: Create an outbox table with columns (id, aggregate_type, aggregate_id, event_type, payload). Application inserts a row for every domain event. Debezium's <code>outbox.event.router</code> SMT transforms these rows into properly-routed Kafka messages — routing to topic based on aggregate_type, using aggregate_id as the message key (ensuring ordering per entity), and the payload as the message value. The outbox table can be periodically truncated after events are confirmed published (tracked via Debezium offsets). This pattern guarantees eventual consistency between database state and event stream — exactly-once semantics without distributed transactions.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Platform</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

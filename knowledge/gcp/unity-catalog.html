@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Unity Catalog — Centralized Governance — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">GCP</a>
+        <span>→</span>
+        <span>Unity Catalog</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">GCP</span>
+            <span class="read-time">11 min read</span>
+          </div>
+          <h1>Unity Catalog — Centralized Governance</h1>
+          <p class="article-desc">Complete guide to Unity Catalog — three-level namespace, metastore architecture, permissions model, managed vs external storage, automatic column-level lineage, Delta Sharing, row/column-level security, audit logging, and comparison with Lake Formation and Hive Metastore.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#problem-statement">What Unity Catalog Solves</a></li>
+            <li><a href="#namespace">Three-Level Namespace</a></li>
+            <li><a href="#metastore-architecture">Metastore Architecture</a></li>
+            <li><a href="#permissions-model">Permissions Model</a></li>
+            <li><a href="#storage-locations">Managed vs External Storage</a></li>
+            <li><a href="#data-lineage">Data Lineage</a></li>
+            <li><a href="#delta-sharing">Delta Sharing</a></li>
+            <li><a href="#credential-management">Credential Management</a></li>
+            <li><a href="#row-column-security">Row & Column-Level Security</a></li>
+            <li><a href="#audit-logging">Audit Logging & System Tables</a></li>
+            <li><a href="#comparison">Comparison with Lake Formation & Hive Metastore</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="problem-statement">What Unity Catalog Solves</h2>
+
+          <p>Before Unity Catalog, Databricks governance was fragmented across multiple layers:</p>
+
+          <h3>Pre-Unity Catalog Pain Points</h3>
+          <ul>
+            <li><strong>Workspace-level metastores</strong>: Each workspace had its own Hive Metastore. Tables in workspace A were invisible to workspace B — no cross-workspace data discovery or sharing.</li>
+            <li><strong>No unified access control</strong>: Permissions set in one workspace didn't propagate. A user granted access in dev could bypass controls in prod by accessing the same GCS path directly.</li>
+            <li><strong>No lineage</strong>: No automatic tracking of which tables derived from which sources. Manual documentation was always stale.</li>
+            <li><strong>Cloud-credential sprawl</strong>: Each cluster had its own service account or mount point. Revoking access meant finding and updating dozens of configurations.</li>
+            <li><strong>No data sharing standard</strong>: Sharing data outside the organization required copying data to shared storage — no governed, audited sharing protocol.</li>
+          </ul>
+
+          <h3>What Unity Catalog Provides</h3>
+          <ul>
+            <li>Single metastore across all workspaces in a region — unified data discovery.</li>
+            <li>Centralized GRANT/REVOKE permissions with inheritance.</li>
+            <li>Automatic column-level lineage tracking.</li>
+            <li>Credential abstraction — storage credentials managed centrally, not per-cluster.</li>
+            <li>Delta Sharing for cross-organization data sharing.</li>
+            <li>Row/column security (filters and masks).</li>
+            <li>Complete audit trail via system tables.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Unity Catalog is not just a metastore upgrade — it's a fundamental governance re-architecture. It moves access control from the infrastructure layer (IAM policies on GCS buckets, cluster-level credentials) to the data layer (table/column-level grants). This enables fine-grained governance without requiring users to understand cloud IAM.
+          </div>
+
+          <h2 id="namespace">Three-Level Namespace</h2>
+
+          <p>Unity Catalog organizes all data assets in a three-level hierarchy: <code>catalog.schema.table</code></p>
+
+          <h3>Hierarchy</h3>
+          <ul>
+            <li><strong>Catalog</strong>: Top-level container — typically maps to an environment (prod, staging, dev) or a business domain (marketing, finance).</li>
+            <li><strong>Schema (Database)</strong>: Groups related tables/views/functions — equivalent to a Hive database. Maps to a logical data product or team.</li>
+            <li><strong>Object</strong>: Tables, views, volumes, functions, models — the actual data assets.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Three-Level Namespace Examples</div>
+            <pre><code>-- Full qualified names
+SELECT * FROM prod_catalog.customer_schema.customers;
+SELECT * FROM dev_catalog.customer_schema.customers;  -- Same table, different environment
+
+-- Set default catalog and schema to avoid repetition
+USE CATALOG prod_catalog;
+USE SCHEMA customer_schema;
+SELECT * FROM customers;  -- Resolves to prod_catalog.customer_schema.customers
+
+-- List all catalogs, schemas, tables
+SHOW CATALOGS;
+SHOW SCHEMAS IN prod_catalog;
+SHOW TABLES IN prod_catalog.customer_schema;
+
+-- Common organizational patterns:
+-- Pattern 1: Catalog per environment
+--   prod.sales.orders  |  dev.sales.orders  |  staging.sales.orders
+
+-- Pattern 2: Catalog per domain
+--   marketing.campaigns.events  |  finance.accounting.transactions
+
+-- Pattern 3: Catalog per team (with shared catalog for cross-team data)
+--   shared.core.customers  |  analytics.models.churn_predictions</code></pre>
+          </div>
+
+          <h2 id="metastore-architecture">Metastore Architecture</h2>
+
+          <h3>Account-Level Metastore</h3>
+          <ul>
+            <li><strong>One metastore per region</strong>: A Unity Catalog metastore is created at the Databricks account level, scoped to a cloud region (e.g., us-central1).</li>
+            <li><strong>Workspace binding</strong>: Multiple workspaces in the same region can be attached to the same metastore — enabling cross-workspace data access.</li>
+            <li><strong>Metadata stored by Databricks</strong>: Table schemas, permissions, lineage, and audit logs are stored in Databricks-managed infrastructure. Actual data stays in customer storage.</li>
+            <li><strong>Managed storage</strong>: Each metastore has a root storage location (GCS bucket) where managed tables are stored by default.</li>
+          </ul>
+
+          <h3>Workspace Binding</h3>
+          <ul>
+            <li>A workspace can be bound to exactly ONE metastore (in the same region).</li>
+            <li>Once bound, all users in that workspace see the same catalogs (subject to permissions).</li>
+            <li>Unbinding removes access but doesn't delete data — rebinding restores visibility.</li>
+            <li><strong>Isolation</strong>: Use catalog-level permissions to restrict which workspaces/users see which data. Dev workspace users only see <code>dev_catalog</code>; prod workspace users see <code>prod_catalog</code>.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Metastore Setup (Account Admin API)</div>
+            <pre><code># Create a metastore for us-central1 region
+curl -X POST "https://accounts.cloud.databricks.com/api/2.0/unity-catalog/metastores" \
+  -H "Authorization: Bearer $ACCOUNT_TOKEN" \
+  -d '{
+    "name": "us-central1-metastore",
+    "storage_root": "gs://my-company-unity-catalog/metastore/",
+    "region": "us-central1"
+  }'
+
+# Assign workspace to metastore
+curl -X PUT "https://accounts.cloud.databricks.com/api/2.0/unity-catalog/workspaces/12345/metastore" \
+  -H "Authorization: Bearer $ACCOUNT_TOKEN" \
+  -d '{
+    "metastore_id": "abc-123-metastore-id",
+    "default_catalog_name": "main"
+  }'</code></pre>
+          </div>
+
+          <h2 id="permissions-model">Permissions Model</h2>
+
+          <h3>GRANT/REVOKE Syntax</h3>
+          <ul>
+            <li>SQL-standard GRANT/REVOKE on all securables (metastore, catalog, schema, table, view, function, volume, external location, storage credential).</li>
+            <li><strong>Privileges</strong>: SELECT, MODIFY (INSERT/UPDATE/DELETE), CREATE TABLE, CREATE SCHEMA, CREATE CATALOG, USAGE, ALL PRIVILEGES.</li>
+            <li><strong>USAGE</strong>: Required to traverse the namespace. GRANT SELECT on a table does nothing if the user doesn't also have USAGE on the parent schema and catalog.</li>
+          </ul>
+
+          <h3>Inheritance</h3>
+          <ul>
+            <li>Privileges granted on a catalog apply to ALL schemas and tables within it.</li>
+            <li>Privileges granted on a schema apply to ALL tables within that schema.</li>
+            <li>Explicit DENY at a lower level overrides inherited GRANT.</li>
+          </ul>
+
+          <h3>Ownership</h3>
+          <ul>
+            <li>Every securable has an owner — the creator by default.</li>
+            <li>Owners have ALL PRIVILEGES on the object (including GRANT to others).</li>
+            <li>Ownership can be transferred: <code>ALTER TABLE ... SET OWNER TO group_name</code>.</li>
+            <li><strong>Best practice</strong>: Set ownership to a group (e.g., "data-engineering-team") not an individual — survives personnel changes.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Permission Setup — Production Pattern</div>
+            <pre><code>-- Create groups
+CREATE GROUP data_engineers;
+CREATE GROUP data_analysts;
+CREATE GROUP data_scientists;
+
+-- Grant catalog-level access
+GRANT USAGE ON CATALOG prod_catalog TO data_engineers;
+GRANT USAGE ON CATALOG prod_catalog TO data_analysts;
+GRANT USAGE ON CATALOG prod_catalog TO data_scientists;
+
+-- Data engineers: full access to all schemas
+GRANT CREATE SCHEMA ON CATALOG prod_catalog TO data_engineers;
+GRANT ALL PRIVILEGES ON SCHEMA prod_catalog.bronze TO data_engineers;
+GRANT ALL PRIVILEGES ON SCHEMA prod_catalog.silver TO data_engineers;
+GRANT ALL PRIVILEGES ON SCHEMA prod_catalog.gold TO data_engineers;
+
+-- Analysts: read-only on silver and gold, no access to bronze
+GRANT USAGE ON SCHEMA prod_catalog.silver TO data_analysts;
+GRANT USAGE ON SCHEMA prod_catalog.gold TO data_analysts;
+GRANT SELECT ON SCHEMA prod_catalog.silver TO data_analysts;
+GRANT SELECT ON SCHEMA prod_catalog.gold TO data_analysts;
+
+-- Data scientists: read silver/gold, write to their own schema
+GRANT USAGE ON SCHEMA prod_catalog.silver TO data_scientists;
+GRANT USAGE ON SCHEMA prod_catalog.gold TO data_scientists;
+GRANT SELECT ON SCHEMA prod_catalog.silver TO data_scientists;
+GRANT SELECT ON SCHEMA prod_catalog.gold TO data_scientists;
+GRANT ALL PRIVILEGES ON SCHEMA prod_catalog.ml_features TO data_scientists;
+
+-- Transfer table ownership to team group
+ALTER TABLE prod_catalog.gold.customer_360 SET OWNER TO data_engineers;</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Pitfall:</strong> Forgetting to grant USAGE at every level is the #1 Unity Catalog permission error. A user with SELECT on a table but no USAGE on the parent schema gets "permission denied." The fix: always grant USAGE on both the catalog AND schema in addition to the table-level privilege.
+          </div>
+
+          <h2 id="storage-locations">Managed vs External Storage</h2>
+
+          <h3>Managed Tables</h3>
+          <ul>
+            <li>Data stored in the metastore's managed storage location (GCS bucket configured during metastore creation).</li>
+            <li>Databricks manages the data lifecycle — DROP TABLE deletes both metadata AND data files.</li>
+            <li>Path: <code>gs://metastore-bucket/&lt;metastore-id&gt;/tables/&lt;table-uuid&gt;/</code></li>
+            <li><strong>Best for</strong>: Tables fully managed by Databricks pipelines where you don't need external access to the underlying files.</li>
+          </ul>
+
+          <h3>External Tables</h3>
+          <ul>
+            <li>Data stored at a customer-specified GCS location (via external location).</li>
+            <li>DROP TABLE removes only metadata — data files remain untouched.</li>
+            <li>Multiple tools can read the same data (Databricks, BigQuery, Dataproc).</li>
+            <li><strong>Best for</strong>: Data shared across multiple compute engines, data produced by non-Databricks systems, data with separate lifecycle management.</li>
+          </ul>
+
+          <h3>External Locations & Storage Credentials</h3>
+          <ul>
+            <li><strong>Storage credential</strong>: Wraps a GCP service account — provides authenticated access to GCS.</li>
+            <li><strong>External location</strong>: Maps a storage credential to a specific GCS path prefix. Grants can be applied to control who creates tables at that location.</li>
+            <li><strong>Hierarchy</strong>: Storage credential → External location → Table. Users need CREATE EXTERNAL TABLE on the location to write there.</li>
+          </ul>
+
+          <h2 id="data-lineage">Data Lineage</h2>
+
+          <h3>Automatic Column-Level Lineage</h3>
+          <ul>
+            <li>Unity Catalog automatically tracks lineage for all operations executed through Databricks — no manual annotation required.</li>
+            <li><strong>Table-level</strong>: Knows that <code>gold.customer_360</code> reads from <code>silver.orders</code> and <code>silver.customers</code>.</li>
+            <li><strong>Column-level</strong>: Tracks that <code>gold.customer_360.total_revenue</code> derives from <code>silver.orders.amount</code> (sum aggregation).</li>
+            <li><strong>Captured from</strong>: Spark jobs, SQL queries, DLT pipelines, notebook executions — anything running on Databricks compute.</li>
+            <li><strong>Visualization</strong>: Available in the Catalog Explorer UI — interactive DAG showing upstream/downstream dependencies per table or column.</li>
+          </ul>
+
+          <h3>Lineage Limitations</h3>
+          <ul>
+            <li>Only captures lineage from Databricks compute — external tools (Dataproc, BigQuery) writing to the same tables won't appear.</li>
+            <li>Dynamic SQL (string-built queries) may not be fully traced if column references are constructed at runtime.</li>
+            <li>Python UDFs are opaque — lineage shows the UDF as a dependency but not the internal column transformations.</li>
+          </ul>
+
+          <h2 id="delta-sharing">Delta Sharing</h2>
+
+          <p>Delta Sharing is an open protocol for secure data sharing across organizations — without data copying:</p>
+
+          <h3>How It Works</h3>
+          <ul>
+            <li><strong>Provider</strong>: Shares specific tables/schemas by creating a "share" and adding recipients.</li>
+            <li><strong>Recipient</strong>: Receives a credential file (activation link) and can read shared data using any compatible client (Databricks, Apache Spark, pandas, Power BI).</li>
+            <li><strong>Protocol</strong>: REST-based, open-source protocol. Recipients read Parquet/Delta files directly from the provider's cloud storage using short-lived, pre-signed URLs.</li>
+            <li><strong>No data copying</strong>: Data stays in the provider's storage — recipients read it in place. Provider controls access and can revoke at any time.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta Sharing — Provider Setup</div>
+            <pre><code>-- Create a share (logical container for shared data)
+CREATE SHARE customer_data_share
+COMMENT 'Shared customer data for partner analytics';
+
+-- Add tables to the share
+ALTER SHARE customer_data_share
+ADD TABLE prod_catalog.gold.customer_demographics;
+
+ALTER SHARE customer_data_share
+ADD TABLE prod_catalog.gold.purchase_history
+  PARTITION (region = 'US');  -- Share only US partition
+
+-- Add schema (shares all current and future tables in schema)
+ALTER SHARE customer_data_share
+ADD SCHEMA prod_catalog.gold;
+
+-- Create a recipient (external organization)
+CREATE RECIPIENT partner_analytics
+COMMENT 'Analytics partner - Acme Corp'
+USING ID 'acme-corp-databricks-account-id';  -- For Databricks-to-Databricks sharing
+
+-- Grant the share to the recipient
+GRANT SELECT ON SHARE customer_data_share TO RECIPIENT partner_analytics;
+
+-- Recipient side: create a catalog from the share
+CREATE CATALOG partner_data
+USING SHARE provider_workspace.customer_data_share;
+
+-- Recipient can now query shared data
+SELECT * FROM partner_data.gold.customer_demographics WHERE region = 'US';</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Delta Sharing eliminates the "data copy" anti-pattern. Traditional B2B data sharing involves: export → encrypt → transfer → decrypt → load — creating stale copies, security risks, and operational overhead. Delta Sharing provides live access to the source data with full governance (audit logging, revocable access, partition-level granularity).
+          </div>
+
+          <h2 id="credential-management">Credential Management</h2>
+
+          <h3>Storage Credentials</h3>
+          <ul>
+            <li>Centrally managed credentials that provide access to cloud storage (GCS service accounts on GCP).</li>
+            <li>Created once, referenced by multiple external locations — single point of credential rotation.</li>
+            <li>Only metastore admins can create storage credentials — prevents credential sprawl.</li>
+          </ul>
+
+          <h3>External Locations</h3>
+          <ul>
+            <li>Bind a storage credential to a GCS path prefix.</li>
+            <li>Granular grants control who can create tables at each location.</li>
+            <li>Overlapping paths are resolved by longest-prefix match.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Credential & Location Setup for GCP</div>
+            <pre><code>-- Step 1: Create storage credential (wraps GCP service account)
+CREATE STORAGE CREDENTIAL data_lake_cred
+COMMENT 'Service account for prod data lake access'
+WITH (GCP_SERVICE_ACCOUNT_EMAIL = 'unity-catalog-sa@my-project.iam.gserviceaccount.com');
+
+-- Step 2: Create external locations for different data zones
+CREATE EXTERNAL LOCATION bronze_zone
+URL 'gs://data-lake-prod/bronze/'
+WITH (STORAGE CREDENTIAL data_lake_cred)
+COMMENT 'Bronze zone - raw ingested data';
+
+CREATE EXTERNAL LOCATION silver_zone
+URL 'gs://data-lake-prod/silver/'
+WITH (STORAGE CREDENTIAL data_lake_cred)
+COMMENT 'Silver zone - cleansed data';
+
+CREATE EXTERNAL LOCATION gold_zone
+URL 'gs://data-lake-prod/gold/'
+WITH (STORAGE CREDENTIAL data_lake_cred)
+COMMENT 'Gold zone - business aggregates';
+
+-- Step 3: Grant access to teams
+GRANT CREATE EXTERNAL TABLE ON EXTERNAL LOCATION bronze_zone TO data_engineers;
+GRANT CREATE EXTERNAL TABLE ON EXTERNAL LOCATION silver_zone TO data_engineers;
+GRANT CREATE EXTERNAL TABLE ON EXTERNAL LOCATION gold_zone TO data_engineers;
+
+-- Analysts can browse locations but not create tables
+GRANT READ FILES ON EXTERNAL LOCATION gold_zone TO data_analysts;</code></pre>
+          </div>
+
+          <h2 id="row-column-security">Row & Column-Level Security</h2>
+
+          <h3>Row Filters</h3>
+          <ul>
+            <li>Define a SQL function that filters rows based on the querying user's identity or group membership.</li>
+            <li>Applied transparently — users see a filtered view of the table without knowing rows are hidden.</li>
+            <li>Useful for: multi-tenant tables, regional data access, PII isolation.</li>
+          </ul>
+
+          <h3>Column Masks</h3>
+          <ul>
+            <li>Define a SQL function that transforms column values based on the querying user.</li>
+            <li>Common patterns: hash email for non-privileged users, show only last 4 digits of SSN, return NULL for restricted columns.</li>
+            <li>Applied at read time — underlying data is unchanged.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Row Filters & Column Masks</div>
+            <pre><code>-- Create a row filter function: users see only their region's data
+CREATE FUNCTION prod_catalog.security.region_filter(region_col STRING)
+RETURNS BOOLEAN
+RETURN (
+  -- Admins see all rows; others see only their region
+  IS_MEMBER('admin_group')
+  OR region_col = CASE
+    WHEN IS_MEMBER('us_team') THEN 'US'
+    WHEN IS_MEMBER('eu_team') THEN 'EU'
+    WHEN IS_MEMBER('apac_team') THEN 'APAC'
+    ELSE NULL  -- No access if not in any regional group
+  END
+);
+
+-- Apply row filter to table
+ALTER TABLE prod_catalog.gold.sales
+SET ROW FILTER prod_catalog.security.region_filter ON (region);
+
+-- Create a column mask function: mask email for non-privileged users
+CREATE FUNCTION prod_catalog.security.mask_email(email_col STRING)
+RETURNS STRING
+RETURN (
+  CASE
+    WHEN IS_MEMBER('pii_access_group') THEN email_col
+    ELSE CONCAT(LEFT(email_col, 2), '***@', SPLIT_PART(email_col, '@', 2))
+  END
+);
+
+-- Apply column mask
+ALTER TABLE prod_catalog.gold.customers
+ALTER COLUMN email SET MASK prod_catalog.security.mask_email;
+
+-- Result for non-privileged user:
+-- ad***@company.com (instead of aditya@company.com)</code></pre>
+          </div>
+
+          <h2 id="audit-logging">Audit Logging & System Tables</h2>
+
+          <h3>System Tables</h3>
+          <ul>
+            <li><strong>system.access.audit</strong>: Every action performed in the workspace — who queried what table, when, from which cluster. Retained for 365 days.</li>
+            <li><strong>system.billing.usage</strong>: DBU consumption by cluster, job, user — for cost attribution and chargeback.</li>
+            <li><strong>system.compute.clusters</strong>: Cluster lifecycle events (created, started, terminated, resized).</li>
+            <li><strong>system.lineage.table_lineage</strong>: Programmatic access to lineage data (upstream/downstream tables).</li>
+            <li><strong>system.lineage.column_lineage</strong>: Column-level lineage relationships.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Audit & Compliance Queries</div>
+            <pre><code>-- Who accessed sensitive tables in the last 7 days?
+SELECT
+  event_time,
+  user_identity.email AS user_email,
+  request_params.full_name_arg AS table_name,
+  action_name,
+  source_ip_address
+FROM system.access.audit
+WHERE action_name IN ('getTable', 'commandSubmit')
+  AND request_params.full_name_arg LIKE '%pii%'
+  AND event_date >= CURRENT_DATE() - INTERVAL 7 DAYS
+ORDER BY event_time DESC;
+
+-- Cost attribution by team (using cluster tags)
+SELECT
+  usage_metadata.cluster_id,
+  custom_tags['team'] AS team,
+  SUM(usage_quantity) AS total_dbus,
+  SUM(usage_quantity * list_price) AS estimated_cost
+FROM system.billing.usage
+WHERE usage_date >= CURRENT_DATE() - INTERVAL 30 DAYS
+GROUP BY 1, 2
+ORDER BY estimated_cost DESC;</code></pre>
+          </div>
+
+          <h2 id="comparison">Comparison with Lake Formation & Hive Metastore</h2>
+
+          <table>
+            <thead>
+              <tr><th>Feature</th><th>Unity Catalog</th><th>AWS Lake Formation</th><th>Hive Metastore</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Namespace</td><td>catalog.schema.table (3-level)</td><td>database.table (2-level)</td><td>database.table (2-level)</td></tr>
+              <tr><td>Cross-workspace sharing</td><td>Native (account-level metastore)</td><td>Via RAM sharing + LF grants</td><td>Not supported (workspace-local)</td></tr>
+              <tr><td>Column-level lineage</td><td>Automatic</td><td>Not built-in (needs external tool)</td><td>Not supported</td></tr>
+              <tr><td>Row-level security</td><td>Row filters (SQL functions)</td><td>Cell-level (Lake Formation tags)</td><td>Not supported natively</td></tr>
+              <tr><td>Column masking</td><td>Column masks (SQL functions)</td><td>Not built-in</td><td>Not supported</td></tr>
+              <tr><td>Data sharing</td><td>Delta Sharing (open protocol)</td><td>RAM + LF sharing (AWS-only)</td><td>Not supported</td></tr>
+              <tr><td>Audit logging</td><td>System tables (SQL-queryable)</td><td>CloudTrail + LF audit</td><td>Manual (no built-in audit)</td></tr>
+              <tr><td>Multi-cloud</td><td>Works on AWS, GCP, Azure</td><td>AWS-only</td><td>Cloud-agnostic but no cloud governance</td></tr>
+              <tr><td>Setup complexity</td><td>Medium (account-level config)</td><td>High (IAM + LF + Glue integration)</td><td>Low (just schema registry)</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">You're migrating from workspace-level Hive Metastore to Unity Catalog. Describe the migration strategy and key challenges.</div>
+            <div class="qa-answer">
+              <p><strong>Migration strategy (phased approach):</strong></p>
+              <p><strong>Phase 1 — Assessment</strong>: Inventory all tables in existing Hive Metastore (hive_metastore.&lt;database&gt;.&lt;table&gt;). Classify into managed vs external. Identify ownership and access patterns using workspace ACLs.</p>
+              <p><strong>Phase 2 — Infrastructure</strong>: Create Unity Catalog metastore, storage credentials, and external locations. Design the catalog/schema namespace (map existing databases to the 3-level model). Create groups that mirror existing workspace groups.</p>
+              <p><strong>Phase 3 — Upgrade tables</strong>: For external tables — use <code>CREATE TABLE ... USING DELTA LOCATION '...'</code> in Unity Catalog pointing to existing data (metadata-only, no data movement). For managed tables — use <code>CREATE TABLE ... AS SELECT * FROM hive_metastore.db.table</code> or the SYNC command for zero-copy upgrade.</p>
+              <p><strong>Phase 4 — Permission mapping</strong>: Translate workspace ACLs to Unity Catalog GRANT statements. This is the hardest part — workspace ACLs are implicit (cluster access = data access) while UC is explicit (GRANT required at every level).</p>
+              <p><strong>Phase 5 — Cutover</strong>: Update all job references from <code>hive_metastore.db.table</code> to <code>catalog.schema.table</code>. Run both in parallel during transition period. Disable old Hive Metastore access once validated.</p>
+              <p><strong>Key challenges</strong>: (1) USAGE grants at every level (users accustomed to implicit access hit permission errors). (2) External tables that were accessed via mounts — mounts bypass UC. (3) Legacy notebooks using <code>spark.sql("USE database")</code> without catalog prefix. (4) Service principals and automation need updated credentials/tokens.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Unity Catalog handle data lineage? What are its limitations and how would you address gaps?</div>
+            <div class="qa-answer">
+              <p><strong>How it works</strong>: Unity Catalog instruments the Spark query planner. When a job reads from table A and writes to table B, UC automatically records: (1) table-level dependency (A → B), (2) column-level mapping (A.col1 → B.col2 via transformation X). Lineage is stored in system tables and visualized in Catalog Explorer.</p>
+              <p><strong>Captured scenarios</strong>: All Spark/SQL operations via Databricks compute — INSERT, MERGE, CREATE TABLE AS SELECT, DataFrame writes, DLT pipelines. Column-level lineage traces through SELECT projections, aggregations, JOINs, and CASE statements.</p>
+              <p><strong>Limitations</strong>: (1) External writes — data written by non-Databricks tools (Dataproc, BigQuery, Airflow operators running Spark elsewhere) doesn't appear in lineage. (2) Python UDFs are opaque — UC records "this UDF was called" but not the internal column transformations. (3) Dynamic SQL (building queries as strings) may not be traced. (4) Cross-platform lineage (BQ → Databricks → another system) requires an external tool.</p>
+              <p><strong>Addressing gaps</strong>: (1) For cross-platform lineage, integrate with OpenLineage standard — emit lineage events from non-Databricks systems to a shared lineage store (Marquez, DataHub). (2) For UDF opacity, annotate UDFs with manual lineage metadata or refactor to SQL expressions where possible. (3) For external writes, use trigger-based detection — monitor GCS bucket changes and correlate with known pipeline schedules.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Unity Catalog with AWS Lake Formation. When would you choose each?</div>
+            <div class="qa-answer">
+              <p><strong>Choose Unity Catalog when</strong>: (1) You're already using Databricks as primary compute — it's deeply integrated and automatic. (2) You need cross-cloud governance (AWS + GCP + Azure workspaces under one metastore). (3) Column-level lineage is a requirement. (4) You need to share data externally via Delta Sharing (open protocol, not cloud-locked). (5) Row/column security using SQL-native patterns (row filters, column masks).</p>
+              <p><strong>Choose Lake Formation when</strong>: (1) Multi-engine governance on AWS — need to govern access for EMR, Athena, Redshift, Glue all under one permission model. (2) Already using AWS Glue Data Catalog extensively. (3) Tag-based access control (LF-Tags) suits your organization better than explicit grants. (4) Need to integrate with AWS IAM Identity Center (SSO) and existing AWS permission boundaries.</p>
+              <p><strong>Key difference in philosophy</strong>: Unity Catalog is Databricks-centric governance — it governs all data accessed through Databricks (regardless of storage location). Lake Formation is AWS-centric governance — it governs all data in AWS (regardless of compute engine). If Databricks is your primary platform, UC is the natural choice. If you have heterogeneous AWS compute (EMR + Athena + Redshift), Lake Formation provides broader coverage.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a Unity Catalog governance model for a 200-person data organization with multiple teams, environments, and external data consumers.</div>
+            <div class="qa-answer">
+              <p><strong>Namespace design</strong>: Catalogs per environment + shared: <code>dev</code>, <code>staging</code>, <code>prod</code>, <code>shared</code> (cross-team reference data). Within each: schemas per domain (sales, marketing, finance, ml_features).</p>
+              <p><strong>Workspace topology</strong>: 3 workspaces (dev, staging, prod) all bound to the same regional metastore. Catalog-level USAGE grants control which workspace users see which catalogs (dev users: only <code>dev</code> catalog; prod users: <code>prod</code> + <code>shared</code>).</p>
+              <p><strong>Groups & inheritance</strong>: Account-level groups: data_engineers, data_analysts, data_scientists, platform_admins. Sub-groups per team: de_sales, de_marketing, etc. Inheritance: de_sales inherits from data_engineers, gets additional MODIFY on prod.sales.* schemas.</p>
+              <p><strong>Row/column security</strong>: PII columns (email, phone, address) masked for all non-PII-approved groups. Regional row filters on customer tables — EU team sees only EU data (GDPR compliance). Audit table for PII access: query system.access.audit weekly, flag unexpected access.</p>
+              <p><strong>External sharing</strong>: Delta Shares for partner organizations — separate share per partner, scoped to specific gold tables. Automated share monitoring via system tables to detect unused shares (revoke after 90 days inactive).</p>
+              <p><strong>Operational governance</strong>: Cluster policies enforce tags (team, cost_center) — enables chargeback via system.billing.usage. Quarterly access reviews: compare GRANT statements against actual usage from audit logs, revoke stale permissions.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">GCP</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

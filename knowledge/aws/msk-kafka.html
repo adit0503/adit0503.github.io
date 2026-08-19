@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Amazon MSK & Kafka on AWS — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AWS</a>
+        <span>→</span>
+        <span>MSK & Kafka</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">AWS</span>
+            <span class="read-time">13 min read</span>
+          </div>
+          <h1>Amazon MSK & Kafka on AWS</h1>
+          <p class="article-desc">Deep dive into Amazon MSK — managed Kafka architecture, MSK Serverless, broker configuration, topic design, producer/consumer patterns, exactly-once semantics, MSK Connect, Glue Schema Registry, security, monitoring, and performance tuning for high-throughput streaming.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#msk-architecture">MSK Architecture</a></li>
+            <li><a href="#msk-vs-serverless">MSK vs MSK Serverless vs Self-Managed</a></li>
+            <li><a href="#broker-config">Broker Configuration</a></li>
+            <li><a href="#topic-design">Topic Design</a></li>
+            <li><a href="#producer-patterns">Producer Patterns</a></li>
+            <li><a href="#consumer-patterns">Consumer Patterns</a></li>
+            <li><a href="#msk-connect">MSK Connect</a></li>
+            <li><a href="#schema-registry">Glue Schema Registry</a></li>
+            <li><a href="#monitoring">Monitoring</a></li>
+            <li><a href="#security">Security</a></li>
+            <li><a href="#performance-tuning">Performance Tuning</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="msk-architecture">MSK Architecture</h2>
+
+          <p>Amazon MSK is a fully managed Apache Kafka service. Understanding what AWS manages vs what you control is essential:</p>
+
+          <h3>What MSK Manages</h3>
+          <ul>
+            <li><strong>Broker provisioning</strong>: EC2 instances in your VPC, deployed across AZs (2 or 3 AZ deployments).</li>
+            <li><strong>ZooKeeper/KRaft</strong>: ZooKeeper ensemble for metadata (legacy clusters). KRaft mode (Kafka 3.7+) eliminates ZooKeeper — metadata managed by brokers themselves.</li>
+            <li><strong>Storage</strong>: EBS volumes attached to brokers. Auto-scaling storage supported (grows automatically, never shrinks).</li>
+            <li><strong>Patching</strong>: OS and Kafka version upgrades (initiated by you, executed by MSK with rolling restarts).</li>
+            <li><strong>Monitoring</strong>: CloudWatch metrics, Prometheus-compatible JMX export, broker logs to CloudWatch/S3/Firehose.</li>
+          </ul>
+
+          <h3>What You Manage</h3>
+          <ul>
+            <li><strong>Topic creation and configuration</strong>: Partition count, replication factor, retention, cleanup policies.</li>
+            <li><strong>Producer/Consumer applications</strong>: Your code, deployed on EC2/ECS/EKS/Lambda.</li>
+            <li><strong>Capacity planning</strong>: Choosing broker count and instance types. MSK won't auto-scale brokers (only storage).</li>
+            <li><strong>Networking</strong>: VPC, subnets, security groups. Clients must be in the same VPC or connected via peering/PrivateLink.</li>
+          </ul>
+
+          <h3>Multi-AZ Deployment</h3>
+          <ul>
+            <li><strong>3-AZ (recommended)</strong>: Brokers distributed across 3 AZs. With <code>replication.factor=3</code> and <code>min.insync.replicas=2</code>, survives entire AZ failure without data loss.</li>
+            <li><strong>2-AZ</strong>: Lower cost but higher risk. AZ failure takes out ~50% of brokers. Recovery requires replication from surviving brokers.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> MSK is "managed Kafka" — not "serverless Kafka." You still choose broker count, instance types, and storage. Think of it as EC2 Auto-Scaling for Kafka with AWS handling the undifferentiated ops (patching, monitoring, ZK management). For true serverless, use MSK Serverless.
+          </div>
+
+          <h2 id="msk-vs-serverless">MSK vs MSK Serverless vs Self-Managed</h2>
+
+          <table>
+            <thead>
+              <tr><th>Aspect</th><th>MSK Provisioned</th><th>MSK Serverless</th><th>Self-Managed</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Capacity</td><td>Fixed broker count + type</td><td>Auto-scales to demand</td><td>You manage everything</td></tr>
+              <tr><td>Cost model</td><td>Per-broker-hour + storage</td><td>Per-partition-hour + throughput</td><td>EC2 + EBS costs</td></tr>
+              <tr><td>Max throughput</td><td>Unlimited (add brokers)</td><td>200 MB/s per cluster</td><td>Unlimited</td></tr>
+              <tr><td>Kafka version</td><td>You choose (2.6–3.6)</td><td>Managed (latest)</td><td>Any version</td></tr>
+              <tr><td>Configuration</td><td>Full kafka config access</td><td>Limited (AWS presets)</td><td>Full control</td></tr>
+              <tr><td>ZooKeeper</td><td>Managed (or KRaft)</td><td>None (internal)</td><td>You manage</td></tr>
+              <tr><td>Best for</td><td>Production, predictable load</td><td>Spiky workloads, dev/test</td><td>Full control needs</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout-warning">
+            <strong>MSK Serverless limitations:</strong> Max 200 MB/s ingress per cluster, max 120 partitions per cluster, max 5 consumer groups, limited Kafka config options. Not suitable for high-throughput production workloads. Best for lightweight event buses or development environments.
+          </div>
+
+          <h2 id="broker-config">Broker Configuration</h2>
+
+          <h3>Instance Type Selection</h3>
+          <ul>
+            <li><strong>kafka.m5.large</strong>: 2 vCPU, 8 GB. Entry-level — good for dev/test. ~100 MB/s network.</li>
+            <li><strong>kafka.m5.xlarge</strong>: 4 vCPU, 16 GB. Production minimum. ~200 MB/s throughput per broker.</li>
+            <li><strong>kafka.m5.2xlarge</strong>: 8 vCPU, 32 GB. High-throughput production. ~400 MB/s per broker.</li>
+            <li><strong>kafka.m7g.xlarge</strong>: Graviton3 — 20% better price-performance than m5.</li>
+          </ul>
+
+          <h3>Storage Configuration</h3>
+          <ul>
+            <li><strong>EBS gp3</strong>: Default. 3000 IOPS baseline, burstable. Good for most workloads.</li>
+            <li><strong>EBS provisioned IOPS (io2)</strong>: For latency-sensitive workloads needing consistent <5ms writes.</li>
+            <li><strong>Auto-scaling</strong>: Storage grows automatically when utilization exceeds threshold. Set <code>Maximum Storage</code> as cost guardrail. Storage never shrinks — over-provisioning is wasted.</li>
+            <li><strong>Sizing rule</strong>: Storage = (daily_ingest_bytes × retention_days × replication_factor) / broker_count + 20% headroom.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">MSK Cluster Configuration (Terraform)</div>
+            <pre><code>resource "aws_msk_cluster" "main" {
+  cluster_name           = "data-platform-kafka"
+  kafka_version          = "3.6.0"
+  number_of_broker_nodes = 6  # 2 per AZ in 3-AZ setup
+
+  broker_node_group_info {
+    instance_type   = "kafka.m5.2xlarge"
+    client_subnets  = [aws_subnet.private_a.id, aws_subnet.private_b.id, aws_subnet.private_c.id]
+    security_groups = [aws_security_group.msk.id]
+
+    storage_info {
+      ebs_storage_info {
+        volume_size = 1000  # 1 TB per broker
+        provisioned_throughput {
+          enabled           = true
+          volume_throughput  = 250  # MB/s
+        }
+      }
+    }
+  }
+
+  configuration_info {
+    arn      = aws_msk_configuration.custom.arn
+    revision = aws_msk_configuration.custom.latest_revision
+  }
+
+  encryption_info {
+    encryption_in_transit {
+      client_broker = "TLS"
+      in_cluster    = true
+    }
+  }
+}
+
+resource "aws_msk_configuration" "custom" {
+  name              = "production-config"
+  kafka_versions    = ["3.6.0"]
+  server_properties = <<PROPERTIES
+auto.create.topics.enable=false
+default.replication.factor=3
+min.insync.replicas=2
+num.partitions=12
+log.retention.hours=168
+log.segment.bytes=1073741824
+compression.type=lz4
+message.max.bytes=10485760
+replica.lag.time.max.ms=30000
+unclean.leader.election.enable=false
+PROPERTIES
+}</code></pre>
+          </div>
+
+          <h2 id="topic-design">Topic Design</h2>
+
+          <h3>Partition Count</h3>
+          <ul>
+            <li><strong>Formula</strong>: partitions ≥ max(target_throughput / per_partition_throughput, consumer_count).</li>
+            <li><strong>Per-partition throughput</strong>: ~10 MB/s write, ~30 MB/s read (empirical on m5.xlarge brokers with gp3).</li>
+            <li><strong>Example</strong>: 200 MB/s target write → need at least 20 partitions. 50 concurrent consumers → need at least 50 partitions.</li>
+            <li><strong>Guideline</strong>: Start with 12–24 partitions for most topics. High-volume topics: 48–128. Don't go over 200 per topic without good reason (metadata overhead).</li>
+            <li><strong>Can't reduce</strong>: Partition count can only increase. Plan for 2–3x growth. Over-partitioning at creation is safer than under-partitioning.</li>
+          </ul>
+
+          <h3>Replication Factor</h3>
+          <ul>
+            <li><strong>Production</strong>: Always 3 (survives 1 broker failure without data loss when <code>min.insync.replicas=2</code>).</li>
+            <li><strong>Dev/Test</strong>: 2 acceptable (or even 1 for ephemeral topics).</li>
+            <li><strong>Cost</strong>: RF=3 means 3x storage usage. Factor into capacity planning.</li>
+          </ul>
+
+          <h3>Retention</h3>
+          <ul>
+            <li><strong>Time-based</strong>: <code>retention.ms</code> — how long messages are kept. Common: 7 days (168h) for operational topics, 30 days for analytics, infinite for event sourcing.</li>
+            <li><strong>Size-based</strong>: <code>retention.bytes</code> — max bytes per partition before oldest segments are deleted. Use as a safety cap.</li>
+            <li><strong>Compacted topics</strong>: <code>cleanup.policy=compact</code> — keeps only the latest value per key. Ideal for changelogs, state stores, configuration topics.</li>
+          </ul>
+
+          <h2 id="producer-patterns">Producer Patterns</h2>
+
+          <h3>Acknowledgment Levels</h3>
+          <ul>
+            <li><strong>acks=0</strong>: Fire and forget. Highest throughput, data loss possible. Use for: metrics/logs where occasional loss is acceptable.</li>
+            <li><strong>acks=1</strong>: Leader acknowledges. Balanced throughput/durability. Loss possible if leader fails before replication.</li>
+            <li><strong>acks=all (acks=-1)</strong>: All in-sync replicas acknowledge. Strongest durability guarantee. Required for exactly-once semantics.</li>
+          </ul>
+
+          <h3>Batching and Compression</h3>
+          <div class="code-block">
+            <div class="code-block-header">High-Throughput Producer Configuration</div>
+            <pre><code># Producer config for maximum throughput
+bootstrap.servers=broker1:9092,broker2:9092,broker3:9092
+acks=all
+retries=2147483647
+max.in.flight.requests.per.connection=5
+enable.idempotence=true
+
+# Batching — accumulate messages before sending
+batch.size=65536          # 64 KB batch
+linger.ms=20              # Wait up to 20ms to fill batch
+buffer.memory=67108864    # 64 MB total buffer
+
+# Compression — reduce network/storage
+compression.type=lz4      # Best throughput/ratio tradeoff
+# Options: none, gzip (best ratio), snappy (fast), lz4 (fastest), zstd (balanced)
+
+# Idempotent producer — prevents duplicates on retry
+enable.idempotence=true   # Requires acks=all + retries > 0
+max.in.flight.requests.per.connection=5  # Max for idempotent (ordering preserved)</code></pre>
+          </div>
+
+          <h3>Exactly-Once Semantics (EOS)</h3>
+          <ul>
+            <li><strong>Idempotent producer</strong>: Each message gets a sequence number. Broker deduplicates retries. Prevents duplicates within a single session.</li>
+            <li><strong>Transactional producer</strong>: Atomic writes across multiple partitions/topics. Either all messages in a transaction commit, or none do.</li>
+            <li><strong>Requirements</strong>: <code>enable.idempotence=true</code>, <code>transactional.id=unique-id</code>, acks=all.</li>
+            <li><strong>Consumer side</strong>: <code>isolation.level=read_committed</code> — consumers only see committed transactional messages.</li>
+          </ul>
+
+          <h2 id="consumer-patterns">Consumer Patterns</h2>
+
+          <h3>Consumer Groups</h3>
+          <ul>
+            <li>Each partition is consumed by exactly ONE consumer in a group — guarantees ordering per partition.</li>
+            <li><strong>Parallelism = min(partition_count, consumer_count)</strong>: Extra consumers beyond partition count sit idle.</li>
+            <li>Multiple consumer groups on the same topic get independent copies of all messages — enables fan-out pattern.</li>
+          </ul>
+
+          <h3>Offset Management</h3>
+          <ul>
+            <li><strong>Auto-commit</strong> (<code>enable.auto.commit=true</code>): Offsets committed every <code>auto.commit.interval.ms</code>. Risk: crash between commit and processing = skipped messages.</li>
+            <li><strong>Manual commit</strong>: Call <code>commitSync()</code> or <code>commitAsync()</code> AFTER processing. Guarantees at-least-once delivery.</li>
+            <li><strong>Exactly-once</strong>: Use transactional consumer pattern — commit offsets and produce results in the same transaction.</li>
+          </ul>
+
+          <h3>Rebalancing</h3>
+          <ul>
+            <li><strong>Trigger</strong>: Consumer joins/leaves group, heartbeat timeout, or partition count change.</li>
+            <li><strong>Stop-the-world</strong> (eager): All consumers stop, all partitions reassigned. Causes latency spike.</li>
+            <li><strong>Cooperative (incremental)</strong>: Only affected partitions reassigned. Set <code>partition.assignment.strategy=CooperativeStickyAssignor</code> — minimizes disruption.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Robust Consumer Configuration</div>
+            <pre><code># Consumer config for reliable processing
+bootstrap.servers=broker1:9092,broker2:9092,broker3:9092
+group.id=order-processing-group
+auto.offset.reset=earliest          # Start from beginning if no committed offset
+enable.auto.commit=false            # Manual commit for at-least-once
+max.poll.records=500                # Process in manageable batches
+max.poll.interval.ms=300000         # 5 min max processing time per poll
+session.timeout.ms=45000            # Heartbeat timeout (detect dead consumers)
+heartbeat.interval.ms=15000         # 1/3 of session timeout
+fetch.min.bytes=1048576             # 1 MB min fetch (reduce round trips)
+fetch.max.wait.ms=500               # Wait up to 500ms for min.bytes
+partition.assignment.strategy=org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+isolation.level=read_committed      # Only read committed transactional messages</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>max.poll.interval.ms pitfall:</strong> If your consumer's processing time exceeds this value (default 5 min), the broker considers it dead and triggers a rebalance. The consumer loses its partitions, processes duplicate messages, and creates a death spiral. Fix: either increase the interval, decrease max.poll.records, or move heavy processing to a thread pool and commit offsets synchronously.
+          </div>
+
+          <h2 id="msk-connect">MSK Connect</h2>
+
+          <p>Managed Kafka Connect — run source/sink connectors without managing Connect clusters:</p>
+
+          <ul>
+            <li><strong>Source connectors</strong>: Pull data into Kafka (e.g., Debezium for CDC from databases, S3 source).</li>
+            <li><strong>Sink connectors</strong>: Push Kafka data to external systems (S3 sink, Elasticsearch, JDBC, Redshift).</li>
+            <li><strong>Scaling</strong>: Auto-scales workers (MCU = MSK Connect Unit) based on throughput. Min 1, max configurable.</li>
+            <li><strong>Plugin management</strong>: Upload connector JARs to S3. MSK Connect deploys them to workers.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">S3 Sink Connector Configuration</div>
+            <pre><code>{
+  "connector.class": "io.confluent.connect.s3.S3SinkConnector",
+  "tasks.max": "12",
+  "topics": "clickstream-events",
+  "s3.bucket.name": "datalake-raw",
+  "s3.region": "us-east-1",
+  "storage.class": "io.confluent.connect.s3.storage.S3Storage",
+  "format.class": "io.confluent.connect.s3.format.parquet.ParquetFormat",
+  "parquet.codec": "snappy",
+  "flush.size": "100000",
+  "rotate.interval.ms": "600000",
+  "partition.duration.ms": "3600000",
+  "path.format": "'year'=YYYY/'month'=MM/'day'=dd/'hour'=HH",
+  "locale": "en-US",
+  "timezone": "UTC",
+  "timestamp.extractor": "RecordField",
+  "timestamp.field": "event_time",
+  "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+  "value.converter": "io.confluent.connect.avro.AvroConverter",
+  "value.converter.schema.registry.url": "https://glue-schema-registry"
+}</code></pre>
+          </div>
+
+          <h2 id="schema-registry">Glue Schema Registry</h2>
+
+          <ul>
+            <li><strong>Purpose</strong>: Centralized schema management for Kafka messages. Enforces compatibility on schema evolution.</li>
+            <li><strong>Formats</strong>: Avro, JSON Schema, Protobuf.</li>
+            <li><strong>Compatibility modes</strong>: BACKWARD (new schema can read old data), FORWARD (old schema can read new data), FULL (both), NONE (no checks).</li>
+            <li><strong>Integration</strong>: Producer serializes message with schema ID. Consumer deserializes using schema from registry. Schema stored in Glue — no separate Confluent Schema Registry needed.</li>
+            <li><strong>Cost advantage</strong>: Glue Schema Registry is free (no per-API-call charges). Confluent Schema Registry on MSK requires a running Connect cluster or self-managed service.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Producer with Glue Schema Registry (Java)</div>
+            <pre><code>Properties props = new Properties();
+props.put("bootstrap.servers", "broker1:9092,broker2:9092");
+props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("value.serializer", "com.amazonaws.services.schemaregistry.serializers.GlueSchemaRegistryKafkaSerializer");
+props.put("region", "us-east-1");
+props.put("schemaAutoRegistrationEnabled", "true");
+props.put("schemaName", "clickstream-event-v1");
+props.put("dataFormat", "AVRO");
+props.put("compatibility", "BACKWARD");
+props.put("compression", "ZLIB");
+
+KafkaProducer&lt;String, GenericRecord&gt; producer = new KafkaProducer&lt;&gt;(props);</code></pre>
+          </div>
+
+          <h2 id="monitoring">Monitoring</h2>
+
+          <h3>Critical Metrics</h3>
+          <table>
+            <thead>
+              <tr><th>Metric</th><th>Alert Threshold</th><th>Meaning</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>UnderReplicatedPartitions</td><td>> 0 for > 5 min</td><td>Data at risk of loss — replicas falling behind</td></tr>
+              <tr><td>OfflinePartitionsCount</td><td>> 0</td><td>Partitions with no leader — clients can't read/write</td></tr>
+              <tr><td>ActiveControllerCount</td><td>≠ 1</td><td>No controller = cluster can't elect leaders</td></tr>
+              <tr><td>CpuUser + CpuSystem</td><td>> 60% sustained</td><td>Broker approaching compute limit</td></tr>
+              <tr><td>KafkaDataLogsDiskUsed</td><td>> 80%</td><td>Storage running out (auto-scaling should handle)</td></tr>
+              <tr><td>Consumer lag</td><td>Growing steadily</td><td>Consumers can't keep up with producers</td></tr>
+              <tr><td>RequestHandlerAvgIdlePercent</td><td>< 30%</td><td>Broker request queue saturated</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Consumer Lag Monitoring</h3>
+          <div class="code-block">
+            <div class="code-block-header">Consumer Lag via CLI</div>
+            <pre><code># Check consumer group lag
+kafka-consumer-groups.sh \
+  --bootstrap-server broker1:9092 \
+  --describe \
+  --group order-processing-group
+
+# Output shows per-partition: CURRENT-OFFSET, LOG-END-OFFSET, LAG
+# LAG = messages behind. Growing lag = consumer too slow.
+
+# Automated monitoring: expose lag as CloudWatch custom metric
+# or use Burrow / Kafka Exporter for Prometheus</code></pre>
+          </div>
+
+          <h2 id="security">Security</h2>
+
+          <h3>Authentication Methods</h3>
+          <ul>
+            <li><strong>IAM Auth</strong> (recommended for AWS-native): Clients authenticate using IAM credentials. No separate user management. Integrates with IAM policies for authorization. Set <code>SASL/OAUTHBEARER</code> mechanism with AWS IAM handler.</li>
+            <li><strong>mTLS</strong>: Mutual TLS with client certificates. Best for cross-platform/multi-cloud clients. Requires ACM PCA (Private Certificate Authority).</li>
+            <li><strong>SASL/SCRAM</strong>: Username/password stored in AWS Secrets Manager. Simple but requires secret rotation management.</li>
+            <li><strong>Unauthenticated</strong>: PLAINTEXT — never for production. Only for dev within private VPC.</li>
+          </ul>
+
+          <h3>Authorization</h3>
+          <ul>
+            <li><strong>IAM policies</strong>: When using IAM auth, IAM policies control which topics a principal can produce/consume. Granular: per-topic, per-consumer-group, per-cluster action.</li>
+            <li><strong>Kafka ACLs</strong>: For mTLS/SCRAM auth — traditional Kafka ACL model. Manage via <code>kafka-acls.sh</code>.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">IAM Policy for Kafka Access</div>
+            <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kafka-cluster:Connect",
+        "kafka-cluster:DescribeCluster"
+      ],
+      "Resource": "arn:aws:kafka:us-east-1:123456789:cluster/data-platform/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kafka-cluster:ReadData",
+        "kafka-cluster:DescribeTopic"
+      ],
+      "Resource": "arn:aws:kafka:us-east-1:123456789:topic/data-platform/*/clickstream-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kafka-cluster:AlterGroup",
+        "kafka-cluster:DescribeGroup"
+      ],
+      "Resource": "arn:aws:kafka:us-east-1:123456789:group/data-platform/*/analytics-*"
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <h2 id="performance-tuning">Performance Tuning</h2>
+
+          <h3>Throughput vs Latency Trade-offs</h3>
+          <table>
+            <thead>
+              <tr><th>Goal</th><th>Producer Config</th><th>Consumer Config</th><th>Broker Config</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Max Throughput</td><td>linger.ms=50, batch.size=128KB, compression=lz4</td><td>fetch.min.bytes=1MB, fetch.max.wait.ms=500</td><td>num.io.threads=16, socket.send.buffer=1MB</td></tr>
+              <tr><td>Min Latency</td><td>linger.ms=0, batch.size=16KB, acks=1</td><td>fetch.min.bytes=1, fetch.max.wait.ms=0</td><td>num.io.threads=8 (more threads = more context switching)</td></tr>
+              <tr><td>Balance</td><td>linger.ms=5, batch.size=32KB, compression=lz4, acks=all</td><td>fetch.min.bytes=64KB, fetch.max.wait.ms=100</td><td>Default tuning</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Partition Rebalancing for Hot Partitions</h3>
+          <ul>
+            <li><strong>Problem</strong>: If message key distribution is skewed, some partitions get 10x more traffic (hot partitions) — overloading their leader broker.</li>
+            <li><strong>Detection</strong>: Monitor per-partition byte rate. If one partition has 5x the average, it's hot.</li>
+            <li><strong>Solutions</strong>: (1) Use a composite key (add random suffix for high-volume keys). (2) Increase partitions to spread load further. (3) Use custom partitioner that distributes hot keys across multiple partitions.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain exactly-once semantics (EOS) in Kafka end-to-end. What are the requirements and performance trade-offs?</div>
+            <div class="qa-answer">
+              <p><strong>End-to-end EOS requires three components</strong>:</p>
+              <p><strong>1. Idempotent producer</strong>: Each producer instance gets a PID (producer ID). Each message gets a monotonically increasing sequence number. If a retry delivers a duplicate (same PID + seq), the broker silently drops it. This prevents producer-side duplicates.</p>
+              <p><strong>2. Transactional writes</strong>: Producer wraps multiple writes in a transaction (<code>beginTransaction()</code>, <code>send()</code> × N, <code>commitTransaction()</code>). All messages atomically appear or none do. Transaction state is stored in <code>__transaction_state</code> internal topic. Requires: <code>transactional.id</code> configured (survives producer restarts), acks=all.</p>
+              <p><strong>3. Transactional consumer</strong>: Set <code>isolation.level=read_committed</code>. Consumer only sees messages from committed transactions. Messages from aborted/in-progress transactions are invisible. Consumer offsets are committed within the same transaction as the output (consume-transform-produce pattern).</p>
+              <p><strong>Performance trade-offs</strong>: (1) ~3-5% throughput reduction from idempotence (extra metadata per batch). (2) ~20-30% latency increase from transactions (2-phase commit overhead). (3) <code>max.in.flight.requests.per.connection</code> limited to 5 (ordering guarantee). (4) Transaction timeout adds end-to-end latency (messages invisible until commit). (5) More work for brokers: maintaining PID/seq mapping, transaction coordinator overhead.</p>
+              <p><strong>When to use</strong>: Financial transactions, order processing, billing events — where duplicates have business impact. <strong>When to skip</strong>: Metrics, logs, clickstream — where at-least-once + downstream deduplication (idempotent writes to DB) is simpler and faster.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Kafka consumers are experiencing increasing lag despite adding more consumer instances. Diagnose and fix.</div>
+            <div class="qa-answer">
+              <p><strong>Diagnosis 1 — Partition count bottleneck</strong>: If consumer instances > partition count, extra consumers sit idle. Check: <code>kafka-consumer-groups.sh --describe</code> — if some consumers have 0 assigned partitions, you need more partitions. Fix: increase topic partitions (requires producer restart for new partition distribution).</p>
+              <p><strong>Diagnosis 2 — Rebalancing storm</strong>: Frequent rebalances cause consumers to stop-the-world. Check: consumer logs for "Revoking partitions" messages. Causes: consumers exceeding <code>max.poll.interval.ms</code>, frequent deploys without graceful shutdown. Fix: increase <code>max.poll.interval.ms</code>, reduce <code>max.poll.records</code>, use CooperativeStickyAssignor, implement graceful shutdown (consumer.close()).</p>
+              <p><strong>Diagnosis 3 — Slow processing</strong>: Each poll takes too long (blocking DB calls, slow external APIs). Check: time between polls vs <code>max.poll.interval.ms</code>. Fix: (a) Decouple processing — poll into in-memory buffer, process in thread pool, commit offsets after buffer drains. (b) Reduce <code>max.poll.records</code> for smaller batches. (c) Move heavy processing to async (publish to another topic for a processing tier).</p>
+              <p><strong>Diagnosis 4 — GC pressure</strong>: Large <code>max.poll.records</code> + heavy deserialization causes long GC pauses → heartbeat timeout → rebalance → repeat. Fix: tune JVM heap, reduce poll size, use more consumer instances with less memory each.</p>
+              <p><strong>Diagnosis 5 — Fetch throughput</strong>: Consumer network is saturated. Check: <code>fetch-size-avg</code> metric at max. Fix: increase consumer instance count (parallelize network I/O), or use <code>fetch.max.bytes</code> to cap memory usage per fetch.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a Kafka topic strategy for a data platform ingesting events from 50 microservices.</div>
+            <div class="qa-answer">
+              <p><strong>Approach 1 — Topic per service</strong>: 50 topics (orders-events, payment-events, user-events, etc.). Pros: independent retention/partition tuning per service, clear ownership, easy to reason about. Cons: consumers reading "all events" must subscribe to 50 topics.</p>
+              <p><strong>Approach 2 — Topic per domain</strong>: 8–10 topics grouped by business domain (commerce-events, user-lifecycle, payments, notifications). Pros: fewer topics to manage, natural consumer grouping. Cons: mixed SLAs within a topic (critical payment events in same topic as low-priority notifications).</p>
+              <p><strong>Recommended hybrid</strong>: Domain topics for consumption + service-level routing via headers/key prefix. Each service publishes to its domain topic with a <code>service</code> header. Consumers filter on headers when they want service-specific data.</p>
+              <p><strong>Topic naming convention</strong>: <code>{domain}.{entity}.{event-type}</code> — e.g., <code>commerce.orders.created</code>, <code>commerce.orders.fulfilled</code>, <code>payments.transactions.completed</code>.</p>
+              <p><strong>Partition strategy</strong>: Key = entity ID (order_id, user_id). Ensures all events for an entity go to the same partition → ordering guaranteed per entity. Partition count: start with 24 per topic, scale based on throughput monitoring.</p>
+              <p><strong>Schema strategy</strong>: Glue Schema Registry with BACKWARD compatibility per topic. Each service registers its schema. Consumers read latest schema — backward compatibility ensures old messages are still readable.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you choose MSK over Kinesis Data Streams for real-time data ingestion?</div>
+            <div class="qa-answer">
+              <p><strong>Choose MSK (Kafka) when</strong>: (1) Need true event ordering with arbitrary retention (Kinesis max 365 days, Kafka unlimited). (2) Require exactly-once semantics via transactions. (3) Team has Kafka expertise and existing Kafka tooling (Connect ecosystem, ksqlDB, Schema Registry). (4) Need replay from any offset (Kinesis only supports trim horizon or timestamp). (5) High partition count needed (Kinesis shards are more expensive to scale). (6) Complex stream processing with Kafka Streams/Flink requiring Kafka-specific features.</p>
+              <p><strong>Choose Kinesis when</strong>: (1) Simple ingestion pipeline (stream → Lambda → DynamoDB/S3). (2) AWS-native integration priority (direct Firehose → S3/Redshift delivery without code). (3) Operational simplicity — no broker management, fully serverless scaling. (4) Low throughput (&lt;10 MB/s) where MSK's minimum broker cost is overkill. (5) Team lacks Kafka operational expertise.</p>
+              <p><strong>Cost comparison</strong>: Kinesis: ~$0.015/shard-hour + $0.014/million PUT. MSK: ~$0.21/broker-hour (kafka.m5.large) + storage. At high throughput (1 GB/s), MSK is significantly cheaper per-GB. At low throughput (&lt;5 MB/s), Kinesis wins on cost because MSK has a minimum fixed cost of 3 brokers.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle schema evolution in a Kafka-based data platform without breaking consumers?</div>
+            <div class="qa-answer">
+              <p><strong>Strategy: Schema Registry + Compatibility Rules</strong></p>
+              <p><strong>1. Use Avro/Protobuf</strong> (not JSON): Binary formats with schema metadata. Schema ID embedded in each message header. Consumers deserialize using the exact schema the message was written with, then translate to their reader schema.</p>
+              <p><strong>2. Set BACKWARD compatibility</strong> (default, recommended): New schema can read data written with old schema. This means: adding optional fields (with defaults) is safe, removing fields is safe, changing types is NOT safe. Consumers upgrade at their own pace — old messages always readable.</p>
+              <p><strong>3. Breaking changes (major version)</strong>: When backward-incompatible change is needed (rename field, change type): (a) Create a new topic (orders-v2). (b) Dual-write during migration (produce to both v1 and v2). (c) Migrate consumers one by one to v2. (d) Decommission v1 after all consumers migrated.</p>
+              <p><strong>4. Glue Schema Registry integration</strong>: Register schemas per topic. Enable auto-registration on producers (schema discovered from serialized objects). Set compatibility mode at the registry level — rejects incompatible schema registrations at write time, not at runtime.</p>
+              <p><strong>5. Consumer defensive coding</strong>: Always handle unknown fields gracefully (Avro ignores unknown fields by default). Never assume field presence without checking schema version. Use schema-aware deserialization that maps to internal DTOs rather than direct Avro GenericRecords.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AWS</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

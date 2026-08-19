@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Dataproc — Managed Spark on GCP — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">GCP</a>
+        <span>→</span>
+        <span>Dataproc — Managed Spark</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">GCP</span>
+            <span class="read-time">9 min read</span>
+          </div>
+          <h1>Dataproc — Managed Spark on GCP</h1>
+          <p class="article-desc">Complete guide to Google Cloud Dataproc — managed Hadoop/Spark cluster architecture, cluster types, Dataproc Serverless, autoscaling policies, initialization actions, Dataproc on GKE, Dataproc Metastore, cost optimization with preemptible VMs, and comparison with EMR and Databricks.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#architecture">Dataproc Architecture</a></li>
+            <li><a href="#cluster-types">Cluster Types</a></li>
+            <li><a href="#dataproc-serverless">Dataproc Serverless</a></li>
+            <li><a href="#autoscaling">Autoscaling Policies</a></li>
+            <li><a href="#initialization-actions">Initialization Actions</a></li>
+            <li><a href="#dataproc-gke">Dataproc on GKE</a></li>
+            <li><a href="#dataproc-metastore">Dataproc Metastore</a></li>
+            <li><a href="#cost-optimization">Cost Optimization</a></li>
+            <li><a href="#comparison">Comparison: Dataproc vs EMR vs Databricks</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="architecture">Dataproc Architecture</h2>
+
+          <p>Dataproc is Google Cloud's managed Hadoop and Spark service — it provisions clusters of GCE instances pre-configured with the Hadoop ecosystem. Key architectural features:</p>
+
+          <h3>Core Components</h3>
+          <ul>
+            <li><strong>Master node(s)</strong>: Runs YARN ResourceManager, HDFS NameNode, Spark History Server, Hive Metastore. 1 master (standard) or 3 masters (HA with ZooKeeper).</li>
+            <li><strong>Worker nodes</strong>: Run YARN NodeManager and HDFS DataNode. Execute Spark executors and MapReduce tasks.</li>
+            <li><strong>Secondary workers (preemptible)</strong>: Optional worker nodes using Spot/preemptible VMs. Run YARN NodeManager only (no HDFS) — pure compute.</li>
+            <li><strong>GCS Connector</strong>: Native connector for reading/writing Google Cloud Storage. Replaces HDFS for most workloads (decoupled storage).</li>
+            <li><strong>Component Gateway</strong>: Provides authenticated access to Hadoop web UIs (Spark UI, YARN RM, Jupyter) via IAP without SSH tunneling.</li>
+          </ul>
+
+          <h3>Key Differentiators from Self-Managed Hadoop</h3>
+          <ul>
+            <li><strong>90-second cluster startup</strong>: Dataproc provisions a full Hadoop cluster in ~90 seconds (vs 10–15 minutes for EMR). Pre-built images with all components.</li>
+            <li><strong>Per-second billing</strong>: Charged per second of cluster uptime (minimum 1 minute). Enables transient cluster patterns.</li>
+            <li><strong>Integrated with GCP IAM</strong>: Service accounts, Workload Identity, VPC Service Controls — no Kerberos needed for basic access control.</li>
+            <li><strong>Connector ecosystem</strong>: Native BigQuery connector (read BQ tables as Spark DataFrames), Pub/Sub connector, Bigtable connector.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Dataproc's 90-second startup time fundamentally enables the "ephemeral cluster" pattern that's impractical on EMR (5–8 min startup). A Spark job can create its own cluster, run, and terminate — with total overhead of ~3 minutes. This makes per-job clusters viable even for 15-minute ETL jobs, eliminating idle cluster costs entirely.
+          </div>
+
+          <h2 id="cluster-types">Cluster Types</h2>
+
+          <h3>Standard Cluster</h3>
+          <ul>
+            <li>1 master + N workers. Default configuration for most workloads.</li>
+            <li>Master failure = cluster failure (no automatic recovery).</li>
+            <li>Workers: 2 minimum for HDFS replication (or 0 if using GCS only).</li>
+            <li><strong>When to use</strong>: Development, testing, non-critical batch jobs where HA isn't required.</li>
+          </ul>
+
+          <h3>High-Availability (HA) Cluster</h3>
+          <ul>
+            <li>3 master nodes with ZooKeeper-based failover (YARN RM HA, HDFS NN HA).</li>
+            <li>Survives single master failure without job interruption.</li>
+            <li>HDFS uses quorum-based journaling for NameNode metadata.</li>
+            <li><strong>When to use</strong>: Long-running clusters shared by multiple users, streaming jobs that can't tolerate restart, production persistent clusters.</li>
+            <li><strong>Cost</strong>: 3x master cost. Only justified for clusters running &gt;8 hours or serving critical real-time workloads.</li>
+          </ul>
+
+          <h3>Single-Node Cluster</h3>
+          <ul>
+            <li>1 node acting as both master and worker. No HDFS replication.</li>
+            <li>Lowest cost option for development and small-scale testing.</li>
+            <li><strong>When to use</strong>: Local development, unit testing Spark jobs, prototyping with small datasets (&lt;10GB).</li>
+            <li><strong>Limitations</strong>: No parallelism benefit, no fault tolerance, max memory limited to single machine.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Create Dataproc Cluster (gcloud CLI)</div>
+            <pre><code># Standard cluster with preemptible workers and GCS connector
+gcloud dataproc clusters create prod-spark-cluster \
+  --region=us-central1 \
+  --zone=us-central1-a \
+  --master-machine-type=n2-highmem-8 \
+  --master-boot-disk-size=500GB \
+  --num-workers=4 \
+  --worker-machine-type=n2-standard-8 \
+  --worker-boot-disk-size=200GB \
+  --num-secondary-workers=8 \
+  --secondary-worker-type=preemptible \
+  --image-version=2.1-debian11 \
+  --optional-components=JUPYTER,HIVE_WEBHCAT \
+  --enable-component-gateway \
+  --properties="\
+spark:spark.sql.adaptive.enabled=true,\
+spark:spark.sql.adaptive.coalescePartitions.enabled=true,\
+spark:spark.dynamicAllocation.enabled=true,\
+spark:spark.dynamicAllocation.minExecutors=2,\
+spark:spark.dynamicAllocation.maxExecutors=50,\
+spark:spark.sql.sources.partitionOverwriteMode=dynamic,\
+mapred:yarn.app.mapreduce.am.resource.mb=4096" \
+  --initialization-actions=gs://my-project-init/install-deps.sh \
+  --metadata=PIP_PACKAGES="pandas==2.1.4 pyarrow==14.0.2 great-expectations==0.18.8" \
+  --service-account=dataproc-sa@my-project.iam.gserviceaccount.com \
+  --scopes=cloud-platform \
+  --max-idle=30m \
+  --labels=team=data-engineering,env=production</code></pre>
+          </div>
+
+          <h2 id="dataproc-serverless">Dataproc Serverless</h2>
+
+          <p>Dataproc Serverless runs Spark workloads without cluster management — submit a job and Google handles all infrastructure:</p>
+
+          <h3>How It Works</h3>
+          <ul>
+            <li><strong>No cluster to manage</strong>: Submit Spark batch jobs directly. Google provisions compute, runs the job, and releases resources automatically.</li>
+            <li><strong>Per-job billing</strong>: Charged for Data Compute Units (DCUs) consumed during job execution. No idle cost — you pay only while the job is actively processing.</li>
+            <li><strong>Auto-sizing</strong>: Google determines the number of executors based on input data size and query complexity. Scales mid-job if needed.</li>
+            <li><strong>Startup time</strong>: ~60 seconds cold start (pre-warmed sessions reduce to ~15s for interactive/notebook use).</li>
+          </ul>
+
+          <h3>Supported Workloads</h3>
+          <ul>
+            <li><strong>Spark batch</strong>: PySpark scripts, Spark SQL, JAR submissions.</li>
+            <li><strong>Spark Interactive (Sessions)</strong>: Jupyter notebooks backed by serverless Spark — similar to Databricks serverless notebooks.</li>
+            <li><strong>Spark Streaming</strong>: Structured Streaming with micro-batch (NOT continuous processing — limited to structured streaming triggers).</li>
+          </ul>
+
+          <h3>Limitations</h3>
+          <ul>
+            <li>No HDFS — all data must be in GCS or BigQuery.</li>
+            <li>No SSH access or custom system packages (limited to Python packages via <code>--properties spark.dataproc.conda.packages</code>).</li>
+            <li>Max 2000 DCUs per job (soft limit, can be increased).</li>
+            <li>No persistent Spark state between jobs (no shared RDD cache).</li>
+            <li>Limited Spark config overrides — some JVM tuning options are locked.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Dataproc Serverless — Submit Spark Batch Job</div>
+            <pre><code># Submit a PySpark job to Dataproc Serverless
+gcloud dataproc batches submit pyspark \
+  gs://my-project-code/etl/daily_transform.py \
+  --region=us-central1 \
+  --project=my-project \
+  --batch=daily-etl-20240615 \
+  --service-account=dataproc-sa@my-project.iam.gserviceaccount.com \
+  --subnet=projects/my-project/regions/us-central1/subnetworks/dataproc-subnet \
+  --properties="\
+spark.sql.adaptive.enabled=true,\
+spark.sql.shuffle.partitions=auto,\
+spark.dynamicAllocation.executorAllocationRatio=0.5" \
+  --deps-bucket=gs://my-project-staging/dataproc-deps \
+  --py-files=gs://my-project-code/libs/common_utils.zip \
+  --jars=gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.36.1.jar \
+  --version=2.1 \
+  --labels=pipeline=daily-etl,team=data-engineering \
+  -- --input-date=2024-06-15 --output-path=gs://data-lake/silver/
+
+# Submit Spark SQL job
+gcloud dataproc batches submit spark-sql \
+  --region=us-central1 \
+  --project=my-project \
+  --batch=sql-aggregate-20240615 \
+  "gs://my-project-code/sql/build_aggregates.sql" \
+  --vars="input_date=2024-06-15,output_table=gold.daily_metrics"</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Dataproc Serverless is the GCP equivalent of EMR Serverless — ideal for teams that want Spark without infrastructure management. The per-DCU pricing means you pay proportionally to workload size. For a job processing 100GB, you might use 50 DCUs for 10 minutes (~$2.50). The same job on a provisioned 10-node cluster costs more if the cluster sits idle before/after the job.
+          </div>
+
+          <h2 id="autoscaling">Autoscaling Policies</h2>
+
+          <h3>YARN-Based Autoscaling</h3>
+          <ul>
+            <li><strong>Scale-up trigger</strong>: Pending YARN containers (tasks waiting for resources) exceed threshold. Dataproc adds worker nodes.</li>
+            <li><strong>Scale-down trigger</strong>: YARN memory utilization drops below threshold for sustained period. Dataproc removes idle workers.</li>
+            <li><strong>Graceful decommission</strong>: Workers are YARN-decommissioned before removal — running containers are allowed to finish (configurable timeout).</li>
+            <li><strong>Cooldown period</strong>: Minimum time between scaling events to avoid thrashing (default 2 minutes).</li>
+          </ul>
+
+          <h3>Autoscaling Policy Configuration</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Dataproc Autoscaling Policy (YAML)</div>
+            <pre><code># autoscaling-policy.yaml
+workerConfig:
+  minInstances: 2
+  maxInstances: 10
+  weight: 1
+
+secondaryWorkerConfig:
+  minInstances: 0
+  maxInstances: 20
+  weight: 1
+
+basicAlgorithm:
+  yarnConfig:
+    scaleUpFactor: 1.0          # Add 100% of needed capacity per scale event
+    scaleDownFactor: 1.0        # Remove 100% of excess capacity per scale event
+    scaleUpMinWorkerFraction: 0.0  # Scale up even for a single pending container
+    scaleDownMinWorkerFraction: 0.0
+    gracefulDecommissionTimeout: 3600s  # 1 hour to finish running tasks
+
+  cooldownPeriod: 120s  # Wait 2 min between scaling events
+
+# Create the policy
+# gcloud dataproc autoscaling-policies import my-policy \
+#   --source=autoscaling-policy.yaml \
+#   --region=us-central1
+
+# Attach to cluster
+# gcloud dataproc clusters create my-cluster \
+#   --autoscaling-policy=my-policy \
+#   --region=us-central1</code></pre>
+          </div>
+
+          <h3>Autoscaling Best Practices</h3>
+          <ul>
+            <li><strong>Primary workers (standard)</strong>: Set min/max with small range (2–10). These have HDFS — scaling down risks data loss without decommission.</li>
+            <li><strong>Secondary workers (preemptible)</strong>: Set min=0, max=large (0–50). These are pure compute — scale aggressively.</li>
+            <li><strong>Graceful decommission timeout</strong>: Set to your longest task duration. Too short = killed tasks and retries. Too long = paying for idle workers waiting to drain.</li>
+            <li><strong>Streaming workloads</strong>: Disable autoscaling or set conservative thresholds — streaming jobs have constant resource requirements.</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>Pitfall:</strong> Autoscaling with HDFS-backed clusters is dangerous. If primary workers scale down, HDFS blocks on those nodes must be replicated first (decommission). For large datasets, decommission can take 30+ minutes — during which the cluster appears "stuck." Best practice: use GCS for storage and keep primary workers at a fixed count. Only autoscale secondary (preemptible) workers.
+          </div>
+
+          <h2 id="initialization-actions">Initialization Actions</h2>
+
+          <p>Initialization actions are shell scripts that run on all cluster nodes during creation — equivalent to EMR Bootstrap Actions:</p>
+
+          <h3>Use Cases</h3>
+          <ul>
+            <li>Install additional Python packages (pip install)</li>
+            <li>Install system dependencies (apt-get install)</li>
+            <li>Configure custom logging/monitoring agents</li>
+            <li>Set up database drivers (JDBC connectors)</li>
+            <li>Mount additional storage or configure network</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Initialization Action Script</div>
+            <pre><code>#!/bin/bash
+# install-deps.sh — Stored in GCS: gs://my-project-init/install-deps.sh
+
+set -euxo pipefail
+
+# Determine node role
+ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
+echo "Node role: $ROLE"
+
+# Install Python packages (on all nodes)
+PACKAGES=$(usr/share/google/get_metadata_value attributes/PIP_PACKAGES || echo "")
+if [[ -n "$PACKAGES" ]]; then
+    pip install $PACKAGES
+fi
+
+# Install system packages
+apt-get update -y
+apt-get install -y libpq-dev jq
+
+# Master-only: install additional tools
+if [[ "$ROLE" == "Master" ]]; then
+    # Install dbt
+    pip install dbt-bigquery==1.7.4
+    
+    # Configure Spark defaults for all jobs on this cluster
+    cat >> /etc/spark/conf/spark-defaults.conf << 'EOF'
+spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog
+spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension
+spark.jars.packages=io.delta:delta-core_2.12:2.4.0
+EOF
+fi
+
+# Worker-only: configure local SSDs for shuffle
+if [[ "$ROLE" == "Worker" ]]; then
+    # Symlink Spark local dirs to fast local SSDs if available
+    if [[ -d /mnt/0 ]]; then
+        mkdir -p /mnt/0/spark-local
+        ln -sf /mnt/0/spark-local /tmp/spark-local
+    fi
+fi
+
+echo "Initialization complete for $ROLE node"</code></pre>
+          </div>
+
+          <h3>Best Practices</h3>
+          <ul>
+            <li><strong>Idempotent scripts</strong>: Init actions may run multiple times on retry. Use <code>set -e</code> and conditional checks.</li>
+            <li><strong>Fast execution</strong>: Keep init actions under 5 minutes. Long init actions delay cluster readiness and increase failure risk.</li>
+            <li><strong>Version pinning</strong>: Pin all package versions to avoid non-deterministic cluster builds.</li>
+            <li><strong>Custom images alternative</strong>: For complex/slow init actions, build a custom Dataproc image (pre-baked with all dependencies). Cluster startup uses the image directly — no init action delay.</li>
+          </ul>
+
+          <h2 id="dataproc-gke">Dataproc on GKE</h2>
+
+          <h3>Kubernetes-Native Spark</h3>
+          <ul>
+            <li><strong>Architecture</strong>: Spark jobs run as pods on an existing GKE cluster — similar to EMR on EKS.</li>
+            <li><strong>Virtual cluster</strong>: Create a Dataproc virtual cluster on GKE — submit Spark jobs to it without managing dedicated Dataproc instances.</li>
+            <li><strong>Benefits</strong>: Share GKE infrastructure across Spark and non-Spark workloads. Use Kubernetes features (pod priority, resource quotas, node affinity). Custom container images for complete dependency control.</li>
+            <li><strong>Autoscaling</strong>: Leverages GKE node auto-provisioning or Cluster Autoscaler — pods trigger node scale-up when pending.</li>
+          </ul>
+
+          <h3>When to Choose Dataproc on GKE</h3>
+          <ul>
+            <li>Organization already standardized on GKE — want to consolidate workloads on one platform.</li>
+            <li>Need fine-grained resource isolation (namespaces, resource quotas per team).</li>
+            <li>Custom Spark images with non-standard dependencies (ML libraries, custom JARs).</li>
+            <li>Multi-tenant Spark serving different teams with isolated namespaces.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Dataproc on GKE — Virtual Cluster & Job Submission</div>
+            <pre><code># Create Dataproc virtual cluster on existing GKE
+gcloud dataproc clusters gke create spark-on-gke \
+  --region=us-central1 \
+  --gke-cluster=projects/my-project/locations/us-central1/clusters/shared-gke \
+  --spark-engine-version=latest \
+  --namespace=spark-workloads \
+  --pools='name=driver-pool,min=1,max=5,machineType=n2-standard-4' \
+  --pools='name=executor-pool,min=0,max=50,machineType=n2-highmem-8,preemptible=true'
+
+# Submit Spark job to GKE-backed virtual cluster
+gcloud dataproc jobs submit pyspark \
+  gs://my-project-code/jobs/transform.py \
+  --cluster=spark-on-gke \
+  --region=us-central1 \
+  --properties="\
+spark.kubernetes.executor.request.cores=2,\
+spark.kubernetes.executor.limit.cores=4,\
+spark.executor.memory=8g,\
+spark.executor.instances=10,\
+spark.kubernetes.container.image=gcr.io/my-project/spark-custom:v2.1"</code></pre>
+          </div>
+
+          <h2 id="dataproc-metastore">Dataproc Metastore</h2>
+
+          <h3>Managed Hive Metastore</h3>
+          <ul>
+            <li><strong>What it is</strong>: Fully managed, serverless Hive Metastore service — stores table schemas, partition metadata, and storage locations.</li>
+            <li><strong>Decoupled from compute</strong>: A single Dataproc Metastore instance can be shared across multiple Dataproc clusters, Dataproc Serverless jobs, and even other services (Spark on GKE, BigQuery via federated queries).</li>
+            <li><strong>Persistence</strong>: Metadata persists independently of cluster lifecycle — create/destroy ephemeral clusters without losing table definitions.</li>
+            <li><strong>Versions</strong>: Supports Hive Metastore 3.x protocol. Compatible with Spark, Hive, Presto/Trino.</li>
+          </ul>
+
+          <h3>Configuration</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Dataproc Metastore Setup</div>
+            <pre><code># Create a Dataproc Metastore service
+gcloud metastore services create prod-metastore \
+  --location=us-central1 \
+  --tier=ENTERPRISE \
+  --hive-metastore-version=3.1.2 \
+  --network=projects/my-project/global/networks/prod-vpc \
+  --port=9083
+
+# Attach metastore to a Dataproc cluster at creation time
+gcloud dataproc clusters create my-cluster \
+  --region=us-central1 \
+  --dataproc-metastore=projects/my-project/locations/us-central1/services/prod-metastore \
+  --properties="hive:hive.metastore.warehouse.dir=gs://data-lake/warehouse/"
+
+# Use in Spark SQL — tables persist across cluster restarts
+# spark.sql("CREATE TABLE IF NOT EXISTS db.events (id STRING, ts TIMESTAMP) USING DELTA LOCATION 'gs://data-lake/events/'")
+# spark.sql("SELECT * FROM db.events WHERE ts > '2024-01-01'")</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Dataproc Metastore + GCS + ephemeral clusters = the GCP equivalent of the Glue Data Catalog + S3 + transient EMR pattern. Metadata (table definitions) lives in the managed metastore, data lives in GCS, and compute clusters are created per-job and destroyed after completion. Total cost of idle infrastructure approaches zero.
+          </div>
+
+          <h2 id="cost-optimization">Cost Optimization</h2>
+
+          <h3>Preemptible (Spot) Workers</h3>
+          <ul>
+            <li>60–80% cheaper than on-demand instances.</li>
+            <li>Can be reclaimed by Google with 30-second notice.</li>
+            <li><strong>Configuration</strong>: Add as "secondary workers" — they run YARN NodeManager only (no HDFS). Safe to lose without data loss.</li>
+            <li><strong>Best practice</strong>: Use 70–80% preemptible workers for batch jobs. Keep 2–4 standard workers as baseline capacity.</li>
+          </ul>
+
+          <h3>Scheduled Deletion (Ephemeral Clusters)</h3>
+          <ul>
+            <li><code>--max-idle=30m</code>: Automatically delete cluster after 30 minutes of no job activity. Prevents forgotten clusters running indefinitely.</li>
+            <li><code>--max-age=8h</code>: Hard limit — cluster automatically deleted after 8 hours regardless of activity. Safety net for long-running jobs that get stuck.</li>
+            <li><code>--expiration-time</code>: Delete at a specific timestamp.</li>
+          </ul>
+
+          <h3>Dataproc Serverless vs Provisioned Clusters</h3>
+          <table>
+            <thead>
+              <tr><th>Factor</th><th>Dataproc Serverless</th><th>Provisioned Cluster</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Management overhead</td><td>Zero (fully managed)</td><td>High (sizing, scaling, monitoring)</td></tr>
+              <tr><td>Startup latency</td><td>~60s</td><td>~90s (provisioned), 0s (existing)</td></tr>
+              <tr><td>Cost for sporadic jobs</td><td>Lower (per-DCU, no idle)</td><td>Higher (cluster idles between jobs)</td></tr>
+              <tr><td>Cost for steady-state workloads</td><td>Higher (DCU premium)</td><td>Lower (especially with preemptible)</td></tr>
+              <tr><td>Customization</td><td>Limited (no SSH, no custom OS packages)</td><td>Full (init actions, custom images)</td></tr>
+              <tr><td>HDFS support</td><td>No</td><td>Yes</td></tr>
+              <tr><td>Streaming</td><td>Limited (batch-style structured streaming)</td><td>Full (continuous streaming)</td></tr>
+              <tr><td>Best for</td><td>Sporadic batch ETL, notebook exploration</td><td>Steady-state, streaming, complex deps</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Other Cost Strategies</h3>
+          <ul>
+            <li><strong>Right-size instances</strong>: Use <code>n2-standard-4</code> instead of <code>n2-standard-8</code> if executor memory fits. Monitor YARN container utilization.</li>
+            <li><strong>Local SSDs for shuffle</strong>: Add local SSDs to worker nodes for Spark shuffle. Reduces shuffle spill-to-network and improves job speed (faster completion = less cost).</li>
+            <li><strong>GCS instead of HDFS</strong>: Eliminate HDFS overhead. Primary workers can be smaller (no DataNode). All data on GCS enables ephemeral clusters.</li>
+            <li><strong>Committed Use Discounts (CUDs)</strong>: For persistent clusters running 24/7, commit to 1-year or 3-year GCE usage for 20–57% discount on compute.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Cost-Optimized Ephemeral Cluster Pattern</div>
+            <pre><code># Pattern: Create cluster → Submit job → Auto-delete on idle
+# Total cost = only the time the job actually runs + ~3min overhead
+
+gcloud dataproc clusters create etl-$(date +%Y%m%d-%H%M) \
+  --region=us-central1 \
+  --master-machine-type=n2-standard-4 \
+  --num-workers=2 \
+  --worker-machine-type=n2-standard-4 \
+  --num-secondary-workers=10 \
+  --secondary-worker-type=spot \
+  --max-idle=10m \
+  --max-age=4h \
+  --initialization-actions=gs://my-project-init/install-deps.sh \
+  --dataproc-metastore=projects/my-project/locations/us-central1/services/prod-metastore \
+  --properties="\
+spark:spark.sql.adaptive.enabled=true,\
+spark:spark.dynamicAllocation.enabled=true" \
+  --labels=pipeline=daily-etl,cost-center=DE-001
+
+# Submit job immediately after cluster is ready
+gcloud dataproc jobs submit pyspark \
+  gs://my-project-code/etl/daily_transform.py \
+  --cluster=etl-$(date +%Y%m%d-%H%M) \
+  --region=us-central1 \
+  -- --date=$(date +%Y-%m-%d) --mode=full
+
+# Cluster auto-deletes 10 minutes after job completes (--max-idle=10m)</code></pre>
+          </div>
+
+          <h2 id="comparison">Comparison: Dataproc vs EMR vs Databricks</h2>
+
+          <table>
+            <thead>
+              <tr><th>Feature</th><th>Dataproc</th><th>EMR</th><th>Databricks</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Startup time</td><td>~90 seconds</td><td>5–8 minutes</td><td>3–5 minutes</td></tr>
+              <tr><td>Billing</td><td>Per-second (GCE + small management fee)</td><td>Per-second (EC2 + EMR fee)</td><td>Per-DBU + cloud infra</td></tr>
+              <tr><td>Serverless option</td><td>Dataproc Serverless</td><td>EMR Serverless</td><td>Serverless SQL/Compute</td></tr>
+              <tr><td>Spark optimization</td><td>Community Spark</td><td>EMR Spark (some optimizations)</td><td>Photon engine (C++ vectorized)</td></tr>
+              <tr><td>Managed metastore</td><td>Dataproc Metastore</td><td>Glue Data Catalog</td><td>Unity Catalog</td></tr>
+              <tr><td>Kubernetes option</td><td>Dataproc on GKE</td><td>EMR on EKS</td><td>N/A (managed clusters only)</td></tr>
+              <tr><td>Governance</td><td>GCP IAM + Metastore</td><td>Lake Formation + IAM</td><td>Unity Catalog</td></tr>
+              <tr><td>Auto-scaling</td><td>YARN-based (limited)</td><td>Managed Scaling (better)</td><td>Optimized Autoscaling (best)</td></tr>
+              <tr><td>Notebook experience</td><td>Jupyter (basic)</td><td>EMR Studio / Jupyter</td><td>Native notebooks (best)</td></tr>
+              <tr><td>Delta Lake support</td><td>Manual (add JARs)</td><td>Manual (add JARs)</td><td>Native (built-in)</td></tr>
+              <tr><td>Cost at scale</td><td>Lowest (minimal management fee)</td><td>Low (EMR fee ~25% of EC2)</td><td>Highest (DBU premium)</td></tr>
+              <tr><td>Operational complexity</td><td>Medium</td><td>Medium-High</td><td>Low (most managed)</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Dataproc's competitive advantage is cost and startup speed. It has the lowest management overhead cost (essentially GCE pricing + tiny premium) and the fastest cluster startup (~90s). This makes it ideal for organizations that want Spark without the Databricks premium and can accept less polish in the notebook/governance experience. For teams already on GCP who need maximum cost efficiency and don't require Photon-level performance, Dataproc (especially Serverless) is the pragmatic choice.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Dataproc Serverless with provisioned Dataproc clusters. When would you choose each for a production data platform?</div>
+            <div class="qa-answer">
+              <p><strong>Choose Dataproc Serverless when:</strong></p>
+              <p>(1) Jobs are sporadic/bursty — a daily ETL job that runs for 20 minutes doesn't justify a 24/7 cluster. (2) Team lacks Spark ops expertise — no cluster sizing, scaling policy tuning, or init action debugging needed. (3) Jobs are independent (no shared state between runs) — each job gets a fresh environment. (4) Quick iteration in development — submit a job in 60s without waiting for cluster provisioning. (5) Per-job cost isolation — each job's DCU cost is attributable to that specific pipeline.</p>
+              <p><strong>Choose provisioned clusters when:</strong></p>
+              <p>(1) Streaming workloads (Spark Structured Streaming) that need persistent clusters with checkpoints. (2) Complex dependencies requiring custom system packages, init actions, or custom Dataproc images. (3) Workloads needing HDFS (data locality for iterative algorithms like ML training). (4) Steady-state batch workloads running hours/day — provisioned with preemptible workers is cheaper than Serverless at high utilization. (5) Shared interactive clusters for multiple data engineers (Jupyter notebooks with shared SparkContext).</p>
+              <p><strong>Hybrid approach:</strong> Use Serverless for most batch ETL (80% of jobs) and maintain one persistent cluster for streaming jobs and interactive development. This minimizes management overhead while supporting all workload types.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Dataproc cluster autoscaling isn't working effectively — jobs are slow despite having autoscaling enabled. How do you diagnose and fix?</div>
+            <div class="qa-answer">
+              <p><strong>Common autoscaling failures and fixes:</strong></p>
+              <p>(1) <strong>Scale-up too slow</strong>: Default cooldown (2 min) + node provisioning (~90s) = 3.5 min before new capacity is available. For short-lived tasks, the job finishes before new nodes are ready. Fix: Increase <code>scaleUpFactor</code> to 1.5–2.0 (provision more than needed, faster). Reduce cooldown period to 60s.</p>
+              <p>(2) <strong>HDFS blocking scale-down</strong>: Primary workers can't be removed if HDFS blocks haven't been replicated off them. Graceful decommission timeout is too short. Fix: Move to GCS-based storage. Set primary worker min = max (fixed). Only autoscale secondary workers (no HDFS).</p>
+              <p>(3) <strong>YARN metrics lag</strong>: Autoscaling uses YARN metrics which update every ~3s. Sudden spikes in task parallelism may not register immediately. Fix: Set <code>scaleUpMinWorkerFraction=0</code> so even 1 pending container triggers scale-up.</p>
+              <p>(4) <strong>Preemptible worker reclamation</strong>: Google reclaims spot instances during high-demand periods. Autoscaling replaces them, but there's a gap. Fix: Diversify zones (<code>--zone</code> spread). Increase min secondary workers so a buffer exists. Consider using a mix of spot + on-demand secondary workers.</p>
+              <p>(5) <strong>Spark dynamic allocation conflict</strong>: Spark's own dynamic allocation can fight with Dataproc autoscaling. Spark releases executors (YARN shows low utilization → scale down) then requests them again (scale up). Oscillation. Fix: Set <code>spark.dynamicAllocation.cachedExecutorIdleTimeout=60s</code> to keep executors longer. Alternatively, disable Spark dynamic allocation and rely solely on Dataproc autoscaling for worker count.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design an architecture for a data platform processing 500 daily batch jobs of varying sizes using Dataproc on GCP.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture: Hybrid Serverless + Ephemeral Clusters</strong></p>
+              <p><strong>Job classification:</strong></p>
+              <p>- Small jobs (input &lt;50GB, ~350 jobs): Route to Dataproc Serverless. Zero management, pay-per-DCU, 60s startup. Cost-effective for jobs completing in &lt;30 minutes.</p>
+              <p>- Large jobs (input 50GB–1TB, ~120 jobs): Group into 4–5 ephemeral clusters (by schedule window). 2 standard workers + 10–20 preemptible secondary workers. Auto-delete on 10-min idle.</p>
+              <p>- Very large jobs (input &gt;1TB, ~30 jobs): Dedicated ephemeral clusters per job. Custom sizing based on input (auto-calculated from GCS file listing). 4 standard + 30–50 preemptible workers.</p>
+              <p><strong>Shared infrastructure:</strong></p>
+              <p>- Dataproc Metastore (1 instance): Shared across all clusters and Serverless jobs. Persists table metadata independently.</p>
+              <p>- GCS: All data in GCS (no HDFS). Enables fully ephemeral clusters.</p>
+              <p>- Cloud Composer: Orchestrates all 500 jobs. Uses DataprocCreateClusterOperator for large jobs, DataprocSubmitBatchOperator for Serverless.</p>
+              <p><strong>Cost optimization:</strong></p>
+              <p>- Preemptible for all secondary workers (60–80% savings on compute).</p>
+              <p>- Max-idle + max-age on all clusters (safety net against forgotten resources).</p>
+              <p>- CUDs for the baseline GCE usage (Composer nodes, persistent Metastore).</p>
+              <p><strong>Expected vs naive approach:</strong> A single persistent cluster sized for peak (50 workers) costs ~$12K/month. This hybrid approach: ~$4K/month (Serverless for small jobs + ephemeral preemptible for large) — 65% savings.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Dataproc on GKE differ from standard Dataproc? When is the Kubernetes deployment model preferable?</div>
+            <div class="qa-answer">
+              <p><strong>Architectural differences:</strong></p>
+              <p><strong>Standard Dataproc</strong>: Dedicated GCE instances per cluster. Each cluster is isolated (own VMs, own YARN, own HDFS). Cluster = fixed pool of resources.</p>
+              <p><strong>Dataproc on GKE</strong>: Spark driver and executors run as Kubernetes pods on a shared GKE cluster. Multiple Spark jobs share the same node pool. Kubernetes handles scheduling, resource allocation, and node provisioning.</p>
+              <p><strong>Choose Dataproc on GKE when:</strong></p>
+              <p>(1) <strong>Multi-workload GKE cluster</strong>: Organization runs microservices, ML inference, AND Spark on the same GKE infrastructure. Consolidating reduces operational overhead and improves node utilization.</p>
+              <p>(2) <strong>Fine-grained resource isolation</strong>: Kubernetes namespaces + resource quotas give per-team isolation. Standard Dataproc isolation is per-cluster (more expensive).</p>
+              <p>(3) <strong>Custom container images</strong>: Need specific OS libraries, ML frameworks, or custom Spark builds. GKE uses Docker images — full control over the execution environment.</p>
+              <p>(4) <strong>Advanced scheduling</strong>: Pod priority, preemption rules, node affinity (pin Spark to specific node pools), and gang scheduling for all-or-nothing executor allocation.</p>
+              <p><strong>Avoid Dataproc on GKE when:</strong> Simple batch ETL (standard Dataproc or Serverless is simpler), need HDFS (not available on GKE mode), team lacks Kubernetes expertise, or jobs need full Hadoop ecosystem (HBase, Hive Server2).</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">GCP</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

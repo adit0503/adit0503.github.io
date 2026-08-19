@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Databricks on GCP — Architecture & Patterns — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">GCP</a>
+        <span>→</span>
+        <span>Databricks on GCP</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">GCP</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Databricks on GCP — Architecture & Patterns</h1>
+          <p class="article-desc">Complete guide to running Databricks on Google Cloud — control plane vs data plane architecture, cluster types, Photon engine internals, autoscaling strategies, workspace organization, GCS integration, job orchestration, Delta Live Tables, and cost management for production workloads.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#architecture">Databricks Architecture on GCP</a></li>
+            <li><a href="#cluster-types">Cluster Types</a></li>
+            <li><a href="#autoscaling">Autoscaling & Cluster Configuration</a></li>
+            <li><a href="#photon-engine">Photon Engine</a></li>
+            <li><a href="#workspace-organization">Workspace Organization</a></li>
+            <li><a href="#storage-integration">DBFS & External Storage (GCS)</a></li>
+            <li><a href="#job-orchestration">Job Orchestration</a></li>
+            <li><a href="#cost-management">Cost Management</a></li>
+            <li><a href="#delta-live-tables">Delta Live Tables (DLT)</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="architecture">Databricks Architecture on GCP</h2>
+
+          <p>Databricks on GCP uses a split-plane architecture that separates management from execution:</p>
+
+          <h3>Control Plane (Databricks-Managed)</h3>
+          <ul>
+            <li><strong>Hosted by Databricks</strong> in a Databricks-owned GCP project.</li>
+            <li><strong>Contains</strong>: Workspace UI, REST API endpoints, job scheduler, notebook state, cluster manager, Unity Catalog metadata, secrets manager.</li>
+            <li><strong>Communication</strong>: Secure relay channel from control plane to data plane (no inbound connections required from customer VPC).</li>
+            <li><strong>Region-locked</strong>: Control plane runs in the same GCP region as the workspace for data residency.</li>
+          </ul>
+
+          <h3>Data Plane (Customer-Managed)</h3>
+          <ul>
+            <li><strong>Runs in customer's GCP project</strong> — all compute (GCE instances) and data stays within customer's environment.</li>
+            <li><strong>Network</strong>: Clusters launch in customer-managed VPCs (or Databricks-managed VPCs for simpler setup). Supports Private Google Access, VPC Service Controls.</li>
+            <li><strong>Storage</strong>: All data (Delta tables, checkpoints, logs) stored in customer's GCS buckets. Databricks never stores customer data.</li>
+            <li><strong>Secrets</strong>: Cluster credentials, service account keys never leave the data plane.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> The control/data plane separation is critical for security and compliance. Customer data never leaves the customer's GCP project. The control plane only sees metadata (table schemas, job status, notebook code) — never the actual data being processed. This enables SOC2/HIPAA compliance without data egress concerns.
+          </div>
+
+          <h3>Workspace Deployment</h3>
+          <ul>
+            <li>One workspace maps to one GCP project + region combination.</li>
+            <li>Workspace creation provisions: a managed GKE cluster (for workspace services), GCS bucket (DBFS root), service accounts, and network infrastructure.</li>
+            <li>Multi-workspace patterns: separate workspaces per environment (dev/staging/prod) or per team for isolation.</li>
+          </ul>
+
+          <h2 id="cluster-types">Cluster Types</h2>
+
+          <h3>All-Purpose Clusters (Interactive)</h3>
+          <ul>
+            <li>Long-running, shared clusters for interactive development, ad-hoc analysis, and notebook exploration.</li>
+            <li>Auto-terminate after configurable idle timeout (default 120 min).</li>
+            <li>Support multiple users concurrently — each gets isolated SparkSession but shares cluster resources.</li>
+            <li><strong>When to use</strong>: Development, exploration, collaborative analysis.</li>
+            <li><strong>DBU rate</strong>: Higher per-DBU cost than job clusters (~2x premium).</li>
+          </ul>
+
+          <h3>Job Clusters (Automated)</h3>
+          <ul>
+            <li>Created for a specific job run and terminated immediately after completion.</li>
+            <li>Cannot be shared — one job per cluster instance.</li>
+            <li><strong>When to use</strong>: Production ETL/ELT pipelines, scheduled workloads, CI/CD test runs.</li>
+            <li><strong>DBU rate</strong>: Lower cost per DBU. Combined with auto-termination, most cost-effective for batch work.</li>
+            <li><strong>Cold start</strong>: 3–5 min cluster startup time. Mitigated with instance pools.</li>
+          </ul>
+
+          <h3>SQL Warehouses</h3>
+          <ul>
+            <li>Dedicated compute for SQL workloads — BI tools, dashboards, SQL-based analytics.</li>
+            <li><strong>Sizes</strong>: 2X-Small through 4X-Large (each size doubles slots: 2X-Small = 1 cluster, Large = 16 clusters).</li>
+            <li><strong>Auto-scaling</strong>: Horizontally scales by adding clusters within the warehouse (each cluster handles concurrent queries).</li>
+            <li><strong>Serverless SQL Warehouses</strong>: Databricks-managed compute — instant startup, no cluster management, usage-based pricing.</li>
+            <li><strong>When to use</strong>: BI dashboards (Tableau, Looker), SQL analytics, data exploration with SQL.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Create SQL Warehouse via REST API</div>
+            <pre><code>curl -X POST "https://&lt;workspace-url&gt;/api/2.0/sql/warehouses" \
+  -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+  -d '{
+    "name": "prod-analytics-warehouse",
+    "cluster_size": "Large",
+    "min_num_clusters": 1,
+    "max_num_clusters": 10,
+    "auto_stop_mins": 30,
+    "warehouse_type": "PRO",
+    "enable_photon": true,
+    "channel": { "name": "CHANNEL_NAME_CURRENT" },
+    "tags": {
+      "custom_tags": [
+        {"key": "team", "value": "analytics"},
+        {"key": "environment", "value": "production"}
+      ]
+    }
+  }'</code></pre>
+          </div>
+
+          <h2 id="autoscaling">Autoscaling & Cluster Configuration</h2>
+
+          <h3>Autoscaling Behavior</h3>
+          <ul>
+            <li><strong>Min/Max workers</strong>: Define the scaling range. Min workers are always running (baseline cost). Max workers is the upper limit during load spikes.</li>
+            <li><strong>Scale-up</strong>: Triggered when pending tasks exceed available slots. Databricks adds workers exponentially (1→2→4→8 until max).</li>
+            <li><strong>Scale-down</strong>: Triggered after idle timeout (configurable). Removes workers one at a time with graceful decommission (waits for running tasks to finish).</li>
+            <li><strong>Optimized autoscaling</strong>: Databricks-enhanced algorithm that scales more aggressively on GCP — uses predictive signals from task queue depth and shuffle data volume.</li>
+          </ul>
+
+          <h3>Instance Selection (GCP)</h3>
+          <table>
+            <thead>
+              <tr><th>Workload Type</th><th>Instance Family</th><th>Rationale</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>General ETL</td><td>n2-standard (balanced)</td><td>4:1 memory:vCPU — good for mixed Spark workloads</td></tr>
+              <tr><td>Memory-intensive (large joins, caching)</td><td>n2-highmem</td><td>8:1 memory:vCPU — reduces spill-to-disk</td></tr>
+              <tr><td>Compute-intensive (ML training)</td><td>c2-standard / n2-highcpu</td><td>High clock speed, better single-thread perf</td></tr>
+              <tr><td>GPU workloads</td><td>a2 / g2 (NVIDIA)</td><td>Deep learning, GPU-accelerated ETL</td></tr>
+              <tr><td>Cost-optimized batch</td><td>n2-standard + Spot VMs</td><td>60–80% savings on fault-tolerant jobs</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Spot (Preemptible) VMs Strategy</h3>
+          <ul>
+            <li><strong>Driver node</strong>: NEVER use Spot — driver failure kills the entire job.</li>
+            <li><strong>Workers</strong>: Use Spot for workers with fallback to on-demand. Databricks handles automatic Spot eviction gracefully — redistributes partitions to remaining workers.</li>
+            <li><strong>Configuration</strong>: Set <code>first_on_demand = 1</code> (driver) and <code>spot_bid_max_price = -1</code> (use current Spot price). Set <code>availability = SPOT_WITH_FALLBACK_GCP</code>.</li>
+          </ul>
+
+          <h3>Instance Pools</h3>
+          <ul>
+            <li>Pre-provisioned pool of idle instances that clusters can draw from — eliminates cold-start time (startup in ~30s vs 3–5min).</li>
+            <li>Configured with min/max idle instances and instance types.</li>
+            <li>Shared across multiple clusters — great for dev environments where multiple engineers start/stop clusters frequently.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Cluster Configuration with Pool & Spot (JSON)</div>
+            <pre><code>{
+  "cluster_name": "prod-etl-cluster",
+  "spark_version": "14.3.x-scala2.12",
+  "node_type_id": "n2-highmem-8",
+  "driver_node_type_id": "n2-highmem-8",
+  "num_workers": 0,
+  "autoscale": {
+    "min_workers": 2,
+    "max_workers": 20
+  },
+  "gcp_attributes": {
+    "use_preemptible_executors": true,
+    "availability": "PREEMPTIBLE_WITH_FALLBACK_GCP",
+    "google_service_account": "databricks-sa@my-project.iam.gserviceaccount.com"
+  },
+  "instance_pool_id": "0101-pool-shared",
+  "spark_conf": {
+    "spark.databricks.io.cache.enabled": "true",
+    "spark.sql.shuffle.partitions": "auto",
+    "spark.databricks.delta.optimizeWrite.enabled": "true",
+    "spark.databricks.adaptive.autoOptimizeShuffle.enabled": "true"
+  },
+  "custom_tags": {
+    "team": "data-engineering",
+    "cost_center": "DE-001"
+  },
+  "autotermination_minutes": 60,
+  "enable_photon": true
+}</code></pre>
+          </div>
+
+          <h2 id="photon-engine">Photon Engine</h2>
+
+          <p>Photon is Databricks' next-generation query engine — a C++ vectorized execution engine that replaces the JVM-based Spark SQL engine for supported operations:</p>
+
+          <h3>How Photon Works</h3>
+          <ul>
+            <li><strong>Vectorized execution</strong>: Processes data in columnar batches (vectors) rather than row-by-row. Enables SIMD CPU instructions and better cache utilization.</li>
+            <li><strong>Native C++</strong>: No JVM overhead (no GC pauses, no object headers, no boxing/unboxing). Direct memory management with memory-mapped I/O.</li>
+            <li><strong>Columnar memory format</strong>: Data stays in columnar layout throughout execution — no row-to-columnar conversion overhead.</li>
+            <li><strong>Adaptive execution</strong>: Falls back to Spark JVM engine for unsupported operations (UDFs, complex types) — seamless, no job failure.</li>
+          </ul>
+
+          <h3>When Photon Helps (Significant Speedup)</h3>
+          <ul>
+            <li>Aggregations and GROUP BY operations — 3–8x faster</li>
+            <li>JOIN operations (hash joins, sort-merge joins) — 2–5x faster</li>
+            <li>Scan + filter patterns (WHERE clauses on large tables) — 2–4x faster</li>
+            <li>String operations (LIKE, CONCAT, SUBSTRING) — 5–10x faster (C++ string handling vs JVM)</li>
+            <li>Window functions — 2–4x faster</li>
+            <li>Delta Lake writes (MERGE, UPDATE, INSERT) — 2–3x faster</li>
+          </ul>
+
+          <h3>When Photon Does NOT Help</h3>
+          <ul>
+            <li>Python UDFs (pyspark UDFs, pandas_udfs) — still execute in Python worker processes</li>
+            <li>RDD-based operations — Photon only accelerates DataFrame/SQL operations</li>
+            <li>Complex nested types (deeply nested structs/arrays) — partial support only</li>
+            <li>Non-SQL ML workloads (MLlib) — uses Spark's existing engine</li>
+            <li>Small data volumes (&lt;1GB) — startup overhead negates the speedup</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> Photon's cost-effectiveness depends on the workload profile. It costs ~2x the DBU rate, so it needs to provide &gt;2x speedup to break even. For aggregation-heavy SQL workloads and Delta MERGE operations, it consistently delivers 3–8x speedup — clear ROI. For UDF-heavy Python workloads, Photon provides zero benefit at double the cost.
+          </div>
+
+          <h2 id="workspace-organization">Workspace Organization</h2>
+
+          <h3>Repos (Git Integration)</h3>
+          <ul>
+            <li>Native git integration — clone repos from GitHub, GitLab, Bitbucket directly into the workspace.</li>
+            <li>Supports branching, commits, PRs without leaving Databricks.</li>
+            <li><strong>Best practice</strong>: Use Repos for production code. Avoid one-off notebooks in personal folders for anything beyond quick exploration.</li>
+            <li>Folder structure: <code>/Repos/&lt;username&gt;/&lt;repo-name&gt;/</code></li>
+          </ul>
+
+          <h3>Notebooks</h3>
+          <ul>
+            <li>Interactive coding environments (Python, SQL, Scala, R) — similar to Jupyter but with collaborative features.</li>
+            <li><strong>%run magic</strong>: Import other notebooks as modules. Used for shared utilities.</li>
+            <li><strong>Widgets</strong>: Parameterize notebooks — pass arguments from jobs/workflows.</li>
+            <li><strong>Best practice</strong>: Keep notebooks thin — orchestration logic only. Business logic in Python modules imported from the repo.</li>
+          </ul>
+
+          <h3>Recommended Project Structure</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Repo Layout for Production Data Engineering</div>
+            <pre><code>my-data-platform/
+├── src/
+│   ├── pipelines/
+│   │   ├── bronze/          # Raw ingestion
+│   │   │   ├── ingest_events.py
+│   │   │   └── ingest_customers.py
+│   │   ├── silver/          # Cleansed/conformed
+│   │   │   ├── transform_events.py
+│   │   │   └── transform_customers.py
+│   │   └── gold/            # Business aggregates
+│   │       ├── daily_metrics.py
+│   │       └── customer_360.py
+│   ├── common/
+│   │   ├── config.py        # Environment configs
+│   │   ├── schemas.py       # Schema definitions
+│   │   └── utils.py         # Shared utilities
+│   └── quality/
+│       ├── expectations.py  # Data quality rules
+│       └── alerts.py        # Alert routing
+├── notebooks/
+│   ├── exploration/         # Ad-hoc analysis
+│   └── orchestration/       # Thin job entry points
+├── tests/
+│   ├── unit/
+│   └── integration/
+├── workflows/               # Job definitions (YAML/JSON)
+│   ├── daily_etl.yml
+│   └── hourly_streaming.yml
+└── databricks.yml           # Databricks Asset Bundles config</code></pre>
+          </div>
+
+          <h2 id="storage-integration">DBFS & External Storage (GCS)</h2>
+
+          <h3>DBFS (Databricks File System)</h3>
+          <ul>
+            <li><strong>Root storage</strong>: Every workspace gets a DBFS root backed by a GCS bucket (auto-created during workspace provisioning).</li>
+            <li><strong>Abstraction</strong>: Provides a unified file system interface over GCS — accessible as <code>dbfs:/</code> or <code>/dbfs/</code> from notebooks.</li>
+            <li><strong>Limitation</strong>: DBFS root is workspace-scoped — not shared across workspaces. Not recommended for production data.</li>
+            <li><strong>Best practice</strong>: Use DBFS root only for temp files, libraries, and init scripts. Store production data in external GCS locations managed by Unity Catalog.</li>
+          </ul>
+
+          <h3>External Locations (Unity Catalog)</h3>
+          <ul>
+            <li>Register GCS paths as external locations in Unity Catalog — provides governed access to cloud storage.</li>
+            <li>Requires a storage credential (GCP service account) and an external location mapping the credential to a GCS path.</li>
+            <li>Tables created at external locations are "external tables" — data lifecycle managed outside of Databricks.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Configure External Storage with Unity Catalog</div>
+            <pre><code>-- Create storage credential (maps to GCP service account)
+CREATE STORAGE CREDENTIAL gcs_data_lake_cred
+WITH (
+  GCP_SERVICE_ACCOUNT_KEY = '{"type":"service_account","project_id":"my-project",...}'
+);
+
+-- Create external location pointing to GCS bucket
+CREATE EXTERNAL LOCATION prod_data_lake
+URL 'gs://my-company-data-lake/prod/'
+WITH (STORAGE CREDENTIAL gcs_data_lake_cred)
+COMMENT 'Production data lake on GCS';
+
+-- Create managed table (data stored in Unity Catalog managed location)
+CREATE TABLE catalog.schema.customers (
+  customer_id STRING,
+  name STRING,
+  email STRING
+) USING DELTA;
+
+-- Create external table (data at specific GCS path)
+CREATE TABLE catalog.schema.raw_events (
+  event_id STRING,
+  payload STRING,
+  received_at TIMESTAMP
+) USING DELTA
+LOCATION 'gs://my-company-data-lake/prod/raw/events/';</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Pitfall:</strong> Avoid mounting GCS buckets with <code>dbutils.fs.mount()</code> in new projects. Mounts bypass Unity Catalog governance (no fine-grained access control, no lineage tracking, no audit logging). Legacy mounts should be migrated to external locations. Unity Catalog's external locations provide the same access patterns with full governance.
+          </div>
+
+          <h2 id="job-orchestration">Job Orchestration</h2>
+
+          <h3>Multi-Task Workflows</h3>
+          <ul>
+            <li><strong>Task types</strong>: Notebook, Python script, JAR, SQL, Delta Live Tables pipeline, dbt task, or another workflow (nested).</li>
+            <li><strong>Dependencies</strong>: DAG-style task dependencies — define upstream/downstream relationships. Tasks run in parallel where dependencies allow.</li>
+            <li><strong>Cluster allocation</strong>: Each task can use a shared job cluster or its own dedicated cluster. Shared clusters reduce startup overhead for dependent tasks.</li>
+            <li><strong>Parameters</strong>: Pass parameters between tasks using task values (<code>dbutils.jobs.taskValues.set/get</code>).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Multi-Task Job Definition (Databricks Asset Bundle YAML)</div>
+            <pre><code># databricks.yml — Asset Bundle workflow definition
+resources:
+  jobs:
+    daily_etl_pipeline:
+      name: "Daily ETL Pipeline"
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: "America/New_York"
+      
+      job_clusters:
+        - job_cluster_key: "shared_etl_cluster"
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: "n2-highmem-8"
+            autoscale:
+              min_workers: 2
+              max_workers: 10
+            gcp_attributes:
+              availability: "PREEMPTIBLE_WITH_FALLBACK_GCP"
+
+      tasks:
+        - task_key: "ingest_raw"
+          job_cluster_key: "shared_etl_cluster"
+          notebook_task:
+            notebook_path: "/Repos/prod/my-platform/notebooks/orchestration/ingest"
+            base_parameters:
+              env: "prod"
+              date: "{{start_date}}"
+          
+        - task_key: "transform_silver"
+          depends_on:
+            - task_key: "ingest_raw"
+          job_cluster_key: "shared_etl_cluster"
+          python_wheel_task:
+            package_name: "my_transforms"
+            entry_point: "run_silver"
+            parameters: ["--date", "{{start_date}}"]
+
+        - task_key: "build_gold"
+          depends_on:
+            - task_key: "transform_silver"
+          job_cluster_key: "shared_etl_cluster"
+          notebook_task:
+            notebook_path: "/Repos/prod/my-platform/notebooks/orchestration/gold"
+
+        - task_key: "data_quality_check"
+          depends_on:
+            - task_key: "build_gold"
+          job_cluster_key: "shared_etl_cluster"
+          notebook_task:
+            notebook_path: "/Repos/prod/my-platform/notebooks/orchestration/quality"
+
+      email_notifications:
+        on_failure:
+          - "data-team@company.com"</code></pre>
+          </div>
+
+          <h2 id="cost-management">Cost Management</h2>
+
+          <h3>DBU Pricing Model</h3>
+          <ul>
+            <li><strong>DBU (Databricks Unit)</strong>: Normalized unit of compute — 1 DBU ≈ 1 vCPU-hour of processing capacity.</li>
+            <li><strong>Tiers</strong>: Standard, Premium, Enterprise — each with increasing features and per-DBU cost.</li>
+            <li><strong>Total cost</strong> = DBU consumption × DBU rate + GCP infrastructure cost (GCE VMs, GCS storage, networking).</li>
+            <li><strong>Key insight</strong>: ~40% of total Databricks cost is the DBU license; ~60% is underlying GCP infrastructure. Optimize both.</li>
+          </ul>
+
+          <h3>Cost Optimization Strategies</h3>
+          <table>
+            <thead>
+              <tr><th>Strategy</th><th>Expected Savings</th><th>Implementation</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Spot/Preemptible VMs</td><td>60–80%</td><td>Use for workers on fault-tolerant batch jobs</td></tr>
+              <tr><td>Instance pools</td><td>Reduced startup = less idle billing</td><td>Pre-warm pools for frequently-used instance types</td></tr>
+              <tr><td>Auto-termination</td><td>Varies (eliminates idle waste)</td><td>Set 30–60min timeout on all interactive clusters</td></tr>
+              <tr><td>Job clusters vs interactive</td><td>~50% DBU savings</td><td>Use job clusters for all production workloads</td></tr>
+              <tr><td>Right-sizing</td><td>20–40%</td><td>Monitor Ganglia/Spark UI — reduce workers if utilization &lt;60%</td></tr>
+              <tr><td>Photon (for eligible workloads)</td><td>Net positive if &gt;2x speedup</td><td>Enable selectively — benchmark first</td></tr>
+              <tr><td>Cluster policies</td><td>Prevents overspend</td><td>Enforce max workers, instance types, auto-termination</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Cluster Policies (Governance)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Cluster Policy — Restrict Cost & Config</div>
+            <pre><code>{
+  "name": "Data Engineering Standard Policy",
+  "definition": {
+    "spark_version": {
+      "type": "regex",
+      "pattern": "14\\.[0-9]+\\.x-scala2\\.12",
+      "defaultValue": "14.3.x-scala2.12"
+    },
+    "node_type_id": {
+      "type": "allowlist",
+      "values": ["n2-standard-8", "n2-highmem-8", "n2-standard-16"],
+      "defaultValue": "n2-standard-8"
+    },
+    "autoscale.max_workers": {
+      "type": "range",
+      "maxValue": 20,
+      "defaultValue": 8
+    },
+    "autotermination_minutes": {
+      "type": "range",
+      "minValue": 15,
+      "maxValue": 120,
+      "defaultValue": 60
+    },
+    "gcp_attributes.availability": {
+      "type": "fixed",
+      "value": "PREEMPTIBLE_WITH_FALLBACK_GCP"
+    },
+    "custom_tags.cost_center": {
+      "type": "fixed",
+      "value": "DE-001"
+    }
+  }
+}</code></pre>
+          </div>
+
+          <h2 id="delta-live-tables">Delta Live Tables (DLT)</h2>
+
+          <p>Delta Live Tables is a declarative ETL framework — you define WHAT data transformations should produce, and DLT handles the HOW (orchestration, error handling, monitoring, data quality):</p>
+
+          <h3>Core Concepts</h3>
+          <ul>
+            <li><strong>Pipeline</strong>: Collection of datasets (tables/views) and their transformations. Represents an end-to-end data flow.</li>
+            <li><strong>Streaming tables</strong>: Incrementally process append-only data (new rows only). Uses Spark Structured Streaming under the hood.</li>
+            <li><strong>Materialized views</strong>: Fully recomputed on each refresh. Used for aggregations or transformations that need the complete dataset.</li>
+            <li><strong>Expectations</strong>: Declarative data quality constraints — drop, fail, or quarantine rows that violate quality rules.</li>
+            <li><strong>Automatic dependency resolution</strong>: DLT figures out the execution order from dataset references. No explicit DAG definition needed.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">DLT Pipeline — Medallion Architecture</div>
+            <pre><code>import dlt
+from pyspark.sql.functions import col, current_timestamp, expr
+
+# --- Bronze: Raw ingestion (streaming) ---
+@dlt.table(
+    name="raw_events",
+    comment="Raw event stream from Pub/Sub via GCS",
+    table_properties={"quality": "bronze"}
+)
+@dlt.expect_or_drop("valid_event_id", "event_id IS NOT NULL")
+def raw_events():
+    return (
+        spark.readStream
+        .format("cloudFiles")  # Auto Loader
+        .option("cloudFiles.format", "json")
+        .option("cloudFiles.schemaLocation", "/mnt/checkpoints/raw_events_schema")
+        .option("cloudFiles.inferColumnTypes", "true")
+        .load("gs://raw-data-bucket/events/")
+    )
+
+# --- Silver: Cleansed & enriched (streaming) ---
+@dlt.table(
+    name="cleaned_events",
+    comment="Validated and enriched events",
+    table_properties={"quality": "silver"}
+)
+@dlt.expect_or_fail("valid_timestamp", "event_timestamp > '2020-01-01'")
+@dlt.expect_or_drop("valid_user", "user_id IS NOT NULL AND user_id != ''")
+@dlt.expect("has_event_type", "event_type IS NOT NULL")  # Warn only, don't drop
+def cleaned_events():
+    return (
+        dlt.readStream("raw_events")
+        .select(
+            col("event_id"),
+            col("user_id"),
+            col("event_type"),
+            col("event_timestamp").cast("timestamp"),
+            col("properties"),
+            expr("CASE WHEN country IS NULL THEN 'unknown' ELSE country END").alias("country"),
+            current_timestamp().alias("processed_at")
+        )
+    )
+
+# --- Gold: Business aggregates (materialized view) ---
+@dlt.table(
+    name="daily_active_users",
+    comment="DAU metrics by country",
+    table_properties={"quality": "gold"}
+)
+def daily_active_users():
+    return (
+        dlt.read("cleaned_events")
+        .groupBy(
+            col("event_timestamp").cast("date").alias("event_date"),
+            "country"
+        )
+        .agg(
+            expr("COUNT(DISTINCT user_id) AS dau"),
+            expr("COUNT(*) AS total_events"),
+            expr("COUNT(DISTINCT event_type) AS unique_event_types")
+        )
+    )</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Key insight:</strong> DLT pipelines are idempotent by design — re-running a pipeline produces the same result regardless of partial failures. This is achieved through Delta's transactional guarantees and DLT's automatic checkpointing. For streaming tables, DLT maintains exactly-once processing across restarts using Spark checkpoints stored in the pipeline's storage location.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain the difference between Databricks control plane and data plane. Why does this architecture matter for security?</div>
+            <div class="qa-answer">
+              <p><strong>Control plane</strong> (Databricks-managed): Hosts workspace UI, job scheduler, notebook state, API endpoints, Unity Catalog metadata. Runs in Databricks' own GCP project.</p>
+              <p><strong>Data plane</strong> (customer-managed): All compute (GCE VMs), all data (GCS buckets), all network traffic. Runs entirely in the customer's GCP project and VPC.</p>
+              <p><strong>Security implications</strong>: (1) Customer data NEVER leaves the customer's GCP project — even Databricks cannot access it. This satisfies data residency, HIPAA, and SOC2 requirements. (2) Network isolation: clusters in the data plane communicate with the control plane via a secure relay (Databricks SCC) — no inbound ports opened in customer VPC. (3) Credential isolation: service account keys and secrets exist only in the data plane — the control plane never sees them. (4) Compromise containment: if the control plane is breached, attackers get metadata (table names, job configs) but NOT actual data.</p>
+              <p><strong>Practical impact</strong>: Security teams approve Databricks deployments faster because the risk model is clear — Databricks is a "management SaaS" that orchestrates but never touches data. Compare with fully-managed services where the vendor has direct data access.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you enable Photon, and when would you avoid it? How do you measure ROI?</div>
+            <div class="qa-answer">
+              <p><strong>Enable Photon when</strong>: (1) Workloads are dominated by SQL operations — aggregations, joins, filters, window functions. (2) Delta Lake MERGE/UPDATE operations on large tables. (3) String-heavy transformations (parsing, regex, concat). (4) SQL warehouses for BI workloads — Photon is default and consistently delivers 3–5x speedup.</p>
+              <p><strong>Avoid Photon when</strong>: (1) Workloads heavily use Python UDFs or pandas_udfs — Photon cannot accelerate these. (2) ML training with MLlib or custom Python code — no benefit. (3) Small datasets (&lt;1GB) — overhead outweighs gains. (4) Budget-constrained dev/test environments where absolute cost matters more than speed.</p>
+              <p><strong>Measuring ROI</strong>: Run the same job with and without Photon. Calculate: (Photon time × Photon DBU rate) vs (Standard time × Standard DBU rate). If Photon costs less total despite higher per-minute rate, it's a win. Example: A job takes 60 min standard (60 DBUs) vs 20 min with Photon (40 DBUs at 2x rate). Standard: 60 × $0.40 = $24. Photon: 40 × $0.80 = $32. In this case, Photon is faster but more expensive. But if Photon reduces it to 15 min (30 DBUs × $0.80 = $24), it breaks even on cost while being 4x faster.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a cost-optimized Databricks deployment for a team of 15 data engineers running daily batch pipelines and ad-hoc analysis.</div>
+            <div class="qa-answer">
+              <p><strong>Production pipelines (70% of spend)</strong>:</p>
+              <p>- Job clusters with Spot VMs (70% Spot, 30% on-demand fallback). Auto-scaling 2–20 workers based on data volume.</p>
+              <p>- Delta Live Tables for streaming ingestion — managed scaling, no cluster management overhead.</p>
+              <p>- Shared job cluster for tightly-coupled tasks within a workflow — avoids multiple cold starts.</p>
+              <p><strong>Interactive development (20% of spend)</strong>:</p>
+              <p>- Instance pool with 4 pre-warmed n2-standard-8 instances — instant cluster startup for developers.</p>
+              <p>- Cluster policy: max 8 workers, auto-terminate 45 min, mandatory Spot workers, enforced tags for cost attribution.</p>
+              <p>- Single-user clusters (not shared) — simpler permission model, better isolation.</p>
+              <p><strong>SQL analytics (10% of spend)</strong>:</p>
+              <p>- One serverless SQL warehouse for BI tools — auto-scales, no management, pay-per-query.</p>
+              <p><strong>Governance</strong>: Tag all clusters with team/project. Use Databricks account-level cost dashboards. Set budget alerts at project level. Review over-provisioned clusters monthly (Ganglia metrics showing &lt;40% CPU = right-size down).</p>
+              <p><strong>Expected total savings vs naive deployment</strong>: 45–55% through Spot VMs + right-sizing + auto-termination + job clusters.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain Delta Live Tables vs traditional Spark Structured Streaming. When would you choose each?</div>
+            <div class="qa-answer">
+              <p><strong>Delta Live Tables (DLT) advantages</strong>: (1) Declarative — define datasets, not execution logic. DLT handles scheduling, retries, and dependency ordering. (2) Built-in data quality — expectations with drop/fail/warn semantics. No custom validation code. (3) Automatic lineage — tracks data flow across all tables in the pipeline. (4) Managed infrastructure — DLT sizes and manages its own clusters. (5) Operational monitoring — built-in event log, data quality metrics, pipeline health dashboard.</p>
+              <p><strong>Traditional Structured Streaming advantages</strong>: (1) Full control over checkpoint management, trigger intervals, and output modes. (2) Supports complex stateful operations (flatMapGroupsWithState, arbitrary state) that DLT doesn't expose. (3) Can write to multiple sinks (Kafka, custom HTTP endpoints) — DLT only writes to Delta. (4) Easier unit testing — standard Spark code, no DLT framework dependency. (5) No DLT-specific cost premium (DLT has higher DBU pricing).</p>
+              <p><strong>Choose DLT when</strong>: Building medallion-architecture pipelines with multiple tables and quality gates. Team prefers declarative over imperative. Operational simplicity is prioritized over flexibility.</p>
+              <p><strong>Choose Structured Streaming when</strong>: Writing to non-Delta sinks, complex stateful processing, need fine-grained checkpoint control, or integrating into an existing Spark streaming codebase.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">GCP</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

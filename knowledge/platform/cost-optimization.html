@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Cost Optimization Strategies — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Platform</a>
+        <span>→</span>
+        <span>Cost Optimization</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Platform</span>
+            <span class="read-time">10 min read</span>
+          </div>
+          <h1>Cost Optimization Strategies</h1>
+          <p class="article-desc">FinOps principles for data platforms — compute optimization (spot instances, auto-scaling, serverless), storage optimization (tiering, compression, file formats), query optimization (partition pruning, caching), pipeline optimization (incremental processing), cost attribution, monitoring, and cloud-specific patterns for AWS, GCP, and Databricks.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#finops">FinOps Principles for Data Platforms</a></li>
+            <li><a href="#compute">Compute Optimization</a></li>
+            <li><a href="#storage">Storage Optimization</a></li>
+            <li><a href="#query">Query Optimization</a></li>
+            <li><a href="#pipeline">Pipeline Optimization</a></li>
+            <li><a href="#attribution">Cost Attribution</a></li>
+            <li><a href="#monitoring">Monitoring & Alerting</a></li>
+            <li><a href="#cloud-specific">Cloud-Specific Patterns</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="finops">FinOps Principles for Data Platforms</h2>
+
+          <p>FinOps is the practice of bringing financial accountability to cloud spending. For data platforms, where compute and storage costs can grow exponentially with data volume, FinOps is not optional — it's survival.</p>
+
+          <h3>Core Principles</h3>
+          <ul>
+            <li><strong>Visibility</strong>: Every dollar spent must be attributable to a team, pipeline, or use case. You can't optimize what you can't measure.</li>
+            <li><strong>Accountability</strong>: Teams that generate cost should be aware of and accountable for that cost. Implement chargeback or showback models.</li>
+            <li><strong>Optimization is continuous</strong>: Not a one-time project. Costs drift as data grows, new pipelines are added, and usage patterns change. Monthly reviews are minimum.</li>
+            <li><strong>Unit economics</strong>: Track cost-per-row-processed, cost-per-query, cost-per-GB-stored. These unit metrics reveal efficiency trends independent of growth.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>The 80/20 rule of data platform costs:</strong> Typically, 20% of pipelines consume 80% of compute budget, and 20% of tables consume 80% of storage budget. Start optimization with the top 10 most expensive pipelines and tables — this delivers maximum impact with minimum effort.
+          </div>
+
+          <h2 id="compute">Compute Optimization</h2>
+
+          <h3>Spot/Preemptible Instances</h3>
+          <ul>
+            <li><strong>Cost savings</strong>: 60-90% discount over on-demand pricing. The single largest cost lever for batch workloads.</li>
+            <li><strong>Where to use</strong>: Spark executors (not the driver), EMR task nodes, Dataproc secondary workers, non-critical batch jobs. The work is retryable — if a node is reclaimed, the task reruns on another node.</li>
+            <li><strong>Where NOT to use</strong>: Long-running streaming applications, single-point-of-failure components (Airflow scheduler, Spark driver, database primaries).</li>
+            <li><strong>Strategy</strong>: Diversify across multiple instance types and AZs to reduce reclamation probability. Use capacity-optimized allocation strategy.</li>
+          </ul>
+
+          <h3>Right-Sizing</h3>
+          <ul>
+            <li>Most clusters are over-provisioned by 30-50%. Analyze actual CPU and memory utilization — target 70-80% average utilization.</li>
+            <li><strong>Spark-specific</strong>: If executor memory is 16GB but peak usage is 8GB, halve executor size and double executor count (same total memory, smaller blast radius per executor).</li>
+            <li><strong>EMR/Dataproc</strong>: Analyze cluster metrics over 30 days. If average CPU utilization is <40%, reduce core nodes by 30-50%.</li>
+          </ul>
+
+          <h3>Auto-Scaling</h3>
+          <ul>
+            <li><strong>EMR managed scaling</strong>: Automatically adds/removes nodes based on YARN pending containers. Set min/max bounds. Scales out in 5 minutes, scales in after 5 minutes idle.</li>
+            <li><strong>Databricks autoscaling</strong>: Cluster scales between min and max workers based on pending tasks. Aggressive scale-down after idle timeout (more cost-effective than fixed clusters).</li>
+            <li><strong>Anti-pattern</strong>: Fixed-size clusters running 24/7 for daily batch jobs. A 20-node cluster used for 2 hours/day costs 12x more than a job-scoped cluster that terminates after completion.</li>
+          </ul>
+
+          <h3>Serverless vs Provisioned</h3>
+          <ul>
+            <li><strong>Serverless wins when</strong>: Workloads are sporadic (run a few times per day), unpredictable in size, or latency-tolerant. No idle cost.</li>
+            <li><strong>Provisioned wins when</strong>: Workloads are continuous (streaming), require consistent performance, or when the cost model is predictable (committed-use discounts).</li>
+            <li><strong>Examples</strong>: Athena (serverless) for ad-hoc queries vs. Redshift (provisioned) for consistent analytical load. Glue (serverless Spark) for small/medium ETL vs. EMR (provisioned) for 24/7 streaming.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">EMR Managed Scaling Configuration</div>
+            <pre><code>{
+  "ComputeLimits": {
+    "UnitType": "InstanceFleetUnits",
+    "MinimumCapacityUnits": 16,
+    "MaximumCapacityUnits": 128,
+    "MaximumOnDemandCapacityUnits": 16,
+    "MaximumCoreCapacityUnits": 32
+  }
+}
+
+# Instance fleet with spot diversification
+{
+  "InstanceFleetType": "TASK",
+  "TargetSpotCapacity": 64,
+  "TargetOnDemandCapacity": 0,
+  "LaunchSpecifications": {
+    "SpotSpecification": {
+      "TimeoutDurationMinutes": 15,
+      "TimeoutAction": "SWITCH_TO_ON_DEMAND",
+      "AllocationStrategy": "capacity-optimized"
+    }
+  },
+  "InstanceTypeConfigs": [
+    {"InstanceType": "r5.2xlarge", "WeightedCapacity": 8},
+    {"InstanceType": "r5a.2xlarge", "WeightedCapacity": 8},
+    {"InstanceType": "r5d.2xlarge", "WeightedCapacity": 8},
+    {"InstanceType": "r4.2xlarge", "WeightedCapacity": 8},
+    {"InstanceType": "m5.2xlarge", "WeightedCapacity": 8}
+  ]
+}</code></pre>
+          </div>
+
+          <h2 id="storage">Storage Optimization</h2>
+
+          <h3>Storage Tiering</h3>
+          <ul>
+            <li><strong>Hot (S3 Standard / GCS Standard)</strong>: Frequently accessed data. Last 7-30 days of operational data, active tables.</li>
+            <li><strong>Warm (S3 Infrequent Access / GCS Nearline)</strong>: Accessed monthly. Historical data 30-90 days old. 40-50% cheaper than Standard.</li>
+            <li><strong>Cold (S3 Glacier / GCS Coldline)</strong>: Accessed rarely (compliance, audit). Data older than 90 days. 70-80% cheaper than Standard.</li>
+            <li><strong>Archive (S3 Glacier Deep Archive)</strong>: Accessed once per year or never (regulatory retention). 95% cheaper than Standard. 12-48 hour retrieval time.</li>
+          </ul>
+
+          <h3>Compression</h3>
+          <ul>
+            <li><strong>Snappy</strong>: Fast compression/decompression, moderate ratio (2-4x). Default for Spark output. Best for intermediate data that's frequently read.</li>
+            <li><strong>Zstandard (ZSTD)</strong>: Excellent ratio (4-8x) with good decompression speed. Best for cold/archive data where storage savings outweigh CPU cost. Recommended for Parquet/ORC in lakehouse.</li>
+            <li><strong>Gzip</strong>: Good ratio (3-6x), slow decompression. Legacy choice — prefer ZSTD for new workloads.</li>
+            <li><strong>Impact</strong>: Switching from uncompressed to ZSTD can reduce storage costs by 70-85% and improve query performance (less I/O).</li>
+          </ul>
+
+          <h3>File Format Choice</h3>
+          <ul>
+            <li><strong>Parquet</strong>: Columnar format with excellent compression (column-level encoding). 3-10x smaller than CSV/JSON. Enables column pruning (read only needed columns). The default for analytics.</li>
+            <li><strong>ORC</strong>: Similar to Parquet, slightly better compression for Hive workloads. Choose based on ecosystem (Spark → Parquet, Hive → ORC).</li>
+            <li><strong>Avro</strong>: Row-based, schema-embedded. Use for streaming/CDC where row-level access is needed and schema evolution is critical.</li>
+            <li><strong>Cost impact</strong>: A 1TB CSV dataset becomes ~100-200GB in Parquet with ZSTD. At $0.023/GB/month (S3 Standard), that's $18.40/month saved PER TABLE.</li>
+          </ul>
+
+          <h3>Lifecycle Policies</h3>
+          <ul>
+            <li>Automate tiering transitions: After 30 days → IA, after 90 days → Glacier, after 365 days → Deep Archive or delete.</li>
+            <li><strong>Iceberg/Delta specific</strong>: Expire old snapshots (default retains all history indefinitely). Set <code>history.expire.max-snapshot-age-ms</code> to 7 days. Delete orphan files after compaction.</li>
+            <li><strong>Partitioned tables</strong>: Drop old partitions entirely rather than transitioning to cold storage (if not needed for queries). ALTER TABLE DROP PARTITION reduces metadata overhead too.</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>Hidden storage cost:</strong> Iceberg/Delta tables without maintenance accumulate small files (from streaming writes) and retain all historical snapshots. A table with 10 daily snapshots over a year = 3,650 snapshots × all associated data files. Run regular EXPIRE SNAPSHOTS and REWRITE DATA FILES (compaction). Teams commonly discover 2-3x storage bloat from unmaintained tables.
+          </strong></div>
+
+          <h2 id="query">Query Optimization</h2>
+
+          <h3>Partition Pruning</h3>
+          <ul>
+            <li>The most impactful query optimization. Partitioning by date means a query for today's data reads 1 partition instead of scanning 365 partitions (full year).</li>
+            <li><strong>Savings</strong>: Athena charges per-TB-scanned. A query scanning 1 partition (1GB) vs full table (365GB) costs 365x less.</li>
+            <li><strong>Common partitioning</strong>: <code>dt</code> (date) for time-series, <code>region</code> for geo-distributed data, <code>customer_id</code> for multi-tenant (with bucketing for high cardinality).</li>
+            <li><strong>Iceberg hidden partitioning</strong>: Iceberg supports derived partitions (year(ts), month(ts), truncate(customer_id, 4)) without physical directory structure. Queries automatically prune without specifying partition column explicitly.</li>
+          </ul>
+
+          <h3>Caching</h3>
+          <ul>
+            <li><strong>Result caching</strong>: Redshift/BigQuery cache query results. Repeated identical queries are free (returned from cache). Enable by default.</li>
+            <li><strong>Materialized views</strong>: Pre-compute expensive aggregations. Trade storage cost for query cost savings. Refresh on schedule or incrementally.</li>
+            <li><strong>Alluxio/Raptor</strong>: Data caching layer between compute and S3. Reduces S3 reads for repeated access patterns. Cost-effective when the same data is read by multiple queries/jobs.</li>
+          </ul>
+
+          <h3>Avoiding Full Scans</h3>
+          <ul>
+            <li><strong>SELECT *</strong>: In columnar formats, reading all columns costs proportionally more. SELECT only needed columns (column pruning).</li>
+            <li><strong>WHERE clause on partition key</strong>: Always include partition filter in queries. Some engines support "require partition filter" settings to prevent accidental full scans.</li>
+            <li><strong>LIMIT doesn't help</strong>: In distributed systems, LIMIT is applied AFTER full scan. The engine reads all data then returns N rows. Use partition pruning, not LIMIT, to reduce cost.</li>
+          </ul>
+
+          <h2 id="pipeline">Pipeline Optimization</h2>
+
+          <h3>Incremental Processing vs Full Reprocessing</h3>
+          <ul>
+            <li><strong>Full reprocessing</strong>: Read all source data, transform, write entire target. Simple, always correct, but O(total_data) cost per run. Acceptable for small datasets.</li>
+            <li><strong>Incremental processing</strong>: Read only new/changed data since last run, transform, MERGE into target. O(delta_data) cost per run. Essential for large datasets.</li>
+            <li><strong>Cost difference</strong>: A 10TB table with 1% daily change rate: full reprocess reads 10TB daily ($50/day on Athena), incremental reads 100GB daily ($0.50/day). 100x cost reduction.</li>
+            <li><strong>Implementation</strong>: Track high-watermark (last processed timestamp/offset). Read source WHERE updated_at > watermark. Apply changes via MERGE/UPSERT. Update watermark on success.</li>
+          </ul>
+
+          <h3>Partition-Level Idempotency</h3>
+          <ul>
+            <li>Write results to a specific partition (overwrite mode). Rerunning overwrites the same partition — no duplicates, no cost of deduplication.</li>
+            <li><strong>Pattern</strong>: <code>INSERT OVERWRITE INTO table PARTITION (dt='2026-01-15') SELECT ... FROM source WHERE dt = '2026-01-15'</code></li>
+            <li><strong>Benefit</strong>: Simpler than MERGE (no key matching needed), faster execution, naturally idempotent. Works when data is cleanly partitioned by processing date.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Incremental Processing Pattern (PySpark)</div>
+            <pre><code>from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, max as spark_max
+
+spark = SparkSession.builder.appName("incremental_orders").getOrCreate()
+
+# Read high-watermark from control table
+watermark_df = spark.read.table("control.watermarks") \
+    .filter(col("table_name") == "orders")
+last_watermark = watermark_df.select("last_processed_ts").first()[0]
+
+# Read only new/changed records from source
+new_records = spark.read.table("raw.orders") \
+    .filter(col("updated_at") > last_watermark)
+
+record_count = new_records.count()
+if record_count == 0:
+    print("No new records. Skipping processing.")
+else:
+    # Transform
+    transformed = new_records \
+        .withColumn("amount_usd", col("amount") * col("exchange_rate")) \
+        .drop("exchange_rate")
+
+    # MERGE into target (Iceberg)
+    transformed.createOrReplaceTempView("updates")
+    spark.sql("""
+        MERGE INTO curated.orders AS target
+        USING updates AS source
+        ON target.order_id = source.order_id
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+    """)
+
+    # Update watermark
+    new_watermark = new_records.agg(spark_max("updated_at")).first()[0]
+    spark.sql(f"""
+        UPDATE control.watermarks 
+        SET last_processed_ts = '{new_watermark}', 
+            last_run_records = {record_count}
+        WHERE table_name = 'orders'
+    """)</code></pre>
+          </div>
+
+          <h2 id="attribution">Cost Attribution</h2>
+
+          <h3>Tagging Strategy</h3>
+          <ul>
+            <li><strong>Required tags</strong>: team, project, environment (prod/staging/dev), cost-center, pipeline-name.</li>
+            <li><strong>Enforcement</strong>: AWS Service Control Policies (SCPs) or tag policies that prevent resource creation without required tags. Terraform modules that auto-inject tags.</li>
+            <li><strong>Coverage goal</strong>: 95%+ of spend must be tagged. Untagged resources go to a "shared/unallocated" bucket that teams are incentivized to claim.</li>
+          </ul>
+
+          <h3>Chargeback Models</h3>
+          <ul>
+            <li><strong>Direct chargeback</strong>: Each team pays for their tagged resources directly from their budget. Most accurate but requires mature tagging.</li>
+            <li><strong>Showback</strong>: Central platform team pays, but generates visibility reports showing each team's consumption. Lower friction adoption.</li>
+            <li><strong>Unit-based chargeback</strong>: Charge per compute-hour, per-TB-stored, per-query. Platform team sets unit prices, teams see predictable costs. Encourages optimization.</li>
+          </ul>
+
+          <h3>Per-Team Budgets</h3>
+          <ul>
+            <li>Set monthly budgets per team with alerting at 50%, 80%, 100% thresholds. Hard caps are controversial (may block production work) — prefer alerts + review.</li>
+            <li><strong>Quarterly planning</strong>: Teams forecast next quarter's spend based on planned projects and data growth. Platform team aggregates for capacity planning and discount purchasing.</li>
+          </ul>
+
+          <h2 id="monitoring">Monitoring & Alerting</h2>
+
+          <h3>Budget Alerts</h3>
+          <ul>
+            <li><strong>AWS Budgets</strong>: Set monthly budget with actions (alert at threshold, auto-stop non-critical resources at hard limit).</li>
+            <li><strong>GCP Budgets</strong>: Similar — budget alerts via Pub/Sub, can trigger Cloud Functions for automated response.</li>
+            <li><strong>Daily spend tracking</strong>: Compare today's spend rate against daily budget (monthly/30). Alert if run rate exceeds 150% of daily target.</li>
+          </ul>
+
+          <h3>Cost Anomaly Detection</h3>
+          <ul>
+            <li><strong>AWS Cost Anomaly Detection</strong>: ML-based detection of unexpected spend spikes. Alerts within hours of anomaly (much faster than end-of-month billing shock).</li>
+            <li><strong>Custom anomaly detection</strong>: Track daily cost per service/team in a time-series. Alert on Z-score > 3 (spend significantly above historical average).</li>
+            <li><strong>Common anomalies</strong>: Forgotten running clusters (team left for weekend), runaway Spark job (infinite retry loop), misconfigured auto-scaling (scaled to max and stayed), data explosion (source sent 100x normal volume).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Cost Monitoring Dashboard Queries</div>
+            <pre><code>-- Daily cost by team (AWS Cost & Usage Report in Athena)
+SELECT 
+  line_item_usage_start_date AS date,
+  resource_tags_user_team AS team,
+  line_item_product_code AS service,
+  SUM(line_item_unblended_cost) AS daily_cost
+FROM cost_and_usage_report
+WHERE month = '2026-01'
+GROUP BY 1, 2, 3
+ORDER BY daily_cost DESC;
+
+-- Cost anomaly detection (compare today vs 7-day average)
+WITH daily_costs AS (
+  SELECT 
+    date,
+    team,
+    SUM(cost) as daily_cost,
+    AVG(SUM(cost)) OVER (
+      PARTITION BY team 
+      ORDER BY date 
+      ROWS BETWEEN 7 PRECEDING AND 1 PRECEDING
+    ) as avg_7day
+  FROM cost_summary
+  GROUP BY date, team
+)
+SELECT *,
+  (daily_cost - avg_7day) / NULLIF(avg_7day, 0) * 100 as pct_deviation
+FROM daily_costs
+WHERE date = CURRENT_DATE
+  AND daily_cost > avg_7day * 1.5  -- 50%+ over average
+ORDER BY pct_deviation DESC;</code></pre>
+          </div>
+
+          <h2 id="cloud-specific">Cloud-Specific Patterns</h2>
+
+          <h3>AWS Cost Optimization</h3>
+          <ul>
+            <li><strong>Reserved Instances (RIs)</strong>: 1-year or 3-year commitments for 30-60% discount. Use for steady-state compute (Redshift, RDS, always-on EMR clusters). Analyze usage patterns for 3+ months before committing.</li>
+            <li><strong>Savings Plans</strong>: Flexible commitment (any instance type in a family). Better than RIs for variable workloads. Compute Savings Plans apply across EC2, Lambda, and Fargate.</li>
+            <li><strong>Spot Instances</strong>: 60-90% discount for interruptible capacity. Use for Spark executors, EMR task nodes, batch processing. Diversify across instance types for availability.</li>
+            <li><strong>S3 Intelligent-Tiering</strong>: Automatically moves objects between access tiers based on usage. No retrieval fees. Ideal for data lakes with unpredictable access patterns. Small monitoring fee ($0.0025/1000 objects).</li>
+            <li><strong>Graviton instances</strong>: ARM-based instances (m6g, r6g) provide 20-40% better price-performance than Intel equivalents. Spark, EMR, and most JVM workloads run without modification.</li>
+          </ul>
+
+          <h3>GCP Cost Optimization</h3>
+          <ul>
+            <li><strong>Committed Use Discounts (CUDs)</strong>: 1-year (37% off) or 3-year (55% off) commitments for vCPUs and memory. Automatically applied to matching usage across the project.</li>
+            <li><strong>Preemptible/Spot VMs</strong>: 60-91% discount. 24-hour maximum runtime (preemptible) or flexible (Spot). Use for Dataproc secondary workers.</li>
+            <li><strong>BigQuery optimization</strong>: Use flat-rate pricing (slots) for predictable high-volume teams. On-demand ($5/TB scanned) for sporadic usage. Partition and cluster tables to reduce scan volume. Use BI Engine for dashboard caching.</li>
+            <li><strong>Dataproc autoscaling</strong>: Policy-based scaling with graceful decommission (respects YARN container completion). Scale secondary workers (Spot) aggressively, keep primary workers stable.</li>
+          </ul>
+
+          <h3>Databricks Cost Optimization</h3>
+          <ul>
+            <li><strong>Cluster policies</strong>: Restrict max cluster size, enforce auto-termination (idle timeout 15-30 min), limit instance types to cost-effective options. Prevent data scientists from spinning up massive clusters indefinitely.</li>
+            <li><strong>DBU monitoring</strong>: Track Databricks Units consumption per workspace, per cluster, per user. Set alerts on high DBU consumers. Interactive clusters are 2-3x more expensive per DBU than job clusters.</li>
+            <li><strong>Job clusters vs All-Purpose clusters</strong>: Job clusters start fresh per job and terminate after — no idle cost. All-Purpose clusters stay running for interactive use. Enforce job clusters for production pipelines (50% cheaper).</li>
+            <li><strong>Photon engine</strong>: Vectorized native execution engine — 2-8x faster for SQL/DataFrame workloads. Costs more per DBU but finishes faster → net savings for compute-heavy jobs.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Quick wins for any data platform:</strong> (1) Enable Spot/preemptible for Spark executors — 60% compute savings immediately. (2) Convert CSV/JSON to Parquet with ZSTD — 70% storage savings. (3) Add partition pruning to top 10 most-expensive queries — 10-50x query cost reduction. (4) Auto-terminate idle clusters after 15 minutes — eliminates forgotten-cluster waste. These four changes typically reduce total platform cost by 40-60%.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your data platform costs have grown from $50K/month to $200K/month in 6 months. The CEO is asking why. How do you investigate and develop a cost reduction plan?</div>
+            <div class="qa-answer">
+              <p>I'd start with top-down analysis using AWS Cost Explorer (or equivalent) segmented by service, then by team tags. Typically, 80% of growth comes from 2-3 services. Common culprits: (1) Compute growth — more/larger EMR clusters or Databricks workspaces running longer. Check if new teams onboarded or existing pipelines grew. (2) Storage growth — data lake growing without lifecycle policies. Check total S3 storage and growth rate. (3) Query costs — Athena/BigQuery per-query pricing with poorly-optimized queries scanning too much data. Then I'd drill into the top 5 cost centers with detailed resource-level analysis. For each, determine: is this growth justified (more data, more users) or wasteful (over-provisioning, forgotten resources, inefficient code)? The reduction plan would prioritize by ROI: enable Spot instances for batch workloads (immediate 40-60% compute savings with minimal risk), implement S3 lifecycle policies for old data (30-50% storage savings), add partition pruning to the top 20 most-expensive queries (80% query cost reduction for those queries), enforce auto-termination on all clusters (eliminates idle waste). I'd present a 30-60-90 day plan with projected savings per initiative, requiring buy-in from engineering teams since some changes (incremental processing, format migration) require code changes.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you implement cost attribution and chargeback for a multi-team data platform?</div>
+            <div class="qa-answer">
+              <p>I'd implement a three-phase approach. Phase 1 (Visibility/Showback): Establish mandatory tagging for all resources — team, project, environment, pipeline-name. Enforce via Terraform modules (all resources created through IaC inherit tags automatically) and AWS Tag Policies (block untagged resource creation). Build a cost dashboard showing daily/weekly spend per team with service breakdown. This alone changes behavior — teams seeing their costs start optimizing. Phase 2 (Unit Economics): Define cost units meaningful to data teams — cost-per-TB-processed, cost-per-pipeline-run, cost-per-query. Build a cost metrics layer that joins billing data with pipeline telemetry (Airflow runs, Spark job logs, query logs). Teams see not just total cost but efficiency metrics. Phase 3 (Chargeback): Allocate costs to team budgets monthly based on tagged resource usage. Shared infrastructure (Kafka cluster, Airflow, networking) is split by a fair allocation key (proportional to usage or equal split for shared services). Each team gets a quarterly budget with automated alerts at 80% and 100%. Monthly cost review meetings where top-spending teams explain their trajectory and optimization plans. The key success factor is making cost data self-service — teams shouldn't need to ask finance for their numbers.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare serverless vs provisioned architectures for a data platform. When does each make economic sense?</div>
+            <div class="qa-answer">
+              <p>Serverless (Athena, Glue, BigQuery on-demand, Lambda) charges per-use with zero idle cost. It's economically optimal when: utilization is below ~30% of what a provisioned equivalent would cost, workloads are bursty with long idle periods (nightly batch jobs, ad-hoc queries), or when the operational burden of managing infrastructure outweighs the cost premium. A team running 10 Glue jobs per day processing 500GB total pays ~$15/day serverless vs. $50-100/day for an always-on EMR cluster. However, at high sustained utilization, provisioned wins decisively. A team running Spark 18 hours/day will pay 3-5x more on serverless than a properly-sized EMR cluster with Reserved Instances. The crossover point is typically 4-6 hours of daily compute usage — above that, provisioned (with Spot + RIs) is cheaper. For storage, serverless doesn't apply (you always pay per-GB-month), but query engines on top vary: BigQuery on-demand ($5/TB scanned) vs. flat-rate (reserved slots) crosses over at roughly $10K/month in query spend. My recommendation: start serverless for everything, monitor utilization for 3 months, then migrate high-utilization workloads to provisioned with commitments. This avoids premature optimization and commitment lock-in.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a cost-efficient architecture for a pipeline processing 10TB of new data daily across 200 tables with a 4-hour freshness SLA.</div>
+            <div class="qa-answer">
+              <p>For 10TB daily across 200 tables with 4-hour freshness, I'd design a tiered compute architecture. Ingestion layer: CDC via DMS (managed, simple) to S3 in Parquet format. DMS instances sized for throughput — r5.2xlarge is sufficient for most tables. Total ingestion cost ~$2K/month. Processing layer: Auto-scaling EMR cluster with Spark processing the 200 tables in priority order (highest business value tables first, ensuring SLA compliance for critical data). Cluster configuration: 4 r5.2xlarge core nodes (On-Demand, always available), up to 32 r5.2xlarge task nodes (Spot, capacity-optimized across 5 instance types). This gives 4x compute burst capacity at 70% discount. Schedule: 6 processing windows per day (every 4 hours) to meet SLA. Each window processes tables that have new data. Incremental processing only — each table reads only new CDC files since last run (MERGE into Iceberg), not full reprocess. 10TB total daily but only ~500GB per 4-hour window per table = fast processing. Storage: Parquet with ZSTD compression (raw layer retains 30 days, curated layer retains 2 years). S3 Intelligent-Tiering for curated data. Lifecycle policy moves raw data to Glacier after 30 days. Total estimated cost: ~$15-20K/month (vs. $50-80K for a naive always-on, full-reprocess architecture). Key optimizations: Spot instances (60% compute savings), incremental processing (90% less data read per run), ZSTD compression (70% storage savings), auto-termination between processing windows.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Platform</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

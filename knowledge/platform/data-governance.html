@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Data Governance — Lineage, Catalogs & Quality — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Platform</a>
+        <span>→</span>
+        <span>Data Governance</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Platform</span>
+            <span class="read-time">13 min read</span>
+          </div>
+          <h1>Data Governance — Lineage, Catalogs & Quality</h1>
+          <p class="article-desc">Comprehensive guide to data governance at scale — data catalogs (Hive Metastore, Glue, Unity Catalog, DataHub, OpenMetadata), lineage tracking (OpenLineage, Spark-native), data quality frameworks (Great Expectations, Deequ, Soda), data contracts, PII classification, access control patterns, GDPR compliance, and observability.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#why-governance">Why Governance Matters at Scale</a></li>
+            <li><a href="#data-catalogs">Data Catalog Landscape</a></li>
+            <li><a href="#data-lineage">Data Lineage Approaches</a></li>
+            <li><a href="#data-quality">Data Quality Frameworks</a></li>
+            <li><a href="#data-contracts">Data Contracts</a></li>
+            <li><a href="#pii-detection">PII Detection & Classification</a></li>
+            <li><a href="#access-patterns">Data Access Patterns</a></li>
+            <li><a href="#compliance">Compliance — GDPR & Retention</a></li>
+            <li><a href="#observability">Data Observability</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="why-governance">Why Governance Matters at Scale</h2>
+
+          <p>Data governance becomes non-negotiable once an organization reaches a certain threshold of data assets, teams, and regulatory exposure. Without governance, organizations suffer from:</p>
+
+          <ul>
+            <li><strong>Trust erosion</strong>: Analysts can't determine if data is correct, fresh, or complete — leading to "shadow" data pipelines where each team maintains their own version of truth.</li>
+            <li><strong>Compliance risk</strong>: GDPR fines reach 4% of global revenue. CCPA, HIPAA, SOX all mandate data handling controls. Without cataloging and lineage, fulfilling a "right to delete" request across 200 tables is impossible.</li>
+            <li><strong>Productivity loss</strong>: Engineers spend 30-40% of time finding, understanding, and validating data. A proper catalog with lineage reduces this to minutes instead of days.</li>
+            <li><strong>Incident blast radius</strong>: Without lineage, a bad schema change in one upstream table silently corrupts 50 downstream dashboards. With lineage, impact analysis is instant.</li>
+            <li><strong>Cost inefficiency</strong>: Duplicate datasets proliferate. Teams store the same data 3-5x because they don't know it already exists elsewhere.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Governance maturity model:</strong> Level 1 — Catalog exists but nobody uses it. Level 2 — Catalog is populated with automated metadata. Level 3 — Quality checks run on every pipeline. Level 4 — Data contracts enforce producer-consumer agreements. Level 5 — Full observability with automated incident detection and lineage-based impact analysis. Most organizations are at Level 1-2. Lead engineers should target Level 3-4.
+          </div>
+
+          <h2 id="data-catalogs">Data Catalog Landscape</h2>
+
+          <h3>Hive Metastore (HMS)</h3>
+          <ul>
+            <li>The original data lakehouse catalog. Stores table schemas, partition metadata, storage locations in a relational database (MySQL/PostgreSQL).</li>
+            <li><strong>Strengths</strong>: Universal compatibility — Spark, Presto, Trino, Hive, Flink all read HMS. Battle-tested at massive scale (10,000+ tables).</li>
+            <li><strong>Weaknesses</strong>: No lineage, no data quality, no access control (just metadata storage). Schema-only — no column descriptions, ownership, tags.</li>
+            <li><strong>Architecture</strong>: Thrift-based service backed by RDBMS. Can become a bottleneck at scale — partition listing for tables with 100K+ partitions causes slow queries.</li>
+          </ul>
+
+          <h3>AWS Glue Data Catalog</h3>
+          <ul>
+            <li>AWS-managed Hive Metastore replacement. Serverless, auto-scaling, integrated with all AWS analytics services.</li>
+            <li><strong>Strengths</strong>: Zero operations, tight integration with Athena/EMR/Redshift Spectrum/Glue ETL. Crawlers auto-discover schemas. Cross-account sharing via Resource Access Manager.</li>
+            <li><strong>Weaknesses</strong>: AWS-locked, limited search/discovery capabilities, no native lineage tracking (need separate tools). 1M partition limit per table (soft limit, raisable).</li>
+            <li><strong>Best practice</strong>: Use Glue Catalog as the primary metadata store for lakehouse tables. Complement with DataHub/OpenMetadata for discovery and lineage.</li>
+          </ul>
+
+          <h3>Databricks Unity Catalog</h3>
+          <ul>
+            <li>Three-level namespace (catalog.schema.table) with built-in RBAC, lineage, and audit logging.</li>
+            <li><strong>Strengths</strong>: Fine-grained access control (row/column level), automatic lineage capture for all Spark jobs, data sharing via Delta Sharing (open protocol), integrated data quality with Expectations.</li>
+            <li><strong>Weaknesses</strong>: Databricks-only ecosystem (vendor lock). Requires all workloads to go through Unity Catalog-enabled clusters. Migration from HMS can be complex.</li>
+            <li><strong>Key differentiator</strong>: Unity Catalog captures lineage automatically — no instrumentation needed. Every SELECT, INSERT, MERGE is tracked at column level.</li>
+          </ul>
+
+          <h3>DataHub (LinkedIn)</h3>
+          <ul>
+            <li>Open-source metadata platform with rich search, lineage visualization, and governance features.</li>
+            <li><strong>Architecture</strong>: Metadata graph store (GMS) backed by Elasticsearch + Neo4j/MySQL. REST and GraphQL APIs. Kafka-based ingestion.</li>
+            <li><strong>Strengths</strong>: Rich UI for data discovery, automatic lineage from Spark/Airflow/dbt, ownership tracking, data quality integration, tags and glossary terms, impact analysis.</li>
+            <li><strong>Integration</strong>: Ingestion plugins for Hive, Glue, BigQuery, Snowflake, dbt, Airflow, Spark, Kafka, and 50+ sources.</li>
+          </ul>
+
+          <h3>OpenMetadata</h3>
+          <ul>
+            <li>Open-source catalog built on a centralized metadata schema standard. REST API-first design.</li>
+            <li><strong>Differentiator</strong>: Built-in data quality, profiling, and test suites (no separate tool needed). Integrated lineage, glossary, policies, and team ownership.</li>
+            <li><strong>Architecture</strong>: Single-server deployment (simpler than DataHub). Elasticsearch for search, MySQL/PostgreSQL for storage.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">DataHub Ingestion Configuration (YAML)</div>
+            <pre><code>source:
+  type: glue
+  config:
+    aws_region: us-east-1
+    extract_transforms: true
+    catalog_id: "123456789012"
+
+transformers:
+  - type: simple_add_dataset_ownership
+    config:
+      owner_urns:
+        - "urn:li:corpuser:data-platform-team"
+  - type: pattern_add_dataset_tags
+    config:
+      tag_pattern:
+        rules:
+          ".*pii.*": ["urn:li:tag:PII", "urn:li:tag:Sensitive"]
+          ".*raw.*": ["urn:li:tag:RawData"]
+
+sink:
+  type: datahub-rest
+  config:
+    server: "http://datahub-gms:8080"
+    token: "${DATAHUB_TOKEN}"</code></pre>
+          </div>
+
+          <h2 id="data-lineage">Data Lineage Approaches</h2>
+
+          <h3>Automatic Lineage via Spark</h3>
+          <ul>
+            <li>Spark query plans contain complete information about source and target datasets. Tools extract lineage by hooking into Spark's listener interface.</li>
+            <li><strong>SparkListener API</strong>: Captures <code>onJobEnd</code> events with logical plan details (input/output datasets, columns used).</li>
+            <li><strong>OpenLineage Spark integration</strong>: A Spark plugin that emits OpenLineage events automatically for every job — no code changes required.</li>
+          </ul>
+
+          <h3>OpenLineage Standard</h3>
+          <ul>
+            <li>An open standard for metadata and lineage collection. Defines a common JSON schema for run/job/dataset events.</li>
+            <li><strong>Producers</strong>: Spark, Airflow, dbt, Flink, Great Expectations — all emit OpenLineage events.</li>
+            <li><strong>Consumers</strong>: Marquez (reference implementation), DataHub, Atlan, and others ingest OpenLineage events.</li>
+            <li><strong>Event types</strong>: START (job begins), COMPLETE (job succeeds with lineage), FAIL (job fails with error info).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">OpenLineage Event (JSON)</div>
+            <pre><code>{
+  "eventType": "COMPLETE",
+  "eventTime": "2026-01-15T10:30:00Z",
+  "run": {
+    "runId": "run-abc123"
+  },
+  "job": {
+    "namespace": "spark-production",
+    "name": "daily_customer_aggregation"
+  },
+  "inputs": [
+    {
+      "namespace": "s3://datalake-raw",
+      "name": "customers/dt=2026-01-15",
+      "facets": {
+        "schema": {
+          "fields": [
+            {"name": "customer_id", "type": "LONG"},
+            {"name": "email", "type": "STRING"},
+            {"name": "created_at", "type": "TIMESTAMP"}
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "namespace": "s3://datalake-curated",
+      "name": "customer_daily_summary",
+      "facets": {
+        "schema": {
+          "fields": [
+            {"name": "customer_id", "type": "LONG"},
+            {"name": "order_count", "type": "INT"},
+            {"name": "total_revenue", "type": "DECIMAL"}
+          ]
+        },
+        "columnLineage": {
+          "fields": {
+            "customer_id": {"inputFields": [{"namespace": "s3://datalake-raw", "name": "customers/dt=2026-01-15", "field": "customer_id"}]},
+            "total_revenue": {"inputFields": [{"namespace": "s3://datalake-raw", "name": "orders/dt=2026-01-15", "field": "amount"}]}
+          }
+        }
+      }
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <h3>Manual Annotation</h3>
+          <ul>
+            <li>For pipelines that don't support automatic extraction (legacy ETL, stored procedures, third-party tools), lineage must be manually annotated.</li>
+            <li><strong>Approach</strong>: Maintain a YAML/JSON manifest per pipeline declaring inputs and outputs. CI/CD publishes these to the catalog.</li>
+            <li><strong>dbt</strong>: Automatic lineage from SQL references. Every <code>ref('model_name')</code> and <code>source('schema', 'table')</code> creates a lineage edge.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Column-level lineage</strong> is the gold standard. Table-level lineage tells you "Job X reads table A and writes table B." Column-level tells you "Column B.total_revenue comes from SUM(A.amount)." This enables precise impact analysis when a specific column changes.
+          </div>
+
+          <h2 id="data-quality">Data Quality Frameworks</h2>
+
+          <h3>Great Expectations</h3>
+          <ul>
+            <li>Python-based data quality framework. Define "expectations" (assertions) against datasets. Run validation to check if data meets expectations.</li>
+            <li><strong>Core concepts</strong>: Expectation Suite (collection of checks), Validator (runs checks against a batch), Checkpoint (orchestrates validation), Data Docs (HTML reports).</li>
+            <li><strong>Example expectations</strong>: <code>expect_column_values_to_not_be_null</code>, <code>expect_column_values_to_be_between</code>, <code>expect_column_value_lengths_to_be_between</code>, <code>expect_table_row_count_to_be_between</code>.</li>
+            <li><strong>Integration</strong>: Embed in Airflow DAGs (validate after each transform step), integrate with Spark DataFrames, generate OpenLineage quality facets.</li>
+          </ul>
+
+          <h3>AWS Deequ / PyDeequ</h3>
+          <ul>
+            <li>Built on Spark — performs data quality checks at scale on distributed datasets. Originally from Amazon.</li>
+            <li><strong>Strengths</strong>: Native Spark integration, constraint suggestion (auto-generates checks from data profiling), anomaly detection (statistical thresholds).</li>
+            <li><strong>Use case</strong>: Ideal for Spark/EMR pipelines where data lives in S3. Run checks as a Spark job within the same cluster.</li>
+          </ul>
+
+          <h3>Soda</h3>
+          <ul>
+            <li>SQL-based data quality checks. Define checks in YAML using SodaCL (Soda Checks Language). Connects to any SQL-queryable source.</li>
+            <li><strong>Strengths</strong>: Simple YAML syntax, works with warehouses (Snowflake, BigQuery, Redshift), anomaly detection, freshness checks, schema validation.</li>
+            <li><strong>SodaCL example</strong>: <code>checks for orders: - row_count > 0 - missing_count(customer_id) = 0 - duplicate_count(order_id) = 0</code></li>
+          </ul>
+
+          <h3>AWS Glue Data Quality</h3>
+          <ul>
+            <li>Native Glue feature — define rules in DQDL (Data Quality Definition Language). Runs as part of Glue ETL jobs.</li>
+            <li><strong>Strengths</strong>: Zero infrastructure (serverless), integrated with Glue workflows, auto-generated recommendations from data profiling.</li>
+            <li><strong>DQDL rules</strong>: <code>Completeness "column" > 0.95</code>, <code>Uniqueness "id" = 1.0</code>, <code>ColumnValues "amount" between 0 and 10000</code>.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Great Expectations — Spark Integration</div>
+            <pre><code>from great_expectations.core import ExpectationSuite
+from great_expectations.dataset import SparkDFDataset
+
+# Wrap Spark DataFrame with Great Expectations
+ge_df = SparkDFDataset(spark_df)
+
+# Define expectations
+result = ge_df.expect_column_values_to_not_be_null("customer_id")
+result = ge_df.expect_column_values_to_be_between(
+    "order_amount", min_value=0, max_value=100000
+)
+result = ge_df.expect_table_row_count_to_be_between(
+    min_value=1000, max_value=10000000
+)
+
+# In production — use Checkpoint with actions
+# Action: send Slack alert on failure
+# Action: publish results to DataHub
+# Action: emit OpenLineage quality facet</code></pre>
+          </div>
+
+          <h2 id="data-contracts">Data Contracts</h2>
+
+          <p>Data contracts formalize the agreement between data producers and consumers — defining schema, quality guarantees, freshness SLAs, and ownership.</p>
+
+          <h3>Schema Registry</h3>
+          <ul>
+            <li>Centralized schema store (Confluent Schema Registry, AWS Glue Schema Registry) that enforces schema compatibility on write.</li>
+            <li><strong>Compatibility modes</strong>: BACKWARD (new schema can read old data), FORWARD (old schema can read new data), FULL (both), NONE (no checks).</li>
+            <li><strong>Enforcement</strong>: Producers must register schemas before publishing. Incompatible changes are rejected — preventing breaking downstream consumers.</li>
+          </ul>
+
+          <h3>Producer-Consumer Agreements</h3>
+          <ul>
+            <li><strong>Contract contents</strong>: Schema definition (required/optional fields, types), quality rules (nullability, ranges, uniqueness), freshness SLA (data available by X time), ownership (team, on-call contact), change management (notification process, deprecation timeline).</li>
+            <li><strong>Enforcement mechanisms</strong>: CI/CD schema validation, automated quality checks on producer writes, alerting on SLA violations.</li>
+            <li><strong>Tools</strong>: dbt contracts (enforce column types and constraints), Soda contracts, custom YAML definitions in version control.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Data Contract Definition (YAML)</div>
+            <pre><code>contract:
+  name: customer_orders
+  version: "2.1"
+  owner: data-platform-team
+  
+schema:
+  type: record
+  fields:
+    - name: order_id
+      type: string
+      required: true
+      unique: true
+    - name: customer_id
+      type: long
+      required: true
+    - name: amount
+      type: decimal
+      required: true
+      constraints:
+        min: 0
+        max: 1000000
+    - name: status
+      type: string
+      enum: [pending, processing, shipped, delivered, cancelled]
+    - name: created_at
+      type: timestamp
+      required: true
+
+quality:
+  - row_count: "> 0"
+  - null_rate(customer_id): "= 0%"
+  - freshness(created_at): "< 2 hours"
+  
+sla:
+  availability: "99.9%"
+  freshness: "data landed by 06:00 UTC daily"
+  notification_channels: ["#data-alerts", "oncall@company.com"]
+
+change_policy:
+  breaking_change_notice: "14 days"
+  deprecation_notice: "90 days"</code></pre>
+          </div>
+
+          <h2 id="pii-detection">PII Detection & Classification</h2>
+
+          <ul>
+            <li><strong>Column-name heuristics</strong>: Flag columns named email, ssn, phone, address, dob, credit_card. Simple regex-based rules catch 60-70% of PII.</li>
+            <li><strong>Pattern matching</strong>: Regex patterns for known PII formats — email (user@domain), SSN (XXX-XX-XXXX), phone numbers, credit cards (Luhn validation).</li>
+            <li><strong>ML-based classification</strong>: AWS Macie, Google Cloud DLP, Microsoft Purview — scan data content and classify columns as PII with confidence scores.</li>
+            <li><strong>Catalog integration</strong>: Tag detected PII columns in the data catalog. Auto-apply access restrictions (column masking, encryption) based on classification.</li>
+            <li><strong>Continuous scanning</strong>: New tables/columns should be auto-scanned on creation. Weekly full scans catch drift (columns repurposed for PII without updating metadata).</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>PII is not just about emails and SSNs.</strong> Quasi-identifiers (zip code + birth date + gender) can uniquely identify individuals through linkage attacks. Address governance must consider k-anonymity for analytical datasets. A column might not be PII alone but becomes PII when combined with others.
+          </div>
+
+          <h2 id="access-patterns">Data Access Patterns</h2>
+
+          <h3>RBAC — Role-Based Access Control</h3>
+          <ul>
+            <li>Users are assigned roles (data_engineer, analyst, admin). Roles have permissions on datasets (SELECT, INSERT, ALTER).</li>
+            <li><strong>Implementation</strong>: Databricks Unity Catalog grants, AWS Lake Formation permissions, Ranger policies for Hive/HDFS.</li>
+            <li><strong>Pattern</strong>: Team → Role → Permissions. Example: marketing_analysts → analyst_role → SELECT on curated.marketing.*</li>
+          </ul>
+
+          <h3>ABAC — Attribute-Based Access Control</h3>
+          <ul>
+            <li>Access decisions based on attributes of the user, resource, and environment. More flexible than RBAC for complex policies.</li>
+            <li><strong>Example</strong>: "Users in EU region can access EU customer data. Users with security_clearance >= 3 can access PII columns."</li>
+            <li><strong>Implementation</strong>: AWS Lake Formation tag-based access, custom policy engines (OPA — Open Policy Agent).</li>
+          </ul>
+
+          <h3>Column-Level Security</h3>
+          <ul>
+            <li>Restrict or mask specific columns based on user role. PII columns (SSN, email) visible only to authorized roles.</li>
+            <li><strong>Dynamic masking</strong>: Query returns masked values (email → j***@company.com) for unauthorized users. No separate physical copies needed.</li>
+            <li><strong>Tools</strong>: Databricks column masks, BigQuery column-level security, Redshift dynamic data masking, Ranger column masking.</li>
+          </ul>
+
+          <h3>Row-Level Security</h3>
+          <ul>
+            <li>Users see only rows they're authorized to access. Multi-tenant isolation without separate tables.</li>
+            <li><strong>Example</strong>: Regional managers see only data for their region. Partners see only their own customer data.</li>
+            <li><strong>Implementation</strong>: Databricks row filters, BigQuery row-level access policies, PostgreSQL RLS policies.</li>
+          </ul>
+
+          <h2 id="compliance">Compliance — GDPR & Retention</h2>
+
+          <h3>GDPR Right-to-Delete Implementation</h3>
+          <ol>
+            <li><strong>Identify all datasets containing the user</strong>: Use lineage graph to find all downstream tables containing user_id. Without lineage, this is a manual audit of 200+ tables — weeks of work.</li>
+            <li><strong>Delete from source systems</strong>: Issue DELETE/anonymization in OLTP databases. CDC propagates deletions downstream (if configured).</li>
+            <li><strong>Delete from lakehouse</strong>: For Iceberg/Delta tables — issue DELETE WHERE user_id = X (ACID delete). For raw Parquet/CSV — requires full partition rewrite (expensive).</li>
+            <li><strong>Delete from backups/archives</strong>: This is the hardest part. Cold storage (Glacier), old snapshots, and replicas all need purging. Some organizations accept "erasure on next access/restoration" as compliant.</li>
+            <li><strong>Verify deletion</strong>: Run a validation query across all identified datasets confirming zero rows for the user_id. Generate an audit log/certificate of deletion.</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">GDPR Delete — Iceberg Implementation</div>
+            <pre><code>-- Step 1: Delete from all Iceberg tables containing user
+-- (Identified via lineage graph query)
+DELETE FROM curated.customers WHERE user_id = 12345;
+DELETE FROM curated.orders WHERE customer_id = 12345;
+DELETE FROM curated.sessions WHERE user_id = 12345;
+DELETE FROM curated.support_tickets WHERE requester_id = 12345;
+
+-- Step 2: Expire old snapshots (physically remove old data files)
+-- Without this, deleted data still exists in previous snapshots
+CALL catalog.system.expire_snapshots('curated.customers', TIMESTAMP '2026-01-01 00:00:00', 100);
+
+-- Step 3: Remove orphan files (cleanup unreferenced data files)
+CALL catalog.system.remove_orphan_files('curated.customers');
+
+-- Step 4: Verify deletion
+SELECT COUNT(*) FROM curated.customers WHERE user_id = 12345; -- Must be 0
+SELECT COUNT(*) FROM curated.orders WHERE customer_id = 12345; -- Must be 0
+
+-- Automation: Parameterized stored procedure triggered by deletion request queue</code></pre>
+          </div>
+
+          <h3>Data Retention Policies</h3>
+          <ul>
+            <li><strong>Policy definition</strong>: Each dataset has a retention period (30 days, 1 year, 7 years) based on business need and regulatory requirement.</li>
+            <li><strong>Implementation</strong>: S3 lifecycle rules for raw data (transition to Glacier → delete after retention). Iceberg/Delta table maintenance jobs that delete partitions older than retention period.</li>
+            <li><strong>Audit trail</strong>: Log all retention policy executions — what was deleted, when, by which policy. Required for compliance audits.</li>
+          </ul>
+
+          <h2 id="observability">Data Observability</h2>
+
+          <h3>Freshness Monitoring</h3>
+          <ul>
+            <li>Track when each dataset was last updated. Alert when freshness exceeds SLA (e.g., table not updated in 4 hours when SLA is 2 hours).</li>
+            <li><strong>Implementation</strong>: Query table metadata (last_modified_time for Iceberg/Delta, S3 object timestamps for raw files). Compare against expected schedule.</li>
+            <li><strong>Tools</strong>: Monte Carlo, Elementary, custom Airflow sensors, CloudWatch metrics.</li>
+          </ul>
+
+          <h3>Volume Anomaly Detection</h3>
+          <ul>
+            <li>Track row counts per partition/load. Alert on significant deviations from historical patterns.</li>
+            <li><strong>Statistical approach</strong>: Rolling 7-day average ± 3 standard deviations. Values outside this range trigger investigation.</li>
+            <li><strong>Examples</strong>: Daily orders table normally has 50K-70K rows. Alert if < 10K (source issue) or > 200K (duplicate ingestion).</li>
+          </ul>
+
+          <h3>Schema Change Detection</h3>
+          <ul>
+            <li>Monitor for unexpected schema changes (new columns, type changes, dropped columns). Alert consumers before changes propagate.</li>
+            <li><strong>Implementation</strong>: Compare current schema snapshot against previous version in catalog. Publish schema diff events to consumers.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>The five pillars of data observability:</strong> Freshness (is data arriving on time?), Volume (is the expected amount of data present?), Schema (has the structure changed?), Distribution (are values within expected ranges?), Lineage (what's the blast radius of an issue?). A mature platform monitors all five continuously.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you implement data lineage across a platform with 500+ tables, Spark jobs, Airflow DAGs, and dbt models?</div>
+            <div class="qa-answer">
+              <p>I'd implement a multi-pronged lineage strategy using OpenLineage as the unifying standard. For Spark jobs, I'd deploy the OpenLineage Spark plugin (spark.extraListeners configuration) which automatically captures input/output datasets from query plans — zero code changes needed. For Airflow, the OpenLineage Airflow provider emits lineage events from each task. For dbt, lineage comes natively from ref() and source() declarations in the manifest.json. All three producers emit to a central Marquez or DataHub instance via the OpenLineage API. For legacy pipelines without OpenLineage support, I'd maintain YAML manifest files in version control declaring inputs/outputs, ingested via CI/CD. The key is making lineage capture automatic and zero-friction — if developers have to manually annotate, adoption will be below 20%. Column-level lineage is achievable for Spark (via plan analysis) and dbt (via SQL parsing) but requires more effort for legacy systems.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">A GDPR right-to-delete request comes in for a user whose data exists across 200 tables in your lakehouse. Walk through your implementation.</div>
+            <div class="qa-answer">
+              <p>First, I'd use the lineage graph to identify all datasets containing this user — querying the catalog for tables with user_id/customer_id columns and tracing downstream from the source customer table. This gives me the complete blast radius. Next, I'd execute deletion in topological order — starting from leaf tables (no dependents) and working upstream to avoid foreign key issues. For Iceberg/Delta tables, I'd issue DELETE WHERE user_id = X which creates new data files without the user's records. For raw S3 Parquet, I'd rewrite affected partitions excluding the user's rows. After deletion, I'd run EXPIRE SNAPSHOTS and REMOVE ORPHAN FILES on Iceberg tables to physically purge old data files — without this step, data is logically deleted but physically still exists. I'd then verify deletion with COUNT queries across all affected tables. The entire process is automated via a deletion service triggered by a compliance queue, producing an audit certificate with timestamps and affected datasets. For backups, I'd either rewrite or accept "erasure on restoration" depending on legal counsel's interpretation. The whole system depends on having accurate, complete lineage — which is why governance is prerequisite to compliance.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Great Expectations, Deequ, and Soda for data quality. When would you choose each?</div>
+            <div class="qa-answer">
+              <p>Great Expectations is my default choice for Python-heavy teams and mixed environments — it supports Spark DataFrames, Pandas, and SQL backends with the richest expectation library (200+ built-in checks). It excels at generating human-readable data docs and integrates well with Airflow. Deequ (PyDeequ) is optimal for Spark-native environments where all data lives in S3/HDFS — it runs natively on Spark without additional infrastructure, supports constraint suggestion from data profiling (auto-generates checks), and has anomaly detection built in. Choose Deequ when you're already on EMR/Databricks and want minimal additional tooling. Soda is best for SQL-first teams and warehouse-heavy architectures (Snowflake, BigQuery, Redshift) — its YAML-based SodaCL syntax is the simplest to adopt, and it connects directly via SQL without needing a Spark cluster. For a lakehouse with both Spark pipelines and SQL queries, I'd use Deequ within Spark jobs and Soda for SQL-layer validation, with Great Expectations as the orchestration framework that ties both together and publishes unified quality metrics to the data catalog.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you implement data contracts between producer and consumer teams? What happens when a contract is violated?</div>
+            <div class="qa-answer">
+              <p>Data contracts are formalized as versioned YAML files stored in the producer team's repository, defining schema (column names, types, nullability), quality guarantees (freshness SLA, completeness thresholds), and change management policies (notice period for breaking changes). Enforcement happens at multiple levels: CI/CD validates that producer code changes don't violate the declared contract (schema compatibility check against the registry), runtime quality checks validate that actual data meets quality thresholds after every pipeline run, and monitoring validates freshness SLAs continuously. When a contract is violated, the system follows an escalation path: (1) automated alert to the producer team with specific violation details, (2) if not resolved within SLA, escalate to the producer's engineering manager, (3) if chronic, trigger a contract renegotiation process. The key principle is that producers own their output quality — they can't ship bad data and say "not my problem." Tooling-wise, I'd use Schema Registry for schema evolution enforcement, Great Expectations for runtime quality validation, and a custom contract service that tracks SLA compliance and generates violation reports. Consumer teams subscribe to contracts and receive proactive notifications of planned changes.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a data observability system that detects anomalies before they reach downstream consumers.</div>
+            <div class="qa-answer">
+              <p>The system operates in three layers: collection, detection, and response. Collection layer captures metrics from every pipeline execution — row counts, null rates, value distributions, schema snapshots, execution timestamps, and data freshness per table. These metrics are stored in a time-series database (InfluxDB or Prometheus) with table/column as dimensions. Detection layer runs statistical anomaly detection on each metric stream — I'd use a combination of Z-score (for normally distributed metrics like row counts), IQR-based detection (for skewed distributions), and seasonal decomposition (for metrics with daily/weekly patterns like weekend drops in order volume). The detection runs immediately after each pipeline completes, comparing current run against historical baselines. Response layer uses lineage to determine blast radius — if an anomaly is detected in table A, immediately identify all downstream tables B, C, D that will be affected. The system can either: (a) halt downstream pipelines (circuit breaker pattern) to prevent bad data propagation, or (b) alert consumers and let them decide. I'd implement circuit breakers for critical paths (revenue reporting) and alerts for non-critical paths. The entire system is bootstrapped from existing pipeline telemetry — no additional instrumentation needed beyond what Airflow/Spark already produce. Tools like Elementary (dbt-native) or Monte Carlo (managed) provide this out-of-the-box, or build custom with Prometheus + Grafana + PagerDuty.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Platform</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>
