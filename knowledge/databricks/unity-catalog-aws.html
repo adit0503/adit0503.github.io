@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Unity Catalog on AWS — Deep-Dive — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Databricks</a>
+        <span>→</span>
+        <span>Unity Catalog on AWS</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Unity Catalog on AWS — Deep-Dive</h1>
+          <p class="article-desc">Complete guide to Unity Catalog on AWS — IAM integration, three-level namespace, managed vs external locations, credential vending, access control, row/column security, Delta Sharing, lineage, audit logging, and HMS migration patterns.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#uc-architecture">UC Architecture on AWS</a></li>
+            <li><a href="#iam-integration">IAM Integration</a></li>
+            <li><a href="#namespace">Three-Level Namespace</a></li>
+            <li><a href="#managed-external">Managed vs External Locations</a></li>
+            <li><a href="#credential-vending">Credential Vending</a></li>
+            <li><a href="#access-control">Data Access Control</a></li>
+            <li><a href="#row-column-security">Row-Level & Column-Level Security</a></li>
+            <li><a href="#delta-sharing">Delta Sharing on AWS</a></li>
+            <li><a href="#lineage">Lineage</a></li>
+            <li><a href="#audit-logging">Audit Logging</a></li>
+            <li><a href="#hms-migration">Migration from HMS to UC</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="uc-architecture">UC Architecture on AWS</h2>
+
+          <ul>
+            <li><strong>Metastore</strong>: The top-level container in Unity Catalog. One metastore per region per Databricks account. Backed by Databricks-managed infrastructure (not in customer AWS account).</li>
+            <li><strong>Workspace binding</strong>: Multiple workspaces in the same region attach to the same metastore. Data governed centrally, accessible from any bound workspace.</li>
+            <li><strong>Account-level administration</strong>: UC is managed at the Databricks account level (not workspace level). Account admins create metastores, storage credentials, and external locations.</li>
+            <li><strong>Single source of truth</strong>: UC replaces per-workspace Hive Metastore — all table metadata, permissions, and lineage are centralized.</li>
+          </ul>
+
+          <h2 id="iam-integration">IAM Integration</h2>
+
+          <h3>Storage Credentials — IAM Roles with Trust Policy</h3>
+          <ul>
+            <li>A storage credential is an IAM role in your AWS account that UC uses to access S3 data.</li>
+            <li><strong>Trust policy</strong>: The role trusts Databricks' UC service principal (specific IAM role in Databricks' account) to assume it.</li>
+            <li><strong>External ID</strong>: Prevents confused-deputy attacks — UC includes your Databricks account ID as external ID when assuming the role.</li>
+            <li><strong>Self-assume pattern</strong>: The role also trusts itself, allowing UC to re-assume with a scoped-down session policy (restricting to specific S3 prefixes per query).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Storage Credential IAM Role (Terraform)</div>
+            <pre><code>resource "aws_iam_role" "unity_catalog_storage" {
+  name = "databricks-uc-storage-credential"
+  
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::414351767826:role/unity-catalog-prod-UCMasterRole-${var.uc_role_id}"
+        }
+        Action = "sts:AssumeRole"
+        Condition = {
+          StringEquals = {
+            "sts:ExternalId" = var.databricks_account_id
+          }
+        }
+      },
+      {
+        # Self-assume for session policy scoping
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/databricks-uc-storage-credential"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "uc_s3_access" {
+  role = aws_iam_role.unity_catalog_storage.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.data_bucket}",
+          "arn:aws:s3:::${var.data_bucket}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sts:AssumeRole"
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/databricks-uc-storage-credential"
+      }
+    ]
+  })
+}
+
+# Register in Unity Catalog
+resource "databricks_storage_credential" "main" {
+  name = "production-s3-credential"
+  aws_iam_role {
+    role_arn = aws_iam_role.unity_catalog_storage.arn
+  }
+  comment = "Storage credential for production data lake"
+}</code></pre>
+          </div>
+
+          <h2 id="namespace">Three-Level Namespace</h2>
+
+          <h3>catalog.schema.table</h3>
+          <ul>
+            <li><strong>Catalog</strong>: Top-level grouping. Patterns: per-environment (dev, staging, prod), per-domain (finance, marketing, platform), per-team.</li>
+            <li><strong>Schema</strong>: Logical grouping within a catalog. Maps to a database concept. Contains tables, views, functions, volumes.</li>
+            <li><strong>Table/View</strong>: Actual data objects with column-level metadata, statistics, and governance.</li>
+          </ul>
+
+          <h3>Organizational Patterns</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Common Namespace Patterns</div>
+            <pre><code>-- Pattern 1: Per-Environment (simplest for small teams)
+-- prod.sales.orders
+-- staging.sales.orders
+-- dev.sales.orders
+
+-- Pattern 2: Per-Domain (data mesh alignment)
+-- finance.raw.transactions
+-- finance.curated.daily_revenue
+-- marketing.raw.campaigns
+-- marketing.curated.attribution
+
+-- Pattern 3: Per-Layer (medallion architecture)
+-- bronze.source_system.raw_table
+-- silver.domain.cleaned_table
+-- gold.analytics.aggregated_table
+
+-- Pattern 4: Hybrid (recommended for most organizations)
+-- prod.bronze_finance.raw_transactions    (env.layer_domain.table)
+-- prod.silver_finance.transactions
+-- prod.gold_finance.daily_revenue
+-- dev.bronze_finance.raw_transactions     (mirror structure in dev)
+
+-- Create namespace hierarchy
+CREATE CATALOG prod;
+CREATE SCHEMA prod.bronze_finance;
+CREATE SCHEMA prod.silver_finance;
+CREATE SCHEMA prod.gold_finance;
+
+-- Grant access patterns
+GRANT USE CATALOG ON CATALOG prod TO `data-engineers`;
+GRANT USE SCHEMA ON SCHEMA prod.gold_finance TO `analysts`;
+GRANT SELECT ON SCHEMA prod.gold_finance TO `analysts`;</code></pre>
+          </div>
+
+          <h2 id="managed-external">Managed vs External Locations</h2>
+
+          <h3>Managed Storage</h3>
+          <ul>
+            <li>Databricks controls the physical storage location (S3 bucket configured for the metastore).</li>
+            <li>When you <code>CREATE TABLE</code> without specifying LOCATION, data goes to managed storage.</li>
+            <li><strong>Lifecycle tied to table</strong>: DROP TABLE deletes the underlying files.</li>
+            <li><strong>Simplest option</strong>: No external location setup needed. Good for derived tables (silver/gold), temporary data, development.</li>
+          </ul>
+
+          <h3>External Locations</h3>
+          <ul>
+            <li>Customer's S3 bucket registered with Unity Catalog via a storage credential.</li>
+            <li><code>CREATE EXTERNAL TABLE ... LOCATION 's3://my-bucket/path/'</code> — data lives in your bucket, governed by UC.</li>
+            <li><strong>Lifecycle independent</strong>: DROP TABLE removes UC metadata but NOT the physical files.</li>
+            <li><strong>Use cases</strong>: Data shared with non-Databricks tools, data produced by external systems, compliance requirements for data location control.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">External Location Setup</div>
+            <pre><code>-- Create external location (requires storage credential)
+CREATE EXTERNAL LOCATION finance_data
+URL 's3://company-data-lake/finance/'
+WITH (STORAGE CREDENTIAL production_s3_cred)
+COMMENT 'Finance team data lake partition';
+
+-- Grant access to create tables at this location
+GRANT CREATE EXTERNAL TABLE ON EXTERNAL LOCATION finance_data TO `finance-engineers`;
+GRANT READ FILES ON EXTERNAL LOCATION finance_data TO `finance-analysts`;
+
+-- Create external table at the location
+CREATE EXTERNAL TABLE prod.finance.transactions (
+  txn_id BIGINT,
+  account_id BIGINT,
+  amount DOUBLE,
+  txn_type STRING,
+  txn_ts TIMESTAMP
+)
+USING DELTA
+LOCATION 's3://company-data-lake/finance/transactions/';
+
+-- External volumes (for file-level access)
+CREATE EXTERNAL VOLUME prod.finance.raw_files
+LOCATION 's3://company-data-lake/finance/raw/';
+
+-- List files in volume
+LIST '/Volumes/prod/finance/raw_files/';</code></pre>
+          </div>
+
+          <h2 id="credential-vending">Credential Vending</h2>
+
+          <p>UC doesn't give clusters permanent S3 access. Instead, it vends short-lived, scoped credentials per query:</p>
+
+          <h3>Flow</h3>
+          <ol>
+            <li>User runs <code>SELECT * FROM prod.finance.transactions</code></li>
+            <li>UC checks: Does this user have SELECT on this table? (Check ACLs, row filters, column masks.)</li>
+            <li>UC identifies the physical S3 paths for this table's data files.</li>
+            <li>UC assumes the storage credential's IAM role with a session policy scoped to ONLY those S3 paths.</li>
+            <li>UC returns temporary STS credentials (AccessKeyId, SecretAccessKey, SessionToken) to the cluster.</li>
+            <li>Cluster uses these temporary credentials to read from S3 — can ONLY access the authorized paths.</li>
+            <li>Credentials expire after ~1 hour; UC refreshes automatically for long-running queries.</li>
+          </ol>
+
+          <div class="callout">
+            <strong>Security implication:</strong> Even if a user has arbitrary code execution on the cluster (Python notebook), they can only access S3 paths that UC has authorized for their query. The temporary credentials are scoped to specific S3 prefixes — attempting to access other paths returns AccessDenied. This is how UC enforces fine-grained access on shared clusters.
+          </div>
+
+          <h2 id="access-control">Data Access Control</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">UC Permission Model</div>
+            <pre><code>-- GRANT/REVOKE SQL syntax
+-- Hierarchy: Account → Metastore → Catalog → Schema → Table
+
+-- Catalog-level
+GRANT USE CATALOG ON CATALOG prod TO `data-engineers`;
+GRANT CREATE SCHEMA ON CATALOG prod TO `data-engineers`;
+
+-- Schema-level
+GRANT USE SCHEMA ON SCHEMA prod.gold_finance TO `analysts`;
+GRANT SELECT ON SCHEMA prod.gold_finance TO `analysts`;  -- all tables in schema
+
+-- Table-level
+GRANT SELECT ON TABLE prod.gold_finance.revenue TO `finance-team`;
+GRANT MODIFY ON TABLE prod.silver_finance.transactions TO `etl-service-principal`;
+
+-- USAGE is required at every level of the hierarchy
+-- User needs: USE CATALOG on prod + USE SCHEMA on gold_finance + SELECT on revenue
+-- Missing any level → AccessDenied
+
+-- View permissions (good for controlled access)
+CREATE VIEW prod.gold_finance.revenue_summary AS
+SELECT region, SUM(amount) as total_revenue
+FROM prod.gold_finance.revenue
+GROUP BY region;
+
+GRANT SELECT ON VIEW prod.gold_finance.revenue_summary TO `executives`;
+
+-- Ownership model
+ALTER TABLE prod.finance.transactions OWNER TO `finance-engineering-group`;
+-- Owner has ALL PRIVILEGES on the object + can GRANT to others
+
+-- Service principal for automated jobs
+GRANT SELECT ON SCHEMA prod.bronze_finance TO `etl-pipeline-sp`;
+GRANT MODIFY ON SCHEMA prod.silver_finance TO `etl-pipeline-sp`;</code></pre>
+          </div>
+
+          <h2 id="row-column-security">Row-Level & Column-Level Security</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Row Filters & Column Masks</div>
+            <pre><code>-- Row-level security: filter rows based on user identity
+CREATE FUNCTION prod.finance.region_filter(region_col STRING)
+RETURNS BOOLEAN
+RETURN (
+  is_account_group_member('global-finance')  -- global team sees all
+  OR region_col = CASE
+    WHEN is_account_group_member('finance-us') THEN 'US'
+    WHEN is_account_group_member('finance-eu') THEN 'EU'
+    WHEN is_account_group_member('finance-apac') THEN 'APAC'
+    ELSE 'NONE'
+  END
+);
+
+-- Apply row filter to table
+ALTER TABLE prod.finance.transactions
+SET ROW FILTER prod.finance.region_filter ON (region);
+
+-- Column masking: mask sensitive values based on user identity
+CREATE FUNCTION prod.finance.mask_account(account_id BIGINT)
+RETURNS BIGINT
+RETURN (
+  CASE
+    WHEN is_account_group_member('finance-engineering') THEN account_id  -- full access
+    ELSE CAST(CONCAT('***', RIGHT(CAST(account_id AS STRING), 4)) AS BIGINT)  -- mask
+  END
+);
+
+-- Apply column mask
+ALTER TABLE prod.finance.transactions
+ALTER COLUMN account_id SET MASK prod.finance.mask_account;
+
+-- Now when an analyst queries:
+-- SELECT * FROM prod.finance.transactions
+-- They see:
+-- 1. Only rows matching their region (row filter)
+-- 2. account_id is masked (column mask)
+-- Completely transparent — no query changes needed!</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Performance consideration:</strong> Row filters are applied at read time (pushdown to scan). For complex filter functions, this adds overhead to every query. Keep filter functions simple (group membership checks) and ensure the filtered column is part of the table's partition or clustering key for efficient pruning.
+          </div>
+
+          <h2 id="delta-sharing">Delta Sharing on AWS</h2>
+
+          <ul>
+            <li><strong>What it is</strong>: Open protocol for secure cross-organization data sharing. Recipients don't need Databricks — any client supporting the Delta Sharing protocol can read shared data.</li>
+            <li><strong>How it works on AWS</strong>: Data stays in the provider's S3 bucket. UC generates pre-signed S3 URLs with limited TTL for recipients. No data copying, no duplication.</li>
+            <li><strong>Open recipients</strong>: Share with any organization — they download a credential file and use the open-source Delta Sharing client (Python, Spark, pandas, Power BI).</li>
+            <li><strong>Databricks-to-Databricks</strong>: Recipients with their own Databricks workspace can access shared data directly as external catalogs.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta Sharing Configuration</div>
+            <pre><code>-- Create a share
+CREATE SHARE customer_analytics_share
+COMMENT 'Customer analytics data shared with partner org';
+
+-- Add tables/views to the share
+ALTER SHARE customer_analytics_share
+ADD TABLE prod.gold_analytics.customer_segments;
+
+ALTER SHARE customer_analytics_share
+ADD TABLE prod.gold_analytics.monthly_metrics
+PARTITION (region = 'US');  -- Share only US partition
+
+-- Create a recipient
+CREATE RECIPIENT partner_org
+COMMENT 'External analytics partner'
+USING ID 'partner-databricks-account-id';  -- Databricks-to-Databricks
+
+-- Or open sharing (non-Databricks recipient)
+CREATE RECIPIENT partner_org_open;
+-- Download activation link for the recipient
+
+-- Grant share to recipient
+GRANT SELECT ON SHARE customer_analytics_share TO RECIPIENT partner_org;
+
+-- Recipient's perspective (in their workspace):
+-- CREATE CATALOG partner_data USING SHARE provider_org.customer_analytics_share;
+-- SELECT * FROM partner_data.default.customer_segments;</code></pre>
+          </div>
+
+          <h2 id="lineage">Lineage</h2>
+
+          <ul>
+            <li><strong>Automatic</strong>: UC captures column-level lineage from all Spark SQL/DataFrame operations without any manual instrumentation.</li>
+            <li><strong>Scope</strong>: Tracks lineage for: reads, writes, CREATE TABLE AS, INSERT INTO, MERGE, notebooks, jobs, DLT pipelines.</li>
+            <li><strong>Column-level</strong>: Not just "table A → table B" but "table_A.column_x → table_B.column_y" (which source columns feed which target columns).</li>
+            <li><strong>System tables</strong>: Query <code>system.access.table_lineage</code> and <code>system.access.column_lineage</code> for programmatic access.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Querying Lineage</div>
+            <pre><code>-- Upstream dependencies (what feeds into this table)
+SELECT
+  source_table_full_name,
+  source_column_name,
+  target_column_name,
+  event_time
+FROM system.access.column_lineage
+WHERE target_table_full_name = 'prod.gold_finance.daily_revenue'
+ORDER BY event_time DESC;
+
+-- Downstream dependencies (what reads from this table)
+SELECT
+  target_table_full_name,
+  target_column_name,
+  event_time
+FROM system.access.column_lineage
+WHERE source_table_full_name = 'prod.silver_finance.transactions'
+ORDER BY event_time DESC;
+
+-- Impact analysis: if I change this column, what's affected?
+SELECT DISTINCT target_table_full_name, target_column_name
+FROM system.access.column_lineage
+WHERE source_table_full_name = 'prod.bronze_finance.raw_transactions'
+  AND source_column_name = 'amount';</code></pre>
+          </div>
+
+          <h2 id="audit-logging">Audit Logging</h2>
+
+          <ul>
+            <li><strong>system.access.audit</strong>: Contains all access events — who accessed what data, when, from which workspace/cluster.</li>
+            <li><strong>Events captured</strong>: table reads, writes, permission changes, credential usage, workspace logins, cluster operations.</li>
+            <li><strong>Retention</strong>: 365 days by default.</li>
+            <li><strong>Integration with CloudTrail</strong>: Databricks also sends audit events to AWS CloudTrail for unified security monitoring.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Audit Log Queries</div>
+            <pre><code>-- Who accessed sensitive table in last 24 hours?
+SELECT
+  event_time,
+  user_identity.email AS user_email,
+  action_name,
+  request_params.full_name_arg AS table_name,
+  source_ip_address,
+  workspace_id
+FROM system.access.audit
+WHERE action_name IN ('getTable', 'commandSubmit')
+  AND request_params.full_name_arg LIKE '%finance%'
+  AND event_time >= current_timestamp() - INTERVAL 24 HOURS
+ORDER BY event_time DESC;
+
+-- Permission changes audit trail
+SELECT
+  event_time,
+  user_identity.email AS changed_by,
+  action_name,
+  request_params
+FROM system.access.audit
+WHERE action_name IN ('updatePermissions', 'grantPermission', 'revokePermission')
+  AND event_time >= current_timestamp() - INTERVAL 7 DAYS
+ORDER BY event_time DESC;
+
+-- Failed access attempts (security monitoring)
+SELECT
+  event_time,
+  user_identity.email,
+  action_name,
+  response.status_code,
+  response.error_message
+FROM system.access.audit
+WHERE response.status_code >= 400
+  AND event_time >= current_timestamp() - INTERVAL 24 HOURS
+ORDER BY event_time DESC;</code></pre>
+          </div>
+
+          <h2 id="hms-migration">Migration from HMS to UC</h2>
+
+          <h3>Migration Strategies</h3>
+          <ul>
+            <li><strong>SYNC command</strong>: Copies metadata from HMS to UC without moving data. Table continues to work in both systems during migration window.</li>
+            <li><strong>Table upgrade</strong>: <code>ALTER TABLE hive_metastore.schema.table SET OWNER TO ...</code> then register in UC.</li>
+            <li><strong>Handling mounts → external locations</strong>: Map each DBFS mount to an equivalent external location with proper credentials and permissions.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">HMS to UC Migration</div>
+            <pre><code>-- Step 1: Create UC equivalent structure
+CREATE CATALOG prod;
+CREATE SCHEMA prod.finance;
+
+-- Step 2: Upgrade tables (metadata only — no data movement)
+-- For managed HMS tables:
+CREATE TABLE prod.finance.transactions
+AS SELECT * FROM hive_metastore.finance.transactions;
+-- Note: This copies data to UC managed storage
+
+-- For external HMS tables (data stays in place):
+CREATE EXTERNAL TABLE prod.finance.transactions
+LOCATION 's3://existing-bucket/finance/transactions/'
+AS SELECT * FROM hive_metastore.finance.transactions WHERE 1=0;
+-- Then: SYNC (or use upgrade wizard in UI)
+
+-- Step 3: Bulk upgrade using UC upgrade wizard (UI-based)
+-- Or programmatic:
+SYNC TABLE prod.finance.transactions 
+FROM hive_metastore.finance.transactions;
+
+-- Step 4: Replace mount-based access
+-- OLD: spark.read.parquet("/mnt/finance/transactions")
+-- NEW: spark.table("prod.finance.transactions")
+
+-- Step 5: Migrate permissions
+GRANT SELECT ON TABLE prod.finance.transactions TO `finance-analysts`;
+
+-- Step 6: Validate and switch references
+-- Run parallel queries against both to verify data consistency
+-- Update notebooks/jobs to reference UC paths
+-- Deprecate HMS tables after validation period</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Migration order:</strong> (1) Start with Gold tables (most visibility, cleanest data, most consumers to migrate). (2) Then Silver (transformation layer). (3) Finally Bronze (ingestion — may require pipeline changes). Migrate consumers before producers — once a Gold table is in UC, analytics users get immediate governance benefits regardless of how Bronze/Silver are still running.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Unity Catalog's credential vending differ from instance profiles for S3 access? What security advantages does it provide?</div>
+            <div class="qa-answer">
+              <p><strong>Instance profiles (legacy):</strong> An IAM role attached to the EC2 instance. ALL code running on that cluster — regardless of which user submitted it — gets the same S3 permissions. If the role allows <code>s3:*</code> on the data lake bucket, every user on that cluster can read/write everything. No per-user differentiation, no audit trail per identity.</p>
+              <p><strong>UC credential vending:</strong> UC checks permissions per user, per table, then generates STS temporary credentials scoped to ONLY the specific S3 prefixes that user is authorized to access. Different users on the SAME cluster get different credentials with different S3 access scopes.</p>
+              <p><strong>Security advantages:</strong></p>
+              <p>(1) <strong>Least privilege:</strong> Credentials only allow access to the exact files needed for the authorized query — not the entire bucket.</p>
+              <p>(2) <strong>Per-user audit:</strong> Every data access is tied to a user identity in the audit log — not just "someone on cluster X."</p>
+              <p>(3) <strong>Short-lived:</strong> Credentials expire in ~1 hour. Leaked credentials have limited blast radius (time-bound + path-scoped).</p>
+              <p>(4) <strong>Row/column security:</strong> UC can enforce row filters and column masks BEFORE vending credentials — impossible with instance profiles.</p>
+              <p>(5) <strong>Shared clusters:</strong> Multiple users with different access levels can share one cluster safely. With instance profiles, shared clusters mean everyone gets the union of all permissions.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a Unity Catalog namespace structure for a company with 5 business domains, 3 environments, and a data mesh approach.</div>
+            <div class="qa-answer">
+              <p><strong>Recommended structure: catalog per domain per environment.</strong></p>
+              <p><code>prod_finance.bronze.raw_transactions</code></p>
+              <p><code>prod_finance.silver.transactions</code></p>
+              <p><code>prod_finance.gold.daily_revenue</code></p>
+              <p><code>dev_finance.bronze.raw_transactions</code> (dev mirror)</p>
+              <p><strong>Catalogs:</strong> prod_finance, staging_finance, dev_finance, prod_marketing, staging_marketing, dev_marketing, ..., prod_platform (shared/cross-domain data products).</p>
+              <p><strong>Why this structure:</strong></p>
+              <p>(1) <strong>Isolation:</strong> Each domain team owns their catalogs end-to-end. Can manage schemas, tables, permissions within their domain.</p>
+              <p>(2) <strong>Environment separation:</strong> Dev catalog can be granted widely (all engineers). Prod catalog restricted to service principals + read-only for analysts.</p>
+              <p>(3) <strong>Data mesh alignment:</strong> Each domain is a "data product" team. They publish tables in their <code>gold</code> schema as data products. Cross-domain access via GRANT or Delta Sharing.</p>
+              <p>(4) <strong>Cross-domain shared data:</strong> <code>prod_platform.shared.customer_master</code> — owned by platform team, granted to all domain teams for joins.</p>
+              <p><strong>Permission model:</strong></p>
+              <p>- Domain engineers: full access to their domain's dev + staging catalogs, MODIFY on prod bronze/silver, read-only on prod gold.</p>
+              <p>- Analysts: USE CATALOG + SELECT on prod gold schemas only.</p>
+              <p>- ETL service principals: MODIFY on prod bronze/silver/gold (for automated pipelines).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">You need to migrate 500 tables from Hive Metastore to Unity Catalog with zero downtime. What's your migration strategy?</div>
+            <div class="qa-answer">
+              <p><strong>Phase 1 — Preparation (2 weeks):</strong></p>
+              <p>(1) Inventory all HMS tables: classify by type (managed vs external), access patterns (who reads/writes), dependencies (downstream jobs). (2) Create UC namespace structure (catalogs, schemas). (3) Set up storage credentials and external locations for all S3 paths. (4) Map HMS permissions → UC permissions (document which groups need access to which tables).</p>
+              <p><strong>Phase 2 — Shadow migration (2 weeks):</strong></p>
+              <p>(1) Register external tables in UC pointing to same S3 locations (zero-copy — no data movement). (2) For managed tables: use DEEP CLONE to UC managed storage. (3) Set up dual-write: modify ETL pipelines to write to BOTH HMS and UC tables during transition. (4) Validate: run queries against both, compare results.</p>
+              <p><strong>Phase 3 — Consumer migration (4 weeks, rolling):</strong></p>
+              <p>(1) Update notebooks/jobs to read from UC paths instead of HMS paths. (2) Migrate team by team: analytics team first (Gold readers), then engineering (Silver/Bronze). (3) Each team validates, confirms parity, signs off.</p>
+              <p><strong>Phase 4 — Cutover (1 day):</strong></p>
+              <p>(1) Stop dual-writes — ETL only writes to UC tables. (2) Remove HMS table references. (3) Disable access to legacy HMS (make read-only as safety net). (4) Monitor for 48 hours.</p>
+              <p><strong>Zero downtime achieved by:</strong> Dual-write period ensures both systems have identical data. Consumer migration is gradual (no big-bang switchover). Rollback plan: revert to HMS paths if issues found.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you implement row-level security in Unity Catalog for a multi-tenant SaaS application where each customer should only see their own data?</div>
+            <div class="qa-answer">
+              <p><strong>Implementation:</strong></p>
+              <p><code>CREATE FUNCTION tenant_filter(tenant_id_col STRING) RETURNS BOOLEAN RETURN (tenant_id_col = current_user_attribute('tenant_id') OR is_account_group_member('platform-admins'));</code></p>
+              <p><code>ALTER TABLE prod.app.user_activity SET ROW FILTER tenant_filter ON (tenant_id);</code></p>
+              <p><strong>How it works:</strong> (1) Each user's identity in Databricks is mapped to a tenant_id (via SCIM sync from identity provider, or user attributes). (2) The row filter function evaluates for every row at read time — only rows matching the user's tenant_id are returned. (3) Platform admins (via group membership check) see all rows.</p>
+              <p><strong>Performance considerations:</strong></p>
+              <p>(1) <strong>Partition on tenant_id:</strong> This allows the row filter to be pushed down as partition pruning — UC reads only the relevant partition, not the entire table. Without partitioning, every query scans all tenants' data and filters client-side.</p>
+              <p>(2) <strong>Liquid Clustering on tenant_id:</strong> Alternative to partitioning if cardinality is high (1000+ tenants). Co-locates tenant data in few files for efficient filtering.</p>
+              <p>(3) <strong>Caching:</strong> Since each user sees different rows, Delta cache effectiveness is reduced. Consider separate tables for very large tenants if performance is critical.</p>
+              <p><strong>Audit:</strong> All access is logged with user identity — full compliance trail of who accessed which tenant's data.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain the self-assume IAM role pattern used by Unity Catalog. Why is it necessary?</div>
+            <div class="qa-answer">
+              <p><strong>The pattern:</strong> The storage credential IAM role trusts TWO principals: (1) Databricks UC service role (for initial assumption). (2) Itself (for re-assumption with scoped session policy).</p>
+              <p><strong>Why it's necessary:</strong></p>
+              <p>Without self-assume: UC assumes the role → gets full permissions of that role (e.g., <code>s3:*</code> on the entire bucket). These credentials are passed to the cluster. A malicious user could use the credentials to access any path within the bucket — even tables they're not authorized to read in UC.</p>
+              <p>With self-assume: UC assumes the role → then immediately re-assumes the SAME role with an inline session policy that restricts S3 access to ONLY the specific prefixes needed for the current query. The resulting temporary credentials are limited-scope — even if leaked, they can only access the authorized paths.</p>
+              <p><strong>Example:</strong> User queries <code>prod.finance.revenue</code> (stored at <code>s3://lake/finance/revenue/</code>). UC assumes the role → re-assumes with session policy: <code>{"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::lake/finance/revenue/*"}</code>. The vended credentials CANNOT access <code>s3://lake/finance/payroll/</code> even though the base role has broad bucket access.</p>
+              <p><strong>Security benefit:</strong> You don't need to create one IAM role per table (unmanageable at scale). One broad role + session policy scoping = fine-grained access without IAM proliferation.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Databricks</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

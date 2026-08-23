@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Photon Engine — Internals & Optimization — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Databricks</a>
+        <span>→</span>
+        <span>Photon Engine</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">11 min read</span>
+          </div>
+          <h1>Photon Engine — Internals & Optimization</h1>
+          <p class="article-desc">Deep internals of the Photon vectorized execution engine — C++ native architecture, SIMD vectorization, memory management, supported operations, cost-benefit analysis, and query tuning strategies for maximum Photon ROI.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what-is-photon">What Is Photon</a></li>
+            <li><a href="#architecture">Architecture & Integration</a></li>
+            <li><a href="#vectorized-execution">Vectorized Execution Model</a></li>
+            <li><a href="#memory-management">Memory Management</a></li>
+            <li><a href="#supported-operations">Supported Operations</a></li>
+            <li><a href="#unsupported-operations">Unsupported Operations</a></li>
+            <li><a href="#when-photon-helps">When Photon Delivers ROI</a></li>
+            <li><a href="#when-photon-doesnt">When Photon Does NOT Help</a></li>
+            <li><a href="#cost-benefit">Cost-Benefit Analysis</a></li>
+            <li><a href="#query-tuning">Photon-Aware Query Tuning</a></li>
+            <li><a href="#spark-ui">Spark UI with Photon</a></li>
+            <li><a href="#aqe-photon">AQE + Photon</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what-is-photon">What Is Photon</h2>
+
+          <p>Photon is a C++ native vectorized execution engine developed by Databricks that replaces the JVM-based Spark SQL execution layer (WholeStageCodegen) for supported operations. It's designed to maximize CPU utilization for data-intensive queries on modern hardware.</p>
+
+          <ul>
+            <li><strong>Not a separate system</strong>: Photon plugs into the existing Spark SQL infrastructure. The Catalyst optimizer generates the query plan, and Photon executes supported physical operators natively.</li>
+            <li><strong>Transparent</strong>: Same SQL/DataFrame API, same semantics, same results — just faster execution for supported operations.</li>
+            <li><strong>Operator-level</strong>: Individual operators in the query plan may execute in Photon or fall back to JVM — the plan is a mix of both.</li>
+          </ul>
+
+          <h2 id="architecture">Architecture & Integration</h2>
+
+          <h3>How Photon Integrates with Spark</h3>
+          <ol>
+            <li><strong>Query planning</strong>: Catalyst optimizer produces a physical plan (same as standard Spark).</li>
+            <li><strong>Photon eligibility check</strong>: Each physical operator is checked for Photon support. Supported operators are marked for native execution.</li>
+            <li><strong>Code generation</strong>: Instead of Spark's WholeStageCodegen (which generates JVM bytecode), Photon uses pre-compiled C++ operator implementations linked at runtime.</li>
+            <li><strong>Execution</strong>: Photon operators execute natively (C++), process column batches, and return results to the Spark framework.</li>
+            <li><strong>Fallback</strong>: Unsupported operators in the same query execute via traditional Spark JVM code. Data is transferred between Photon and JVM layers at operator boundaries.</li>
+          </ol>
+
+          <h3>Key Design Decisions</h3>
+          <ul>
+            <li><strong>Column-batched</strong>: Photon processes data in columnar batches (vectors of ~4096 values per column) rather than one row at a time.</li>
+            <li><strong>No JVM for hot path</strong>: The actual data processing (filter, aggregate, join) happens in native C++ — no GC pauses, no JIT warmup, no object overhead.</li>
+            <li><strong>Direct memory access</strong>: Operates on off-heap memory managed by Photon's own allocator — not subject to JVM heap limits or garbage collection.</li>
+          </ul>
+
+          <h2 id="vectorized-execution">Vectorized Execution Model</h2>
+
+          <h3>Column Batches (Vectors)</h3>
+          <ul>
+            <li>Data is organized as arrays of values per column (not as rows). A batch of 4096 rows with 10 columns = 10 arrays of 4096 values each.</li>
+            <li><strong>Benefits</strong>: (1) CPU cache efficiency — processing one column at a time keeps data in L1/L2 cache. (2) SIMD utilization — process 4-8 values simultaneously with AVX2/AVX-512 instructions. (3) Branch prediction — filter operations on one column are highly predictable.</li>
+          </ul>
+
+          <h3>SIMD Instruction Utilization</h3>
+          <ul>
+            <li><strong>AVX2 (256-bit)</strong>: Process 4 BIGINT values or 8 INT values in a single CPU instruction.</li>
+            <li><strong>Vectorized comparisons</strong>: Filter <code>WHERE amount > 100</code> on a column of 4096 doubles → ~512 SIMD compare instructions (vs 4096 scalar comparisons).</li>
+            <li><strong>Vectorized aggregation</strong>: SUM, COUNT, MIN, MAX on columnar data achieve near-memory-bandwidth throughput.</li>
+            <li><strong>String operations</strong>: Photon's native string handling (LIKE, CONTAINS, SUBSTR) is 5-10x faster than JVM — no object allocation per string, fixed-width comparison buffers.</li>
+          </ul>
+
+          <h3>CPU Cache Line Optimization</h3>
+          <ul>
+            <li>Modern CPUs have 64-byte cache lines. Processing a column of BIGINT (8 bytes each) fits 8 values per cache line.</li>
+            <li>Sequential column access → minimal cache misses → throughput limited only by memory bandwidth, not cache misses.</li>
+            <li>Row-oriented access (traditional Spark) accesses scattered memory locations → frequent cache misses → 3-10x slower for analytics queries.</li>
+          </ul>
+
+          <h2 id="memory-management">Memory Management</h2>
+
+          <ul>
+            <li><strong>Native C++ allocator</strong>: Photon manages its own memory pool outside the JVM heap. No garbage collector involvement.</li>
+            <li><strong>No GC pauses</strong>: JVM-based Spark can experience 10+ second GC pauses on large heaps. Photon's native memory management eliminates this entirely.</li>
+            <li><strong>Memory-mapped I/O</strong>: Parquet files are memory-mapped for zero-copy reads where possible — data goes directly from OS page cache to Photon processing buffers without copying through JVM.</li>
+            <li><strong>Buffer pooling</strong>: Intermediate results reuse pre-allocated buffers — reduces memory allocation/deallocation overhead for repetitive operations (loop bodies in aggregations).</li>
+            <li><strong>Spill to disk</strong>: When Photon's memory budget is exhausted (large hash joins, sorts), it spills to local SSD efficiently — spill format is optimized for re-reading (not Spark's row-based spill format).</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Why this matters:</strong> A typical Spark executor with 32GB heap spends 5-15% of wall-clock time in GC for aggregation-heavy workloads. Photon eliminates this entirely. For a 4-hour Spark job, that's 12-36 minutes saved just from GC elimination — before counting the vectorization speedup.
+          </div>
+
+          <h2 id="supported-operations">Supported Operations</h2>
+
+          <table>
+            <thead>
+              <tr><th>Category</th><th>Supported Operations</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Scan</td><td>Parquet/Delta scan (column projection, predicate pushdown)</td></tr>
+              <tr><td>Filter</td><td>All comparison operators, AND/OR/NOT, IN list, IS NULL, BETWEEN</td></tr>
+              <tr><td>Projection</td><td>Column selection, arithmetic (+, -, *, /), CAST, string functions</td></tr>
+              <tr><td>Aggregation</td><td>GROUP BY, SUM, COUNT, AVG, MIN, MAX, FIRST, LAST, COUNT DISTINCT</td></tr>
+              <tr><td>Join</td><td>Hash join (inner, left, right, outer, semi, anti), Sort merge join</td></tr>
+              <tr><td>Window</td><td>ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, frame-based aggregates</td></tr>
+              <tr><td>Sort</td><td>ORDER BY, Top-N (LIMIT with ORDER BY)</td></tr>
+              <tr><td>String</td><td>LIKE, CONTAINS, STARTSWITH, ENDSWITH, SUBSTRING, CONCAT, UPPER, LOWER, TRIM, REGEXP</td></tr>
+              <tr><td>Delta writes</td><td>INSERT, MERGE, UPDATE, DELETE (Photon-accelerated write path)</td></tr>
+              <tr><td>Expressions</td><td>CASE WHEN, COALESCE, IF, nested struct access</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="unsupported-operations">Unsupported Operations</h2>
+
+          <table>
+            <thead>
+              <tr><th>Category</th><th>Falls Back to JVM</th><th>Reason</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Python UDFs</td><td>UDF(), pandas_udf()</td><td>Requires Python interpreter — cannot be native C++</td></tr>
+              <tr><td>Scala/Java UDFs</td><td>Custom UDFs registered in Spark</td><td>Arbitrary JVM code — not vectorizable</td></tr>
+              <tr><td>RDD operations</td><td>.rdd.map(), .rdd.filter()</td><td>Row-at-a-time, arbitrary code</td></tr>
+              <tr><td>Complex nested types</td><td>Deeply nested arrays/maps (partial support)</td><td>Complex memory layouts not fully optimized</td></tr>
+              <tr><td>External formats</td><td>Non-Parquet scans (ORC, JSON reads at execution time)</td><td>Photon optimized for Parquet/Delta</td></tr>
+              <tr><td>ML operations</td><td>MLlib, SparkML</td><td>Specialized algorithms, not SQL operators</td></tr>
+              <tr><td>Streaming state</td><td>mapGroupsWithState, flatMapGroupsWithState</td><td>Custom stateful operations</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout-warning">
+            <strong>Fallback penalty:</strong> When a query plan mixes Photon and JVM operators, data must be serialized/deserialized at the boundary. A query that is 90% Photon-eligible but has one UDF in the middle loses significant performance to this boundary crossing. Rewrite critical UDFs as native SQL expressions where possible.
+          </div>
+
+          <h2 id="when-photon-helps">When Photon Delivers ROI</h2>
+
+          <table>
+            <thead>
+              <tr><th>Workload Type</th><th>Typical Speedup</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Aggregation-heavy SQL (GROUP BY)</td><td>3-8x</td><td>Vectorized hash aggregation, no GC</td></tr>
+              <tr><td>String processing (LIKE, REGEX)</td><td>5-10x</td><td>Native string ops, no Java String objects</td></tr>
+              <tr><td>Delta MERGE (large tables)</td><td>2-3x</td><td>Photon-accelerated join + write path</td></tr>
+              <tr><td>Large JOINs</td><td>2-5x</td><td>Native hash join with SIMD probing</td></tr>
+              <tr><td>Parquet scan + filter</td><td>2-4x</td><td>Native predicate evaluation, memory-mapped I/O</td></tr>
+              <tr><td>Complex SQL analytics</td><td>2-6x</td><td>All-native execution path end-to-end</td></tr>
+              <tr><td>Window functions</td><td>2-4x</td><td>Vectorized window computation</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="when-photon-doesnt">When Photon Does NOT Help</h2>
+
+          <ul>
+            <li><strong>UDF-heavy workloads</strong>: If 60%+ of execution time is in Python/Scala UDFs, Photon can't help (falls back to JVM for UDFs). The non-UDF portions may be faster, but the UDFs dominate runtime.</li>
+            <li><strong>Small datasets (&lt;1GB)</strong>: Overhead of Photon initialization and the mixed JVM/native runtime exceeds savings. Standard Spark is fine for small data.</li>
+            <li><strong>ML training (MLlib)</strong>: Machine learning algorithms are compute-bound in specialized ways (linear algebra, gradient descent) that Photon doesn't optimize.</li>
+            <li><strong>RDD API workloads</strong>: Pure RDD code (.map, .filter, .flatMap) bypasses the SQL engine entirely — Photon only accelerates SQL/DataFrame operations.</li>
+            <li><strong>ETL with heavy Python logic</strong>: If transformations are implemented as Python functions rather than Spark SQL operations, Photon provides no benefit.</li>
+            <li><strong>I/O-bound workloads</strong>: If the bottleneck is S3 read throughput (not CPU processing), faster CPU execution doesn't help. Photon helps CPU-bound, not I/O-bound jobs.</li>
+          </ul>
+
+          <h2 id="cost-benefit">Cost-Benefit Analysis</h2>
+
+          <h3>Pricing Model</h3>
+          <ul>
+            <li><strong>Photon DBU rate</strong>: Approximately 2x standard compute DBU rate (varies by tier: Jobs, DLT, SQL).</li>
+            <li><strong>Break-even point</strong>: Photon must provide >2x speedup to be cost-neutral. At 3x speedup, you save 33% net cost.</li>
+            <li><strong>Formula</strong>: <code>Cost = Runtime_hours × Workers × DBU_per_hour × Price_per_DBU</code></li>
+          </ul>
+
+          <h3>How to Measure</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Cost Comparison Methodology</div>
+            <pre><code># Step 1: Run job WITHOUT Photon (standard compute)
+# Record: runtime_standard = 4 hours, cluster = 10 workers × i3.xlarge
+# Cost_standard = 4h × 10 × 2 DBU/h × $0.15/DBU = $12.00
+
+# Step 2: Run SAME job WITH Photon (Photon-enabled compute)
+# Record: runtime_photon = 1.5 hours, cluster = 10 workers × i3.xlarge
+# Cost_photon = 1.5h × 10 × 2 DBU/h × $0.30/DBU = $9.00
+
+# Speedup = 4.0 / 1.5 = 2.67x
+# Cost savings = ($12.00 - $9.00) / $12.00 = 25% cheaper with Photon
+
+# Decision: Photon provides 2.67x speedup at 2x DBU rate → net 25% savings ✅
+
+# Counter-example where Photon doesn't pay off:
+# runtime_photon = 3 hours (only 1.33x speedup)
+# Cost_photon = 3h × 10 × 2 × $0.30 = $18.00 (50% MORE expensive!) ❌</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Rule of thumb:</strong> Enable Photon for SQL/DataFrame-heavy workloads (ETL with SQL transformations, BI queries, Delta MERGE). Disable Photon for Python/UDF-heavy workloads, ML training, or jobs where most time is spent in I/O. Always benchmark both modes for your specific workload before committing.
+          </div>
+
+          <h2 id="query-tuning">Photon-Aware Query Tuning</h2>
+
+          <h3>Maximize Photon Utilization</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Photon Optimization Patterns</div>
+            <pre><code># ❌ BAD: Python UDF breaks Photon execution
+from pyspark.sql.functions import udf
+@udf("string")
+def normalize_email(email):
+    return email.strip().lower() if email else None
+
+df.withColumn("email", normalize_email("email"))  # Falls back to JVM
+
+# ✅ GOOD: Native SQL equivalent stays in Photon
+df.withColumn("email", lower(trim(col("email"))))  # Photon-accelerated
+
+# ❌ BAD: pandas_udf for simple logic
+@pandas_udf("double")
+def calc_discount(amount: pd.Series, tier: pd.Series) -> pd.Series:
+    return amount * tier.map({"gold": 0.2, "silver": 0.1}).fillna(0.05)
+
+# ✅ GOOD: SQL CASE WHEN stays in Photon
+df.withColumn("discount", 
+    when(col("tier") == "gold", col("amount") * 0.2)
+    .when(col("tier") == "silver", col("amount") * 0.1)
+    .otherwise(col("amount") * 0.05)
+)
+
+# ❌ BAD: collect() pulls data to driver (bypasses Photon)
+results = df.collect()  # Serializes everything to Python driver
+
+# ✅ GOOD: Keep computation in Spark SQL (Photon-accelerated)
+result = df.agg(sum("amount"), count("*")).first()
+
+# ❌ BAD: RDD operations (completely outside Photon)
+df.rdd.map(lambda row: transform(row)).toDF()
+
+# ✅ GOOD: DataFrame/SQL API (Photon-eligible)
+df.select(transform_columns_with_sql_functions)</code></pre>
+          </div>
+
+          <h3>Additional Tuning Tips</h3>
+          <ul>
+            <li><strong>Use Delta format</strong>: Photon has deep integration with Delta reads/writes (Parquet + column stats + DV application).</li>
+            <li><strong>Avoid Python UDFs</strong>: Replace with built-in SQL functions or SQL expression UDFs where possible.</li>
+            <li><strong>Prefer SQL/DataFrame API</strong>: Keep transformations in the Spark SQL optimizer's scope.</li>
+            <li><strong>Minimize driver-side operations</strong>: <code>collect()</code>, <code>toPandas()</code>, <code>show()</code> pull data out of Photon's native execution.</li>
+            <li><strong>Use broadcast hints for small tables</strong>: Photon's hash join with broadcast is extremely efficient — <code>df.join(broadcast(dim_table), ...)</code></li>
+          </ul>
+
+          <h2 id="spark-ui">Spark UI with Photon</h2>
+
+          <ul>
+            <li>In the SQL/DataFrame query plan view, Photon-executed operators are labeled with "Photon" prefix: <code>PhotonGroupingAgg</code>, <code>PhotonHashJoin</code>, <code>PhotonFilter</code>, <code>PhotonProject</code>.</li>
+            <li>Non-Photon operators appear with standard names: <code>HashAggregate</code>, <code>SortMergeJoin</code>, <code>Filter</code>.</li>
+            <li><strong>Mixed plans</strong>: Look for transition points between Photon and non-Photon operators — these are serialization boundaries (potential bottlenecks).</li>
+            <li><strong>Photon metrics</strong>: Additional metrics in the SQL tab: "Photon execution time", "rows processed by Photon", "time in native code vs JVM".</li>
+            <li><strong>Goal</strong>: Maximize the percentage of execution time in Photon operators. If >80% of time is in Photon operators, you're getting good ROI.</li>
+          </ul>
+
+          <h2 id="aqe-photon">AQE + Photon</h2>
+
+          <h3>Complementary Optimizations</h3>
+          <ul>
+            <li><strong>AQE (Adaptive Query Execution)</strong> optimizes the query PLAN at runtime: coalesce partitions, switch join strategies, handle skew.</li>
+            <li><strong>Photon</strong> optimizes the query EXECUTION: faster per-row processing via vectorization.</li>
+            <li>They work together: AQE picks the optimal plan (e.g., converts sort-merge join to broadcast hash join when one side is small) → Photon executes that plan with native C++ performance.</li>
+          </ul>
+
+          <h3>Interaction Points</h3>
+          <ul>
+            <li><strong>AQE coalesce + Photon</strong>: AQE reduces partition count for small stages → fewer tasks with larger batches → better Photon vectorization (larger vectors = better SIMD utilization).</li>
+            <li><strong>AQE skew handling + Photon</strong>: AQE splits skewed partitions into smaller chunks → Photon processes each chunk with consistent performance (no single-task bottleneck).</li>
+            <li><strong>AQE join strategy switch + Photon</strong>: AQE detects a table is small enough for broadcast → switches to broadcast hash join → Photon's native hash join with broadcast is 5-10x faster than sort-merge.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Enable AQE + Photon (Default on Databricks)</div>
+            <pre><code>-- Both enabled by default on Databricks Runtime 12.0+
+-- Verify settings:
+SET spark.sql.adaptive.enabled;                      -- true
+SET spark.sql.adaptive.coalescePartitions.enabled;   -- true
+SET spark.sql.adaptive.skewJoin.enabled;             -- true
+SET spark.databricks.photon.enabled;                 -- true (on Photon clusters)
+
+-- Tuning for maximum combined benefit:
+SET spark.sql.adaptive.advisoryPartitionSizeInBytes = 128m;  -- Larger partitions → better Photon batching
+SET spark.sql.adaptive.coalescePartitions.minPartitionSize = 64m;  -- Don't create tiny partitions
+SET spark.sql.shuffle.partitions = 200;  -- AQE will auto-coalesce from here</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your team enabled Photon on all clusters but some jobs are now MORE expensive (not faster). How do you diagnose and fix this?</div>
+            <div class="qa-answer">
+              <p><strong>Diagnosis:</strong></p>
+              <p>(1) <strong>Check Photon utilization in Spark UI:</strong> Open the SQL tab → look at the query plan. If most operators are non-Photon (standard HashAggregate, SortMergeJoin without "Photon" prefix), the workload isn't Photon-eligible. You're paying 2x DBU for standard JVM execution.</p>
+              <p>(2) <strong>Identify the workload type:</strong> Python UDF-heavy jobs, RDD-based ETL, MLlib training, and custom Scala UDFs all bypass Photon. If >50% of execution time is in non-Photon operators, Photon won't pay off.</p>
+              <p>(3) <strong>Check for I/O-bound behavior:</strong> If the job spends most time waiting for S3 reads (check task metrics: "Input Read Time" vs "Processing Time"), faster CPU execution doesn't help — you need more parallelism or better data layout.</p>
+              <p><strong>Fix:</strong></p>
+              <p>(1) Disable Photon for jobs that are UDF/RDD/ML-heavy — use standard compute at 1x DBU rate. (2) For mixed workloads, rewrite critical UDFs as SQL expressions to make them Photon-eligible. (3) Create a policy: Photon enabled for SQL/ETL clusters, disabled for ML/Python-heavy clusters. (4) Use cluster policies to enforce the right compute type per team/use-case.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain how Photon's vectorized execution differs from Spark's WholeStageCodegen. Why is it faster?</div>
+            <div class="qa-answer">
+              <p><strong>Spark WholeStageCodegen:</strong></p>
+              <p>Generates Java bytecode at runtime that fuses multiple operators into a single function (loop). Processes one row at a time through the fused pipeline. Runs on JVM → subject to: (1) GC pauses. (2) JIT warmup (first ~10K iterations interpreted before JIT compiles). (3) Object allocation overhead (Java Strings, boxed numerics). (4) No explicit SIMD — relies on JVM auto-vectorization (unreliable).</p>
+              <p><strong>Photon vectorized execution:</strong></p>
+              <p>Pre-compiled C++ operators process column batches (vectors of ~4096 values). Each operator takes a batch in, produces a batch out. Benefits: (1) No GC (native memory). (2) No JIT warmup (pre-compiled). (3) No object overhead (raw memory arrays). (4) Explicit SIMD via intrinsics (AVX2/AVX-512). (5) Cache-friendly access patterns (sequential column reads).</p>
+              <p><strong>Net effect:</strong> For a simple <code>SELECT SUM(amount) FROM table WHERE status = 'active'</code>: WholeStageCodegen processes ~200M rows/sec per core. Photon processes ~800M-1.5B rows/sec per core. The gap widens for string operations and hash joins.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">A critical ETL job uses 5 Python UDFs and takes 6 hours. With Photon, it takes 5 hours (only 1.2x speedup) but costs 2x per DBU. How do you make this cost-effective?</div>
+            <div class="qa-answer">
+              <p><strong>Current state:</strong> 1.2x speedup at 2x DBU rate = net 67% more expensive with Photon. This is a losing proposition.</p>
+              <p><strong>Strategy: Eliminate UDFs to unlock Photon's full potential.</strong></p>
+              <p>(1) <strong>Audit each UDF:</strong> Classify as: (a) replaceable with built-in functions, (b) replaceable with SQL expression UDF, (c) truly requires Python. Most "custom" UDFs are actually doing things that built-in functions handle: date parsing, string manipulation, conditional logic.</p>
+              <p>(2) <strong>Replace with built-ins:</strong> Example: a UDF that parses "2024-01-15T10:30:00Z" → replace with <code>to_timestamp(col, "yyyy-MM-dd'T'HH:mm:ss'Z'")</code>. A UDF that normalizes strings → <code>lower(trim(regexp_replace(col, '[^a-zA-Z0-9]', '')))</code>.</p>
+              <p>(3) <strong>Use SQL expression UDFs:</strong> For complex but deterministic logic: <code>CREATE FUNCTION classify_amount(amt DOUBLE) RETURNS STRING RETURN CASE WHEN amt > 1000 THEN 'high' WHEN amt > 100 THEN 'medium' ELSE 'low' END;</code> — these are inlined by Catalyst and Photon-eligible.</p>
+              <p>(4) <strong>Isolate remaining UDFs:</strong> If 2 UDFs truly need Python, restructure the pipeline: Photon-eligible stages first (scans, joins, aggregations, SQL transforms), then a narrow UDF stage at the end on minimum data. Minimize data flowing through the Python UDF boundary.</p>
+              <p>(5) <strong>Expected result:</strong> Eliminating 4/5 UDFs → 80%+ of the plan becomes Photon-eligible → speedup jumps to 3-5x → cost drops 40-60% with Photon.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you determine the break-even point for Photon on a specific workload?</div>
+            <div class="qa-answer">
+              <p><strong>Formula:</strong> Break-even when <code>Cost_standard = Cost_photon</code>.</p>
+              <p><code>Time_standard × DBU_rate_standard = Time_photon × DBU_rate_photon</code></p>
+              <p>If Photon DBU rate = 2x standard: <code>Time_standard × R = Time_photon × 2R</code> → <code>Time_photon = Time_standard / 2</code></p>
+              <p><strong>Break-even = 2x speedup.</strong> Below 2x → Photon is more expensive. Above 2x → Photon saves money.</p>
+              <p><strong>Measurement approach:</strong></p>
+              <p>(1) Run the job on a standard cluster (same instance type). Record: wall-clock time, total DBU consumed (from billing), total cost.</p>
+              <p>(2) Run the same job on a Photon-enabled cluster (same instance type and count). Record same metrics.</p>
+              <p>(3) Compare: <code>Speedup = Time_standard / Time_photon</code>. <code>Cost_ratio = Cost_photon / Cost_standard</code>.</p>
+              <p>(4) If <code>Speedup > DBU_rate_multiplier</code> (typically 2x), Photon is cost-positive.</p>
+              <p><strong>Gotcha:</strong> Run benchmarks multiple times (3+) to account for variance. First run may be slower (cold S3 cache). Use the same data, same cluster size, same Spark config for fair comparison.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Databricks</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

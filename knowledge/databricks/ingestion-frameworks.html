@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Ingestion Frameworks — Auto Loader & Streaming — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Databricks</a>
+        <span>→</span>
+        <span>Ingestion Frameworks</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">13 min read</span>
+          </div>
+          <h1>Ingestion Frameworks — Auto Loader & Streaming</h1>
+          <p class="article-desc">Complete guide to Databricks ingestion — Auto Loader architecture (file notification vs directory listing), schema evolution, Structured Streaming on Databricks, Kafka/MSK integration, COPY INTO, and production ingestion patterns.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#auto-loader">Auto Loader (cloudFiles)</a></li>
+            <li><a href="#file-notification">File Notification Mode</a></li>
+            <li><a href="#directory-listing">Directory Listing Mode</a></li>
+            <li><a href="#schema-evolution">Schema Inference & Evolution</a></li>
+            <li><a href="#structured-streaming">Structured Streaming on Databricks</a></li>
+            <li><a href="#kafka-streaming">Streaming from Kafka (MSK)</a></li>
+            <li><a href="#delta-streaming">Delta as Source & Sink</a></li>
+            <li><a href="#copy-into">COPY INTO</a></li>
+            <li><a href="#ingestion-patterns">Production Ingestion Patterns</a></li>
+            <li><a href="#file-formats">File Format Handling</a></li>
+            <li><a href="#production-considerations">Production Considerations</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="auto-loader">Auto Loader (cloudFiles)</h2>
+
+          <p>Auto Loader is Databricks' recommended mechanism for incrementally ingesting files from cloud storage (S3, ADLS, GCS). It automatically discovers new files and processes them exactly once.</p>
+
+          <h3>Key Capabilities</h3>
+          <ul>
+            <li><strong>Incremental discovery</strong>: Only processes files that haven't been seen before (tracks via internal checkpoint).</li>
+            <li><strong>Schema inference</strong>: Automatically infers schema from file contents (JSON, CSV, Avro, Parquet).</li>
+            <li><strong>Schema evolution</strong>: Handles new columns, type changes, and unexpected fields gracefully.</li>
+            <li><strong>Exactly-once</strong>: Checkpoint-based — each file is processed exactly once, even after restarts.</li>
+            <li><strong>Scalable</strong>: Handles millions of files in a directory without performance degradation (with file notification mode).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Auto Loader — Basic Usage</div>
+            <pre><code># Streaming read with Auto Loader
+df = (spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.schemaLocation", "/checkpoints/orders/schema")
+    .option("cloudFiles.inferColumnTypes", "true")
+    .load("s3://landing-zone/orders/")
+)
+
+# Write to Delta Bronze table
+(df.writeStream
+    .option("checkpointLocation", "/checkpoints/orders/stream")
+    .option("mergeSchema", "true")
+    .trigger(availableNow=True)  # Process all available, then stop
+    .toTable("catalog.bronze.orders")
+)</code></pre>
+          </div>
+
+          <h2 id="file-notification">File Notification Mode</h2>
+
+          <h3>Architecture (AWS)</h3>
+          <ol>
+            <li>New file lands in S3 bucket.</li>
+            <li>S3 event notification → SNS topic.</li>
+            <li>SNS → SQS queue (dedicated queue per Auto Loader stream).</li>
+            <li>Auto Loader polls SQS queue for new file paths.</li>
+            <li>Processes only the files listed in SQS messages.</li>
+          </ol>
+
+          <h3>Setup</h3>
+          <ul>
+            <li>Auto Loader automatically creates the SNS topic and SQS queue if the IAM role has permissions.</li>
+            <li>Or you can pre-create resources and pass them via options: <code>cloudFiles.queueUrl</code>, <code>cloudFiles.subscriptionId</code>.</li>
+            <li>Required IAM permissions: <code>s3:GetBucketNotificationConfiguration</code>, <code>s3:PutBucketNotificationConfiguration</code>, <code>sns:CreateTopic</code>, <code>sns:Subscribe</code>, <code>sqs:CreateQueue</code>, <code>sqs:ReceiveMessage</code>, <code>sqs:DeleteMessage</code>.</li>
+          </ul>
+
+          <h3>Advantages</h3>
+          <ul>
+            <li><strong>No S3 LIST calls</strong>: Avoids expensive recursive directory listing (which is O(n) on total files). Critical for directories with millions of historical files.</li>
+            <li><strong>Near-real-time</strong>: File notification arrives within seconds of file landing (vs directory listing which runs on poll interval).</li>
+            <li><strong>Cost-efficient</strong>: SQS costs are negligible (~$0.40 per million messages). S3 LIST calls at scale can hit rate limits and cost more.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">File Notification Mode — Configuration</div>
+            <pre><code>df = (spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.useNotifications", "true")  # Enable file notification
+    .option("cloudFiles.schemaLocation", "/checkpoints/events/schema")
+    .option("cloudFiles.inferColumnTypes", "true")
+    # Optional: pre-created resources
+    # .option("cloudFiles.queueUrl", "https://sqs.us-east-1.amazonaws.com/123456/my-queue")
+    .load("s3://data-lake/raw/events/")
+)
+
+# Required IAM policy for auto-setup
+# {
+#   "Effect": "Allow",
+#   "Action": [
+#     "s3:GetBucketNotificationConfiguration",
+#     "s3:PutBucketNotificationConfiguration",
+#     "sns:ListSubscriptionsByTopic", "sns:GetTopicAttributes",
+#     "sns:SetTopicAttributes", "sns:CreateTopic", "sns:Subscribe",
+#     "sqs:CreateQueue", "sqs:DeleteMessage", "sqs:ReceiveMessage",
+#     "sqs:GetQueueUrl", "sqs:GetQueueAttributes", "sqs:SetQueueAttributes",
+#     "sqs:PurgeQueue", "sqs:DeleteQueue"
+#   ],
+#   "Resource": "*"
+# }</code></pre>
+          </div>
+
+          <h2 id="directory-listing">Directory Listing Mode</h2>
+
+          <h3>How It Works</h3>
+          <ul>
+            <li>Auto Loader recursively lists the source directory on each trigger.</li>
+            <li>Compares listed files against its internal checkpoint (files already processed).</li>
+            <li>New files (not in checkpoint) are processed in the current micro-batch.</li>
+            <li><strong>Default mode</strong> when <code>cloudFiles.useNotifications</code> is not set to true.</li>
+          </ul>
+
+          <h3>When to Use</h3>
+          <ul>
+            <li>Simpler setup — no SNS/SQS configuration needed.</li>
+            <li>Works immediately with any S3 bucket (no notification configuration required).</li>
+            <li>Acceptable for directories with <10K total files or when processing is infrequent (daily batches).</li>
+          </ul>
+
+          <h3>Performance Considerations</h3>
+          <ul>
+            <li>S3 LIST is O(n) — listing 10 million files takes significant time (~5 min for 10M files).</li>
+            <li>Each trigger repeats the listing — wasteful if only 100 new files arrived since last run.</li>
+            <li>S3 rate limit: 5,500 LIST requests per second per prefix. Deep directories can hit this.</li>
+            <li><strong>Mitigation</strong>: Use file notification mode for directories growing beyond 100K files.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Directory Listing Mode Options</div>
+            <pre><code>df = (spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "parquet")
+    .option("cloudFiles.useNotifications", "false")  # Explicit directory listing
+    .option("cloudFiles.schemaLocation", "/checkpoints/data/schema")
+    # Performance tuning for large directories
+    .option("cloudFiles.maxFilesPerTrigger", "1000")  # Limit files per batch
+    .option("cloudFiles.maxBytesPerTrigger", "10g")   # Limit bytes per batch
+    # Recursive listing
+    .option("recursiveFileLookup", "true")
+    # Path glob filter
+    .option("pathGlobFilter", "*.parquet")
+    .load("s3://data-lake/raw/transactions/")
+)</code></pre>
+          </div>
+
+          <h2 id="schema-evolution">Schema Inference & Evolution</h2>
+
+          <h3>Schema Inference</h3>
+          <ul>
+            <li>On first run, Auto Loader samples files to infer schema and stores it in <code>cloudFiles.schemaLocation</code>.</li>
+            <li><code>cloudFiles.inferColumnTypes = true</code>: Infers specific types (BIGINT, DOUBLE, TIMESTAMP) instead of defaulting everything to STRING.</li>
+            <li><code>cloudFiles.schemaHints</code>: Override inferred types for specific columns: <code>"amount DOUBLE, event_ts TIMESTAMP"</code></li>
+          </ul>
+
+          <h3>Schema Evolution Modes</h3>
+
+          <table>
+            <thead>
+              <tr><th>Mode</th><th>Behavior</th><th>Use Case</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>addNewColumns</code></td><td>New fields automatically added as columns</td><td>Evolving JSON APIs</td></tr>
+              <tr><td><code>rescue</code></td><td>Unknown fields captured in <code>_rescued_data</code> column</td><td>Strict schema + auditability</td></tr>
+              <tr><td><code>failOnNewColumns</code></td><td>Pipeline fails on new fields (forces explicit handling)</td><td>Production contracts</td></tr>
+              <tr><td><code>none</code></td><td>New fields silently dropped</td><td>Fixed-schema targets</td></tr>
+            </tbody>
+          </table>
+
+          <div class="code-block">
+            <div class="code-block-header">Schema Evolution with Rescue Column</div>
+            <pre><code>df = (spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.schemaLocation", "/checkpoints/events/schema")
+    .option("cloudFiles.inferColumnTypes", "true")
+    .option("cloudFiles.schemaEvolutionMode", "rescue")  # Unknown fields → _rescued_data
+    .option("cloudFiles.schemaHints", """
+        event_id BIGINT,
+        user_id BIGINT,
+        event_ts TIMESTAMP,
+        amount DOUBLE
+    """)
+    .load("s3://landing-zone/events/")
+)
+
+# _rescued_data contains JSON string of any fields not in the inferred schema
+# Useful for debugging and auditing schema drift
+df.select("event_id", "user_id", "_rescued_data").filter("_rescued_data IS NOT NULL")</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Production recommendation:</strong> Use <code>rescue</code> mode for Bronze layer (never lose data, capture unknowns for investigation). Use <code>failOnNewColumns</code> for Silver layer (enforce data contracts — new fields must be explicitly added to the schema by a developer).
+          </div>
+
+          <h2 id="structured-streaming">Structured Streaming on Databricks</h2>
+
+          <h3>Trigger Modes</h3>
+
+          <table>
+            <thead>
+              <tr><th>Trigger</th><th>Behavior</th><th>Use Case</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>availableNow=True</code></td><td>Process all available data in multiple batches, then stop</td><td>Scheduled pipelines (replaces trigger once)</td></tr>
+              <tr><td><code>processingTime="30 seconds"</code></td><td>Micro-batch every N seconds (continuous)</td><td>Near-real-time processing</td></tr>
+              <tr><td><code>once=True</code></td><td>Process one batch, then stop (deprecated)</td><td>Legacy — use availableNow instead</td></tr>
+              <tr><td>(no trigger — continuous mode)</td><td>Process row-by-row with ~1ms latency</td><td>Ultra-low latency (experimental)</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Checkpointing</h3>
+          <ul>
+            <li>Checkpoints stored in S3 (or DBFS): <code>.option("checkpointLocation", "s3://checkpoints/my-stream/")</code></li>
+            <li>Contains: offsets (what data has been read), committed offsets (what has been written), metadata.</li>
+            <li>Enables exactly-once: if the stream restarts, it resumes from the last committed offset.</li>
+            <li><strong>Never delete checkpoints</strong> unless you want to reprocess from scratch.</li>
+            <li><strong>Never share checkpoints</strong> between different streams — each stream needs its own checkpoint directory.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Structured Streaming — Production Configuration</div>
+            <pre><code># Streaming pipeline with proper production settings
+stream = (spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.schemaLocation", "/checkpoints/pipeline/schema")
+    .option("cloudFiles.useNotifications", "true")
+    .option("maxFilesPerTrigger", "1000")
+    .load("s3://landing/events/")
+    .transform(apply_transformations)
+    .writeStream
+    .format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "s3://checkpoints/pipeline/events/")
+    .option("mergeSchema", "true")
+    # Optimize output file sizes
+    .option("spark.databricks.delta.optimizeWrite.enabled", "true")
+    .option("spark.databricks.delta.autoCompact.enabled", "true")
+    .trigger(availableNow=True)
+    .toTable("catalog.bronze.events")
+)
+
+# Wait for completion (triggered mode)
+stream.awaitTermination()</code></pre>
+          </div>
+
+          <h2 id="kafka-streaming">Streaming from Kafka (MSK)</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Kafka/MSK Source Configuration</div>
+            <pre><code># Read from Amazon MSK (Kafka) with IAM authentication
+kafka_df = (spark.readStream
+    .format("kafka")
+    .option("kafka.bootstrap.servers", "b-1.msk-cluster.abc.kafka.us-east-1.amazonaws.com:9098")
+    .option("subscribe", "user-events,order-events")  # Multiple topics
+    .option("startingOffsets", "latest")  # or "earliest" for backfill
+    .option("failOnDataLoss", "false")  # Don't fail if offsets expired
+    .option("maxOffsetsPerTrigger", "1000000")  # Rate limit
+    # MSK IAM Authentication
+    .option("kafka.security.protocol", "SASL_SSL")
+    .option("kafka.sasl.mechanism", "AWS_MSK_IAM")
+    .option("kafka.sasl.jaas.config", """
+        software.amazon.msk.auth.iam.IAMLoginModule required;
+    """)
+    .option("kafka.sasl.client.callback.handler.class",
+            "software.amazon.msk.auth.iam.IAMClientCallbackHandler")
+    .load()
+)
+
+# Parse Kafka value (binary → JSON → struct)
+from pyspark.sql.functions import from_json, col
+from pyspark.sql.types import *
+
+event_schema = StructType([
+    StructField("event_id", StringType()),
+    StructField("user_id", LongType()),
+    StructField("event_type", StringType()),
+    StructField("timestamp", TimestampType()),
+    StructField("payload", StringType())
+])
+
+parsed_df = (kafka_df
+    .select(
+        col("topic"),
+        col("partition"),
+        col("offset"),
+        col("timestamp").alias("kafka_timestamp"),
+        from_json(col("value").cast("string"), event_schema).alias("data")
+    )
+    .select("topic", "partition", "offset", "kafka_timestamp", "data.*")
+)
+
+# Write to Delta with deduplication
+(parsed_df.writeStream
+    .format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "s3://checkpoints/kafka-events/")
+    .trigger(processingTime="30 seconds")
+    .toTable("catalog.bronze.kafka_events")
+)</code></pre>
+          </div>
+
+          <h3>Key Kafka Options</h3>
+          <ul>
+            <li><code>startingOffsets</code>: <code>"earliest"</code> (backfill all), <code>"latest"</code> (new data only), or JSON per-partition: <code>'{"topic":{"0":100,"1":200}}'</code></li>
+            <li><code>failOnDataLoss</code>: Set <code>false</code> in production — Kafka log compaction or retention can cause offset gaps. <code>true</code> fails the stream on gaps (safer for audit requirements).</li>
+            <li><code>maxOffsetsPerTrigger</code>: Controls batch size — prevents one trigger from reading too much data and causing OOM.</li>
+            <li><code>minOffsetsPerTrigger</code>: Minimum records to wait for before processing — reduces small-batch overhead.</li>
+          </ul>
+
+          <h2 id="delta-streaming">Delta as Source & Sink</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta-to-Delta Streaming (Silver → Gold)</div>
+            <pre><code># Read from Delta table as streaming source
+silver_stream = (spark.readStream
+    .format("delta")
+    .option("maxFilesPerTrigger", "100")      # Rate limit: files per batch
+    .option("maxBytesPerTrigger", "1g")       # Rate limit: bytes per batch
+    .option("ignoreChanges", "true")          # Ignore non-append changes (UPDATEs)
+    # .option("ignoreDeletes", "true")        # Ignore DELETE operations
+    .table("catalog.silver.events")
+)
+
+# foreachBatch pattern for MERGE (upsert) into Gold
+from delta.tables import DeltaTable
+
+def upsert_to_gold(batch_df, batch_id):
+    gold_table = DeltaTable.forName(spark, "catalog.gold.user_metrics")
+    
+    # Aggregate the micro-batch
+    metrics = (batch_df
+        .groupBy("user_id", "event_date")
+        .agg(
+            count("*").alias("event_count"),
+            sum("amount").alias("total_amount")
+        )
+    )
+    
+    # MERGE into gold (upsert)
+    gold_table.alias("t").merge(
+        metrics.alias("s"),
+        "t.user_id = s.user_id AND t.event_date = s.event_date"
+    ).whenMatchedUpdate(set={
+        "event_count": "t.event_count + s.event_count",
+        "total_amount": "t.total_amount + s.total_amount"
+    }).whenNotMatchedInsertAll().execute()
+
+# Execute with foreachBatch
+(silver_stream.writeStream
+    .foreachBatch(upsert_to_gold)
+    .option("checkpointLocation", "s3://checkpoints/gold-metrics/")
+    .trigger(availableNow=True)
+    .start()
+    .awaitTermination()
+)</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Important:</strong> When reading Delta as a streaming source, the stream fails if the source table has UPDATE or DELETE operations (because these are not append operations). Set <code>ignoreChanges=true</code> to skip non-append commits, or use Change Data Feed (CDF) for proper change propagation: <code>.option("readChangeFeed", "true")</code>.
+          </div>
+
+          <h2 id="copy-into">COPY INTO</h2>
+
+          <h3>What It Does</h3>
+          <ul>
+            <li>Batch ingestion command that loads files into a Delta table.</li>
+            <li><strong>Idempotent</strong>: Tracks which files have been loaded — running again won't duplicate data.</li>
+            <li>Does NOT maintain a streaming checkpoint — simply tracks loaded file paths in table metadata.</li>
+          </ul>
+
+          <h3>COPY INTO vs Auto Loader</h3>
+
+          <table>
+            <thead>
+              <tr><th>Feature</th><th>COPY INTO</th><th>Auto Loader</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Processing model</td><td>Batch (one-shot)</td><td>Streaming (incremental)</td></tr>
+              <tr><td>File tracking</td><td>Table metadata</td><td>Streaming checkpoint</td></tr>
+              <tr><td>Schema evolution</td><td>Limited</td><td>Full (rescue, addNewColumns)</td></tr>
+              <tr><td>File discovery</td><td>LIST on each execution</td><td>Notification or incremental LIST</td></tr>
+              <tr><td>Scalability</td><td>Good for <10K files</td><td>Millions of files</td></tr>
+              <tr><td>Recommended for</td><td>One-time loads, small volumes</td><td>Continuous ingestion, production</td></tr>
+            </tbody>
+          </table>
+
+          <div class="code-block">
+            <div class="code-block-header">COPY INTO Examples</div>
+            <pre><code>-- Basic COPY INTO
+COPY INTO catalog.bronze.transactions
+FROM 's3://landing-zone/transactions/'
+FILEFORMAT = PARQUET
+FORMAT_OPTIONS ('mergeSchema' = 'true')
+COPY_OPTIONS ('mergeSchema' = 'true');
+
+-- COPY INTO with transformations
+COPY INTO catalog.bronze.events
+FROM (
+  SELECT 
+    _metadata.file_name AS source_file,
+    _metadata.file_modification_time AS file_mod_time,
+    *
+  FROM 's3://landing-zone/events/'
+)
+FILEFORMAT = JSON
+FORMAT_OPTIONS ('inferSchema' = 'true', 'multiLine' = 'true')
+COPY_OPTIONS ('force' = 'false');  -- false = skip already-loaded files</code></pre>
+          </div>
+
+          <h2 id="ingestion-patterns">Production Ingestion Patterns</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Complete Ingestion Pipeline Pattern</div>
+            <pre><code># Pattern: Landing Zone → Bronze (Auto Loader) → Silver (Streaming MERGE)
+
+# ============ BRONZE: Raw Ingestion ============
+bronze_stream = (spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.useNotifications", "true")
+    .option("cloudFiles.schemaLocation", "s3://checkpoints/orders/schema")
+    .option("cloudFiles.schemaEvolutionMode", "rescue")
+    .option("cloudFiles.inferColumnTypes", "true")
+    .load("s3://landing-zone/orders/")
+    .withColumn("_ingested_at", current_timestamp())
+    .withColumn("_source_file", input_file_name())
+)
+
+(bronze_stream.writeStream
+    .format("delta")
+    .option("checkpointLocation", "s3://checkpoints/bronze-orders/")
+    .option("spark.databricks.delta.optimizeWrite.enabled", "true")
+    .trigger(availableNow=True)
+    .toTable("catalog.bronze.orders")
+)
+
+# ============ SILVER: Clean + Dedupe ============
+silver_stream = (spark.readStream
+    .format("delta")
+    .option("readChangeFeed", "true")
+    .option("startingVersion", 0)
+    .table("catalog.bronze.orders")
+    .filter("_change_type IN ('insert', 'update_postimage')")
+)
+
+def merge_to_silver(batch_df, batch_id):
+    from delta.tables import DeltaTable
+    
+    # Deduplicate within batch (keep latest by updated_at)
+    deduped = (batch_df
+        .withColumn("rn", row_number().over(
+            Window.partitionBy("order_id").orderBy(desc("updated_at"))
+        ))
+        .filter("rn = 1").drop("rn")
+    )
+    
+    silver = DeltaTable.forName(spark, "catalog.silver.orders")
+    silver.alias("t").merge(
+        deduped.alias("s"), "t.order_id = s.order_id"
+    ).whenMatchedUpdate(
+        condition="s.updated_at > t.updated_at",
+        set={"*": "s.*"}
+    ).whenNotMatchedInsertAll().execute()
+
+(silver_stream.writeStream
+    .foreachBatch(merge_to_silver)
+    .option("checkpointLocation", "s3://checkpoints/silver-orders/")
+    .trigger(availableNow=True)
+    .start()
+)</code></pre>
+          </div>
+
+          <h2 id="file-formats">File Format Handling</h2>
+
+          <table>
+            <thead>
+              <tr><th>Format</th><th>cloudFiles.format</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>JSON</td><td><code>json</code></td><td>Most common. Use <code>multiLine=true</code> for pretty-printed. Nested structs auto-inferred.</td></tr>
+              <tr><td>CSV</td><td><code>csv</code></td><td>Set <code>header=true</code>, <code>delimiter</code>. Schema inference from first file.</td></tr>
+              <tr><td>Parquet</td><td><code>parquet</code></td><td>Schema embedded in file. Fastest — no inference needed.</td></tr>
+              <tr><td>Avro</td><td><code>avro</code></td><td>Schema registry integration available. Good for Kafka sinks.</td></tr>
+              <tr><td>Binary</td><td><code>binaryFile</code></td><td>For images, PDFs, arbitrary files. Returns path + content + length.</td></tr>
+              <tr><td>XML</td><td><code>xml</code></td><td>Requires <code>com.databricks:spark-xml</code> library. Set <code>rowTag</code>.</td></tr>
+              <tr><td>ORC</td><td><code>orc</code></td><td>Similar to Parquet. Less common in Databricks ecosystem.</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="production-considerations">Production Considerations</h2>
+
+          <h3>Checkpoint Management</h3>
+          <ul>
+            <li>Store checkpoints on S3 (durable, survives cluster termination).</li>
+            <li>Use a consistent naming convention: <code>s3://checkpoints/{pipeline}/{table}/</code></li>
+            <li>Never delete checkpoints in production — causes full reprocessing.</li>
+            <li>If you must reset: rename/archive old checkpoint, start stream with new checkpoint + <code>startingVersion</code>/<code>startingTimestamp</code>.</li>
+          </ul>
+
+          <h3>Handling Late Data</h3>
+          <ul>
+            <li>Auto Loader processes files in arrival order — late-arriving files are processed when discovered.</li>
+            <li>For windowed aggregations: set <code>withWatermark("event_time", "2 hours")</code> to handle late events.</li>
+            <li>Bronze layer: always accept all data (no watermark filtering). Silver/Gold: apply watermarks for correctness.</li>
+          </ul>
+
+          <h3>Backfill Strategies</h3>
+          <ul>
+            <li><strong>New pipeline</strong>: Point Auto Loader at historical directory, use <code>trigger(availableNow=True)</code> to process all files.</li>
+            <li><strong>Existing pipeline</strong>: If checkpoint exists, Auto Loader skips already-processed files. New files in old directories are picked up on next trigger.</li>
+            <li><strong>Force reprocess</strong>: Delete checkpoint and restart (reprocesses everything — ensure idempotent writes with MERGE).</li>
+          </ul>
+
+          <h3>Schema Drift Handling</h3>
+          <ul>
+            <li><strong>Bronze</strong>: Use <code>rescue</code> mode — never lose data. New fields go to <code>_rescued_data</code> for investigation.</li>
+            <li><strong>Silver</strong>: Use <code>mergeSchema=true</code> on writes to auto-add new columns to Delta table.</li>
+            <li><strong>Gold</strong>: Schema changes should be explicit (DDL). Use <code>failOnNewColumns</code> upstream to catch drift before it reaches Gold.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare Auto Loader's file notification mode vs directory listing mode. When does each break down?</div>
+            <div class="qa-answer">
+              <p><strong>File notification mode:</strong> S3 → SNS → SQS → Auto Loader polls SQS. O(1) discovery cost per new file regardless of total directory size. Near-real-time (seconds latency).</p>
+              <p><strong>Breaks down when:</strong> (1) SQS message retention expires (14 days max) — if the stream is paused longer than retention, messages are lost and files are missed. Recovery: fall back to directory listing for the gap period. (2) S3 event notifications have eventual consistency — very rarely, a notification is lost. Mitigation: periodic directory listing reconciliation. (3) IAM permissions are complex to set up in locked-down environments.</p>
+              <p><strong>Directory listing mode:</strong> Lists all files in directory, diffs against checkpoint. Simple setup, no infrastructure dependencies.</p>
+              <p><strong>Breaks down when:</strong> (1) Directory has millions of files — listing takes minutes, wastes S3 API calls, and may hit rate limits (5,500 LIST/sec/prefix). (2) High-frequency triggers (every 10 sec) with large directories create excessive S3 costs. (3) Latency scales with directory size — unacceptable for real-time.</p>
+              <p><strong>Rule of thumb:</strong> Use directory listing for <100K files or infrequent (hourly+) triggers. Use file notification for >100K files or sub-minute latency requirements.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your Auto Loader stream processes JSON files but source teams keep adding new fields, breaking downstream consumers. Design a robust schema evolution strategy.</div>
+            <div class="qa-answer">
+              <p><strong>Multi-layer schema strategy:</strong></p>
+              <p><strong>Bronze (permissive):</strong> Use <code>cloudFiles.schemaEvolutionMode = "rescue"</code>. All known fields map to typed columns. Unknown fields land in <code>_rescued_data</code> (JSON string column). Zero data loss, never breaks on schema changes.</p>
+              <p><strong>Schema monitoring:</strong> Create an alerting job that checks <code>_rescued_data IS NOT NULL</code> count. If >0 rows have rescued data, alert the team that new fields have appeared. This gives time to review and promote fields to the schema.</p>
+              <p><strong>Silver (controlled):</strong> Set <code>mergeSchema = true</code> on the Delta write. When you explicitly add new columns to the Silver transformation logic, the Delta table schema expands automatically. But DON'T auto-promote rescued fields — require a code review.</p>
+              <p><strong>Gold (strict):</strong> Schema is fixed by the Gold table DDL. Any new columns must be added via migration (ALTER TABLE). This protects downstream BI tools and dashboards that expect a fixed schema.</p>
+              <p><strong>Contract enforcement:</strong> Publish a schema registry (Confluent Schema Registry or custom) that source teams must update before adding fields. Auto Loader's <code>schemaHints</code> enforces expected types. Combine with DLT expectations for runtime validation.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">You need to ingest from Kafka (MSK) with exactly-once semantics into a Delta table. Walk through the architecture and failure modes.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture:</strong> Spark Structured Streaming Kafka source → transformations → Delta sink with checkpointing.</p>
+              <p><strong>Exactly-once guarantee components:</strong></p>
+              <p>(1) <strong>Source (Kafka):</strong> Spark tracks committed offsets in the checkpoint. On restart, it resumes from the last committed offset. Kafka messages may be replayed (at-least-once from Kafka side), but Spark deduplicates via offset tracking.</p>
+              <p>(2) <strong>Processing:</strong> Deterministic transformations ensure same input → same output. Avoid non-deterministic functions (random(), current_timestamp() for business logic) or accept slight variations on replay.</p>
+              <p>(3) <strong>Sink (Delta):</strong> Delta's transaction log ensures atomic writes. The checkpoint records which offsets have been committed to Delta. If the write succeeds but checkpoint update fails → on restart, the batch is replayed, but Delta's idempotent write (via txn ID) prevents duplicates.</p>
+              <p><strong>Failure modes:</strong></p>
+              <p>(1) <strong>Kafka offset expiration:</strong> If retention is 7 days and stream is down for 8 days, offsets are gone. Set <code>failOnDataLoss=false</code> to skip the gap (data loss) or fail and alert for manual recovery from backup.</p>
+              <p>(2) <strong>Checkpoint corruption:</strong> Rare but possible (S3 partial write). Recovery: delete checkpoint, restart with specific <code>startingOffsets</code> JSON, accept potential duplicates and run deduplication downstream.</p>
+              <p>(3) <strong>OOM on large batches:</strong> A surge of Kafka data causes executor OOM. Set <code>maxOffsetsPerTrigger</code> to cap batch size. Use <code>processingTime</code> trigger to ensure steady processing rate.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between trigger(once=True) and trigger(availableNow=True)? When does it matter?</div>
+            <div class="qa-answer">
+              <p><strong>trigger(once=True) [deprecated]:</strong> Processes all available data in ONE micro-batch. If 100GB of data is available, it creates one massive batch. This can cause OOM, excessive shuffle, and very long task execution times.</p>
+              <p><strong>trigger(availableNow=True):</strong> Processes all available data in MULTIPLE micro-batches (respecting maxFilesPerTrigger/maxBytesPerTrigger limits), then stops. It's rate-limited and memory-safe.</p>
+              <p><strong>When it matters:</strong> (1) Large backlog: If the stream has been paused and 1TB of data accumulated, <code>once=True</code> tries to process 1TB in one batch (likely OOM). <code>availableNow=True</code> processes it in manageable chunks (e.g., 100 batches of 10GB each). (2) Auto Loader: With <code>maxFilesPerTrigger=1000</code>, <code>availableNow=True</code> processes 1000 files per batch until all files are done. <code>once=True</code> ignores the limit and takes everything. (3) Always use <code>availableNow=True</code> for new development. <code>once=True</code> is deprecated and will be removed.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design an ingestion architecture for 50TB/day of raw JSON events from 200 different source systems, each with different schemas.</div>
+            <div class="qa-answer">
+              <p><strong>Architecture:</strong></p>
+              <p><strong>Landing zone:</strong> S3 bucket with prefix per source: <code>s3://landing/{source_system}/YYYY/MM/DD/</code>. Each system dumps raw JSON files independently.</p>
+              <p><strong>Auto Loader (one per source):</strong> 200 Auto Loader streams, each with file notification mode (critical at this scale — directory listing would be prohibitive). Use DLT with a parameterized pipeline template: single DLT notebook parameterized by source_system, replicated as 200 pipeline instances.</p>
+              <p><strong>Schema strategy:</strong> Each source has independent schema inference + rescue column. Store schemas in <code>s3://checkpoints/{source}/schema/</code>. No shared schema across sources.</p>
+              <p><strong>Bronze layout:</strong> One Bronze Delta table per source: <code>catalog.bronze.{source_system}</code>. 200 tables, each with source-specific schema. Include metadata columns: <code>_source_file</code>, <code>_ingested_at</code>, <code>_rescued_data</code>.</p>
+              <p><strong>Compute:</strong> DLT pipelines grouped by criticality (high-priority sources on dedicated clusters, low-priority batch together). Use triggered mode every 15 minutes for most sources; continuous mode for real-time sources.</p>
+              <p><strong>Monitoring:</strong> Centralized event log dashboard showing all 200 pipelines: lag, error rate, quality metrics. Alert on: (1) pipeline failure, (2) no new files for 2× expected interval, (3) expectation pass rate drop >5%.</p>
+              <p><strong>Cost at scale:</strong> 50TB/day × $0.02/GB S3 storage/month = $1,000/month storage. Compute: depends on complexity, but Auto Loader with Photon on DLT can process ~2TB/hour per 10-node cluster. ~25 cluster-hours/day for raw ingestion.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Databricks</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

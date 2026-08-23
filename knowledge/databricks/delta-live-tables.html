@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Delta Live Tables (DLT) — Production Patterns — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Databricks</a>
+        <span>→</span>
+        <span>Delta Live Tables</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>Delta Live Tables (DLT) — Production Patterns</h1>
+          <p class="article-desc">Complete guide to DLT — architecture, table types, Python/SQL APIs, expectations for data quality, Auto Loader integration, medallion patterns, CDC with APPLY CHANGES, CI/CD deployment, error handling, and cost analysis.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#dlt-architecture">DLT Architecture</a></li>
+            <li><a href="#table-types">Table Types</a></li>
+            <li><a href="#python-api">Python API</a></li>
+            <li><a href="#sql-api">SQL API</a></li>
+            <li><a href="#expectations">Expectations (Data Quality)</a></li>
+            <li><a href="#event-log">Event Log</a></li>
+            <li><a href="#autoloader-dlt">Auto Loader in DLT</a></li>
+            <li><a href="#medallion-dlt">Medallion Pattern with DLT</a></li>
+            <li><a href="#pipeline-modes">Pipeline Modes</a></li>
+            <li><a href="#cdc-dlt">CDC with APPLY CHANGES</a></li>
+            <li><a href="#deployment">Production Deployment</a></li>
+            <li><a href="#error-handling">Error Handling & Recovery</a></li>
+            <li><a href="#cost-model">Cost Model</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="dlt-architecture">DLT Architecture</h2>
+
+          <ul>
+            <li><strong>Pipeline as deployment unit</strong>: A DLT pipeline is a collection of datasets (tables/views) defined declaratively. You define the "what" (transformations), DLT handles the "how" (execution order, compute, checkpointing).</li>
+            <li><strong>Dependency resolution</strong>: DLT builds a DAG from your dataset definitions automatically — if table B reads from table A, DLT ensures A is processed before B.</li>
+            <li><strong>Managed compute</strong>: DLT provisions and manages its own cluster (enhanced autoscaling). You don't select instance types — DLT optimizes based on workload characteristics.</li>
+            <li><strong>State management</strong>: DLT manages all checkpoints, watermarks, and offsets internally. No manual checkpoint directory management needed.</li>
+            <li><strong>Idempotent by design</strong>: Pipelines can be restarted, and they resume from where they left off (streaming) or recompute from scratch (materialized views).</li>
+          </ul>
+
+          <h2 id="table-types">Table Types</h2>
+
+          <h3>Streaming Tables (Append-Only)</h3>
+          <ul>
+            <li>Processes data incrementally — each pipeline run processes only new data since the last run.</li>
+            <li>Backed by a Delta table with append semantics.</li>
+            <li>Maintains state: exactly-once processing via internal checkpoints.</li>
+            <li>Cannot be fully recomputed without resetting the pipeline (dropping state).</li>
+            <li><strong>Best for</strong>: Event logs, raw ingestion, any data where you only process new arrivals.</li>
+          </ul>
+
+          <h3>Materialized Views (Full Recompute)</h3>
+          <ul>
+            <li>Returns the correct result for the query at any point in time — recomputes as needed.</li>
+            <li>DLT optimizes recomputation — may do incremental processing internally if the query supports it.</li>
+            <li>Can be fully refreshed at any time (idempotent).</li>
+            <li><strong>Best for</strong>: Aggregations, joins, any transformation where the output depends on the full history (not just new data).</li>
+          </ul>
+
+          <h3>Views (No Storage)</h3>
+          <ul>
+            <li>Virtual — computed at query time, no data stored.</li>
+            <li>Used for intermediate transformations within the pipeline that don't need to be materialized.</li>
+            <li>Not visible outside the pipeline (internal only).</li>
+          </ul>
+
+          <h2 id="python-api">Python API</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">DLT Python — Complete Pipeline Example</div>
+            <pre><code>import dlt
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+
+# --- Bronze Layer: Raw Ingestion ---
+
+@dlt.table(
+    name="raw_events",
+    comment="Raw events ingested from S3 landing zone via Auto Loader",
+    table_properties={
+        "quality": "bronze",
+        "pipelines.autoOptimize.managed": "true"
+    }
+)
+def raw_events():
+    return (
+        spark.readStream
+        .format("cloudFiles")
+        .option("cloudFiles.format", "json")
+        .option("cloudFiles.schemaLocation", "/checkpoints/raw_events_schema")
+        .option("cloudFiles.inferColumnTypes", "true")
+        .option("cloudFiles.schemaEvolutionMode", "addNewColumns")
+        .load("s3://landing-zone/events/")
+    )
+
+# --- Silver Layer: Cleaned & Validated ---
+
+@dlt.table(
+    name="cleaned_events",
+    comment="Cleaned events with schema enforcement and deduplication"
+)
+@dlt.expect_or_drop("valid_event_id", "event_id IS NOT NULL")
+@dlt.expect_or_drop("valid_timestamp", "event_ts IS NOT NULL AND event_ts > '2020-01-01'")
+@dlt.expect("valid_user_id", "user_id IS NOT NULL")  # warn but keep
+def cleaned_events():
+    return (
+        dlt.read_stream("raw_events")
+        .withColumn("event_ts", to_timestamp("event_ts"))
+        .withColumn("ingestion_ts", current_timestamp())
+        .withColumn("event_date", to_date("event_ts"))
+        .dropDuplicates(["event_id"])  # dedup within micro-batch
+        .select(
+            "event_id", "user_id", "event_type",
+            "event_ts", "event_date", "payload", "ingestion_ts"
+        )
+    )
+
+# --- Gold Layer: Aggregated ---
+
+@dlt.table(
+    name="daily_event_summary",
+    comment="Daily event counts by type and user segment"
+)
+def daily_event_summary():
+    return (
+        dlt.read("cleaned_events")  # Materialized view — reads full table
+        .groupBy("event_date", "event_type")
+        .agg(
+            count("*").alias("event_count"),
+            countDistinct("user_id").alias("unique_users"),
+            avg("payload.response_time_ms").alias("avg_response_ms")
+        )
+    )</code></pre>
+          </div>
+
+          <h2 id="sql-api">SQL API</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">DLT SQL — Equivalent Pipeline</div>
+            <pre><code>-- Bronze: Streaming Table from Auto Loader
+CREATE OR REFRESH STREAMING TABLE raw_events
+COMMENT "Raw events from S3 landing zone"
+AS SELECT *
+FROM cloud_files(
+  "s3://landing-zone/events/",
+  "json",
+  map("cloudFiles.inferColumnTypes", "true",
+      "cloudFiles.schemaEvolutionMode", "addNewColumns")
+);
+
+-- Silver: Cleaned with expectations
+CREATE OR REFRESH STREAMING TABLE cleaned_events (
+  CONSTRAINT valid_event_id EXPECT (event_id IS NOT NULL) ON VIOLATION DROP ROW,
+  CONSTRAINT valid_timestamp EXPECT (event_ts IS NOT NULL) ON VIOLATION DROP ROW,
+  CONSTRAINT valid_user_id EXPECT (user_id IS NOT NULL)  -- warn only
+)
+COMMENT "Cleaned and validated events"
+AS SELECT
+  event_id,
+  user_id,
+  event_type,
+  CAST(event_ts AS TIMESTAMP) AS event_ts,
+  CAST(event_ts AS DATE) AS event_date,
+  payload,
+  current_timestamp() AS ingestion_ts
+FROM STREAM(LIVE.raw_events);
+
+-- Gold: Materialized View (aggregation)
+CREATE OR REFRESH MATERIALIZED VIEW daily_event_summary
+COMMENT "Daily event aggregations"
+AS SELECT
+  event_date,
+  event_type,
+  COUNT(*) AS event_count,
+  COUNT(DISTINCT user_id) AS unique_users
+FROM LIVE.cleaned_events
+GROUP BY event_date, event_type;</code></pre>
+          </div>
+
+          <h2 id="expectations">Expectations (Data Quality)</h2>
+
+          <h3>Expectation Types</h3>
+
+          <table>
+            <thead>
+              <tr><th>Decorator/Constraint</th><th>Behavior on Violation</th><th>Use Case</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>@dlt.expect</code></td><td>Log warning, keep row</td><td>Monitoring (non-critical quality)</td></tr>
+              <tr><td><code>@dlt.expect_or_drop</code></td><td>Silently drop row</td><td>Filtering bad data (quarantine)</td></tr>
+              <tr><td><code>@dlt.expect_or_fail</code></td><td>Fail pipeline</td><td>Critical data contracts (must fix upstream)</td></tr>
+              <tr><td><code>@dlt.expect_all</code></td><td>Log warning for each</td><td>Multiple rules, all logged</td></tr>
+              <tr><td><code>@dlt.expect_all_or_drop</code></td><td>Drop if ANY rule fails</td><td>Strict multi-rule filtering</td></tr>
+              <tr><td><code>@dlt.expect_all_or_fail</code></td><td>Fail if ANY rule fails</td><td>Critical multi-rule contracts</td></tr>
+            </tbody>
+          </table>
+
+          <div class="code-block">
+            <div class="code-block-header">Expectations — Advanced Patterns</div>
+            <pre><code># Multiple expectations with expect_all
+rules = {
+    "valid_email": "email RLIKE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'",
+    "valid_age": "age BETWEEN 0 AND 150",
+    "valid_country": "country_code IS NOT NULL AND length(country_code) = 2",
+    "no_future_dates": "created_at <= current_timestamp()"
+}
+
+@dlt.table(name="validated_users")
+@dlt.expect_all_or_drop(rules)
+def validated_users():
+    return dlt.read_stream("raw_users")
+
+# Quarantine pattern: capture dropped rows separately
+@dlt.table(name="quarantined_events")
+def quarantined_events():
+    return (
+        dlt.read_stream("raw_events")
+        .filter("""
+            event_id IS NULL 
+            OR event_ts IS NULL 
+            OR event_ts < '2020-01-01'
+        """)  # Inverse of quality rules
+        .withColumn("quarantine_reason", 
+            when(col("event_id").isNull(), "null_event_id")
+            .when(col("event_ts").isNull(), "null_timestamp")
+            .otherwise("invalid_timestamp"))
+    )</code></pre>
+          </div>
+
+          <h3>How Expectations Work Internally</h3>
+          <ul>
+            <li>DLT evaluates expectations per micro-batch (streaming) or per pipeline run (batch).</li>
+            <li>Metrics are recorded: total records, passing records, failing records — stored in the event log.</li>
+            <li><code>expect_or_drop</code> applies a filter BEFORE writing — dropped rows never reach the target table.</li>
+            <li><code>expect_or_fail</code> checks AFTER computation but BEFORE commit — if any row fails, the entire batch is rolled back and the pipeline enters a FAILED state.</li>
+          </ul>
+
+          <h2 id="event-log">Event Log</h2>
+
+          <ul>
+            <li>DLT writes operational metadata to <code>system.event_log</code> (accessible via the system catalog).</li>
+            <li><strong>Quality metrics</strong>: pass/fail counts for each expectation per update.</li>
+            <li><strong>Flow progress</strong>: records processed, bytes read, processing time.</li>
+            <li><strong>Lineage</strong>: upstream/downstream dependencies.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Querying DLT Event Log</div>
+            <pre><code>-- Quality metrics for a specific table
+SELECT
+  timestamp,
+  details:flow_progress:metrics:num_output_rows AS output_rows,
+  details:flow_progress:data_quality:expectations AS quality_results
+FROM event_log(TABLE(my_catalog.my_schema.cleaned_events))
+WHERE event_type = 'flow_progress'
+ORDER BY timestamp DESC
+LIMIT 20;
+
+-- Expectation pass rates over time
+SELECT
+  date_trunc('hour', timestamp) AS hour,
+  details:flow_progress:data_quality:expectations[0]:name AS rule,
+  details:flow_progress:data_quality:expectations[0]:passed_records AS passed,
+  details:flow_progress:data_quality:expectations[0]:failed_records AS failed
+FROM event_log(TABLE(my_catalog.my_schema.cleaned_events))
+WHERE event_type = 'flow_progress';</code></pre>
+          </div>
+
+          <h2 id="autoloader-dlt">Auto Loader in DLT</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Auto Loader + DLT Integration</div>
+            <pre><code># Auto Loader with schema inference and evolution
+@dlt.table(name="raw_orders")
+def raw_orders():
+    return (
+        spark.readStream
+        .format("cloudFiles")
+        .option("cloudFiles.format", "json")
+        .option("cloudFiles.inferColumnTypes", "true")
+        .option("cloudFiles.schemaLocation", 
+                f"{pipeline_config['checkpoint_base']}/raw_orders_schema")
+        # Schema evolution: automatically add new JSON fields as columns
+        .option("cloudFiles.schemaEvolutionMode", "addNewColumns")
+        # Rescue column: captures fields that don't match schema
+        .option("cloudFiles.schemaHints", 
+                "order_id BIGINT, amount DOUBLE, order_ts TIMESTAMP")
+        .load("s3://landing-zone/orders/")
+        .withColumn("_file_name", input_file_name())
+        .withColumn("_load_ts", current_timestamp())
+    )
+
+# SQL equivalent
+-- CREATE OR REFRESH STREAMING TABLE raw_orders
+-- AS SELECT *, _metadata.file_name AS _file_name, current_timestamp() AS _load_ts
+-- FROM cloud_files(
+--   "s3://landing-zone/orders/",
+--   "json",
+--   map("cloudFiles.inferColumnTypes", "true",
+--       "cloudFiles.schemaEvolutionMode", "addNewColumns")
+-- );</code></pre>
+          </div>
+
+          <h2 id="medallion-dlt">Medallion Pattern with DLT</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Full Medallion Pipeline</div>
+            <pre><code>import dlt
+from pyspark.sql.functions import *
+
+# ============ BRONZE ============
+# Raw ingestion — no transformations, capture everything
+
+@dlt.table(
+    name="bronze_clickstream",
+    table_properties={"quality": "bronze"},
+    partition_cols=["event_date"]
+)
+def bronze_clickstream():
+    return (
+        spark.readStream.format("cloudFiles")
+        .option("cloudFiles.format", "json")
+        .option("cloudFiles.inferColumnTypes", "true")
+        .load("s3://data-lake/raw/clickstream/")
+        .withColumn("event_date", to_date(col("event_ts")))
+        .withColumn("_ingested_at", current_timestamp())
+    )
+
+# ============ SILVER ============
+# Cleaned, typed, deduped, validated
+
+@dlt.table(name="silver_clickstream")
+@dlt.expect_or_drop("valid_session", "session_id IS NOT NULL")
+@dlt.expect_or_drop("valid_user", "user_id IS NOT NULL")
+@dlt.expect("valid_url", "page_url IS NOT NULL")
+def silver_clickstream():
+    return (
+        dlt.read_stream("bronze_clickstream")
+        .withColumn("event_ts", to_timestamp("event_ts"))
+        .withColumn("session_duration_sec", 
+                    col("session_end_ts").cast("long") - col("session_start_ts").cast("long"))
+        .withWatermark("event_ts", "1 hour")
+        .dropDuplicates(["session_id", "event_ts", "page_url"])
+    )
+
+# ============ GOLD ============
+# Business aggregations
+
+@dlt.table(name="gold_session_metrics")
+def gold_session_metrics():
+    return (
+        dlt.read("silver_clickstream")
+        .groupBy(
+            window("event_ts", "1 day").alias("day_window"),
+            "region"
+        )
+        .agg(
+            countDistinct("session_id").alias("total_sessions"),
+            countDistinct("user_id").alias("unique_users"),
+            avg("session_duration_sec").alias("avg_session_sec"),
+            sum(when(col("converted") == True, 1).otherwise(0)).alias("conversions")
+        )
+        .withColumn("conversion_rate", 
+                    col("conversions") / col("total_sessions"))
+    )</code></pre>
+          </div>
+
+          <h2 id="pipeline-modes">Pipeline Modes</h2>
+
+          <h3>Triggered Mode (Default)</h3>
+          <ul>
+            <li>Pipeline starts, processes all available data, then stops.</li>
+            <li>Equivalent to Structured Streaming's <code>trigger(availableNow=True)</code>.</li>
+            <li>Cluster spins up → processes → cluster terminates.</li>
+            <li><strong>Best for</strong>: Scheduled ETL (hourly/daily), cost-sensitive workloads, batch-style pipelines.</li>
+          </ul>
+
+          <h3>Continuous Mode</h3>
+          <ul>
+            <li>Pipeline runs continuously — cluster stays up, processes new data as it arrives.</li>
+            <li>Low-latency: sub-minute processing of new data.</li>
+            <li><strong>Cost</strong>: Cluster runs 24/7 — constant DBU charges.</li>
+            <li><strong>Best for</strong>: Real-time analytics, operational dashboards, streaming CDC propagation.</li>
+          </ul>
+
+          <h3>Enhanced Autoscaling</h3>
+          <ul>
+            <li>DLT automatically scales compute based on the streaming backlog.</li>
+            <li>Scales up when data accumulates faster than processing (e.g., during peak hours).</li>
+            <li>Scales down during low-activity periods.</li>
+            <li>More aggressive than standard Spark autoscaling — tailored for streaming workloads.</li>
+          </ul>
+
+          <h2 id="cdc-dlt">CDC with APPLY CHANGES</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">APPLY CHANGES INTO — SCD Type 1 and Type 2</div>
+            <pre><code>import dlt
+from pyspark.sql.functions import *
+
+# Source: CDC events from upstream (e.g., Debezium/DMS)
+@dlt.table(name="raw_customer_cdc")
+def raw_customer_cdc():
+    return (
+        spark.readStream.format("cloudFiles")
+        .option("cloudFiles.format", "json")
+        .load("s3://landing-zone/cdc/customers/")
+    )
+
+# SCD Type 1: Keep only latest version (overwrite)
+dlt.create_streaming_table("customers_scd1")
+
+dlt.apply_changes(
+    target="customers_scd1",
+    source="raw_customer_cdc",
+    keys=["customer_id"],                    # Primary key
+    sequence_by=col("updated_at"),           # Ordering column
+    apply_as_deletes=expr("op = 'DELETE'"),  # Delete condition
+    except_column_list=["op", "_rescued_data"]  # Exclude metadata columns
+)
+
+# SCD Type 2: Keep full history with valid_from/valid_to
+dlt.create_streaming_table("customers_scd2")
+
+dlt.apply_changes(
+    target="customers_scd2",
+    source="raw_customer_cdc",
+    keys=["customer_id"],
+    sequence_by=col("updated_at"),
+    apply_as_deletes=expr("op = 'DELETE'"),
+    stored_as_scd_type=2,  # Enable SCD Type 2
+    track_history_column_list=["email", "address", "phone", "status"]
+    # Only track changes to these columns — other columns don't create new history records
+)
+
+# Result: customers_scd2 table has columns:
+# customer_id, email, address, phone, status,
+# __START_AT (valid_from), __END_AT (valid_to — NULL for current)</code></pre>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">APPLY CHANGES — SQL Equivalent</div>
+            <pre><code>-- SCD Type 1
+CREATE OR REFRESH STREAMING TABLE customers_scd1;
+
+APPLY CHANGES INTO LIVE.customers_scd1
+FROM STREAM(LIVE.raw_customer_cdc)
+KEYS (customer_id)
+SEQUENCE BY updated_at
+APPLY AS DELETE WHEN op = 'DELETE'
+COLUMNS * EXCEPT (op, _rescued_data);
+
+-- SCD Type 2
+CREATE OR REFRESH STREAMING TABLE customers_scd2;
+
+APPLY CHANGES INTO LIVE.customers_scd2
+FROM STREAM(LIVE.raw_customer_cdc)
+KEYS (customer_id)
+SEQUENCE BY updated_at
+APPLY AS DELETE WHEN op = 'DELETE'
+STORED AS SCD TYPE 2
+TRACK HISTORY ON (email, address, phone, status);</code></pre>
+          </div>
+
+          <h2 id="deployment">Production Deployment</h2>
+
+          <h3>DLT + Unity Catalog</h3>
+          <ul>
+            <li>DLT pipelines publish tables directly to Unity Catalog: specify <code>catalog</code> and <code>target</code> (schema) in pipeline settings.</li>
+            <li>Tables are immediately governed by UC (access control, lineage, audit).</li>
+          </ul>
+
+          <h3>CI/CD for DLT Pipelines</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Databricks Asset Bundle (databricks.yml) for DLT</div>
+            <pre><code># databricks.yml — DABs definition for DLT pipeline
+bundle:
+  name: clickstream-pipeline
+
+variables:
+  catalog:
+    default: dev_catalog
+  landing_path:
+    default: s3://dev-landing-zone/clickstream/
+
+resources:
+  pipelines:
+    clickstream_etl:
+      name: "clickstream-${bundle.environment}"
+      catalog: ${var.catalog}
+      target: clickstream_schema
+      photon: true
+      channel: CURRENT  # or PREVIEW for testing new DLT features
+      libraries:
+        - notebook:
+            path: ./src/bronze.py
+        - notebook:
+            path: ./src/silver.py
+        - notebook:
+            path: ./src/gold.py
+      configuration:
+        landing_path: ${var.landing_path}
+        env: ${bundle.environment}
+      clusters:
+        - label: default
+          autoscale:
+            min_workers: 1
+            max_workers: 10
+            mode: ENHANCED
+
+environments:
+  dev:
+    default: true
+    variables:
+      catalog: dev_catalog
+      landing_path: s3://dev-landing-zone/clickstream/
+    workspace:
+      host: https://dev-workspace.cloud.databricks.com
+
+  staging:
+    variables:
+      catalog: staging_catalog
+      landing_path: s3://staging-landing-zone/clickstream/
+    workspace:
+      host: https://staging-workspace.cloud.databricks.com
+
+  prod:
+    variables:
+      catalog: prod_catalog
+      landing_path: s3://prod-landing-zone/clickstream/
+    workspace:
+      host: https://prod-workspace.cloud.databricks.com</code></pre>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">CI/CD Pipeline (GitHub Actions)</div>
+            <pre><code># .github/workflows/deploy-dlt.yml
+name: Deploy DLT Pipeline
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'databricks.yml']
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle validate -e staging
+      - run: databricks bundle deploy -e staging
+      - run: |
+          # Trigger a test run
+          databricks bundle run clickstream_etl -e staging
+          
+  deploy-prod:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production  # Requires approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle deploy -e prod</code></pre>
+          </div>
+
+          <h2 id="error-handling">Error Handling & Recovery</h2>
+
+          <h3>Pipeline Failure Modes</h3>
+          <ul>
+            <li><strong>Expectation failure</strong> (<code>expect_or_fail</code>): Pipeline stops, batch rolled back. Fix: repair upstream data, then restart pipeline.</li>
+            <li><strong>Schema mismatch</strong>: New column in source not handled. Fix: set <code>schemaEvolutionMode = addNewColumns</code> or update table DDL.</li>
+            <li><strong>Infrastructure failure</strong>: Spot eviction, OOM. DLT auto-retries (configurable retries). Cluster restarts and resumes from last checkpoint.</li>
+            <li><strong>Data corruption</strong>: Invalid data crashes transformation. Fix: add expectations to filter bad data before it reaches failing transformation.</li>
+          </ul>
+
+          <h3>Recovery Strategies</h3>
+          <ul>
+            <li><strong>Resume</strong> (default): Pipeline restarts from last successful checkpoint. No data loss, no reprocessing.</li>
+            <li><strong>Full refresh</strong>: Drops all state and recomputes from source. Use when schema changed incompatibly or data corruption requires full rebuild.</li>
+            <li><strong>Selective refresh</strong>: Refresh specific tables only: <code>REFRESH LIVE.silver_table FULL</code></li>
+          </ul>
+
+          <h2 id="cost-model">Cost Model</h2>
+
+          <h3>DLT Pricing</h3>
+          <ul>
+            <li>DLT uses <strong>Enhanced DBU</strong> rates — approximately 2-3x the standard compute DBU rate.</li>
+            <li><strong>Core (DLT)</strong>: ~$0.36/DBU (vs ~$0.15/DBU for standard all-purpose).</li>
+            <li><strong>Pro (DLT)</strong>: Higher, includes CDC (APPLY CHANGES) and enhanced features.</li>
+            <li><strong>Advanced (DLT)</strong>: Highest tier, includes all features.</li>
+          </ul>
+
+          <h3>When DLT is Cost-Effective</h3>
+          <ul>
+            <li><strong>Cost-effective when</strong>: (1) You'd otherwise build and maintain complex checkpoint management, error handling, schema evolution, and quality monitoring manually — DLT development time savings outweigh the DBU premium. (2) Enhanced autoscaling reduces over-provisioning. (3) Built-in retry and recovery eliminates job failure investigation time.</li>
+            <li><strong>NOT cost-effective when</strong>: (1) Simple append-only pipeline with no quality requirements — raw Structured Streaming is 2-3x cheaper in DBU. (2) Pipeline runs for 24/7 in continuous mode on large clusters — the DBU premium compounds significantly. (3) You already have a mature streaming framework with proper checkpoint/quality management.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Decision framework:</strong> Calculate total cost of ownership (TCO), not just DBU cost. DLT eliminates: checkpoint management code, quality monitoring dashboards, schema evolution handling, retry logic, event logging infrastructure. If building all that manually takes 2 engineers × 1 month, DLT's premium pays for itself in reduced operational burden within 3-6 months for most teams.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the difference between a Streaming Table and a Materialized View in DLT? When do you use each?</div>
+            <div class="qa-answer">
+              <p><strong>Streaming Table:</strong> Append-only, processes only new data incrementally. Maintains internal state (checkpoints). Cannot recompute historical data without full refresh. Best for: raw ingestion (Bronze), event logs, any pipeline stage where you only care about new arrivals.</p>
+              <p><strong>Materialized View:</strong> Computes the complete result of a query. Can recompute from scratch at any time (idempotent). DLT may internally optimize with incremental processing where possible. Best for: aggregations (Gold), joins across dimensions, any query where output depends on full dataset state.</p>
+              <p><strong>Example:</strong> Bronze (raw events) → Streaming Table. Silver (cleaned, deduped) → Streaming Table (incremental dedup). Gold (daily revenue by region) → Materialized View (needs full history to compute correct aggregates).</p>
+              <p><strong>Key distinction:</strong> If a late-arriving record changes the output of your query (e.g., a corrected transaction changes today's revenue total), you need a Materialized View. If late data is simply another append, use a Streaming Table.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do DLT expectations compare to traditional data quality frameworks? What are the limitations?</div>
+            <div class="qa-answer">
+              <p><strong>Advantages over custom quality frameworks:</strong> (1) Declarative — quality rules are co-located with transformation code. (2) Built-in metrics tracking (event log) without additional infrastructure. (3) Three enforcement levels (warn/drop/fail) per rule. (4) Zero-code quarantine with expect_or_drop. (5) Automatic monitoring via event log dashboards.</p>
+              <p><strong>Limitations:</strong> (1) Row-level only — cannot express dataset-level rules (e.g., "table should have >1M rows", "no gaps in date sequence"). (2) No cross-table validation (e.g., referential integrity between two DLT tables). (3) No statistical rules (e.g., "column mean should be within 2 std dev of historical"). (4) No custom alerting — must build on top of event log. (5) Cannot quarantine rows to a separate table natively (workaround: create a parallel pipeline branch with inverted rules).</p>
+              <p><strong>Recommendation:</strong> Use DLT expectations for row-level validation (null checks, range checks, format checks). Complement with external tools (Great Expectations, Monte Carlo, Databricks Lakehouse Monitoring) for statistical quality, dataset-level checks, and cross-table validation.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your DLT pipeline processes 1TB/day in continuous mode. The DBU cost is $8,000/month. Leadership wants you to reduce cost by 50%. What do you do?</div>
+            <div class="qa-answer">
+              <p><strong>Strategy 1 — Switch from Continuous to Triggered mode:</strong> If the business doesn't need sub-minute latency, run the pipeline on a schedule (every 15 min or hourly). The cluster terminates between runs. For 1TB/day, triggered every 15 min processes the same data with cluster running ~40% of the time (processing time + startup). Savings: ~50-60%.</p>
+              <p><strong>Strategy 2 — Right-size the pipeline:</strong> Check the event log for actual processing time vs idle time in continuous mode. If the cluster processes a batch in 10 seconds then waits 50 seconds for data, it's over-provisioned. Reduce max_workers in autoscale to match actual throughput needs.</p>
+              <p><strong>Strategy 3 — Split pipeline:</strong> Move the Gold aggregation layer (Materialized Views) to a separate triggered pipeline on a standard (non-DLT) compute cluster with cheaper DBUs. Keep Bronze/Silver on DLT for its checkpoint management value. Gold aggregations on standard compute at $0.15/DBU vs $0.36/DBU.</p>
+              <p><strong>Strategy 4 — Custom Structured Streaming:</strong> If the pipeline is mature and stable, replace DLT with raw Structured Streaming on standard job clusters. You lose DLT's management features but gain 2-3x DBU cost reduction. Only worth it if you have strong streaming engineering capability.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does APPLY CHANGES work for SCD Type 2, and what are the gotchas?</div>
+            <div class="qa-answer">
+              <p><strong>Mechanism:</strong> DLT maintains a versioned history of each record. When a change arrives: (1) Current active record gets its <code>__END_AT</code> set to the change timestamp. (2) New record inserted with <code>__START_AT</code> = change timestamp and <code>__END_AT</code> = NULL (current). (3) Only changes to tracked columns (track_history_column_list) trigger new history records. (4) Ordering is enforced by the <code>sequence_by</code> column — out-of-order events are handled correctly.</p>
+              <p><strong>Gotchas:</strong></p>
+              <p>(1) <strong>Deduplication:</strong> If the same change arrives twice (common in at-least-once CDC sources), <code>sequence_by</code> ensures idempotency — duplicate with same sequence value is ignored. But if sequence values differ (e.g., Kafka offsets), you get duplicate history entries. Solution: use the source system's timestamp, not the transport offset.</p>
+              <p>(2) <strong>Delete handling:</strong> <code>apply_as_deletes</code> closes the current record (<code>__END_AT</code> set) but doesn't physically delete it. Downstream queries must filter <code>WHERE __END_AT IS NULL</code> for current state. This catches people off guard.</p>
+              <p>(3) <strong>Schema evolution:</strong> Adding new tracked columns requires careful handling — existing history records won't have the new column values. May need a full refresh.</p>
+              <p>(4) <strong>Performance:</strong> SCD Type 2 tables grow indefinitely (all history retained). Query performance degrades without proper filtering. Add a materialized view on top that shows only current records for operational queries.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you implement CI/CD for a DLT pipeline with dev/staging/prod environments?</div>
+            <div class="qa-answer">
+              <p><strong>Architecture:</strong> Use Databricks Asset Bundles (DABs) for declarative pipeline definitions with environment-specific variables.</p>
+              <p><strong>Structure:</strong></p>
+              <p>(1) <strong>Code:</strong> DLT notebooks/Python modules in Git. Environment-agnostic — use <code>spark.conf.get("env")</code> or DLT pipeline parameters for environment-specific paths.</p>
+              <p>(2) <strong>Configuration:</strong> <code>databricks.yml</code> with environment blocks (dev, staging, prod). Each environment specifies: target catalog/schema, landing zone paths, cluster size, Photon enable/disable.</p>
+              <p>(3) <strong>Promotion flow:</strong> PR merged to main → deploy to staging (automated) → trigger test run → validate expectations pass rate > threshold → deploy to prod (manual approval gate).</p>
+              <p>(4) <strong>Testing:</strong> (a) Unit tests: test transformation functions with pytest (outside DLT). (b) Integration tests: run pipeline in staging with sample data, validate output schemas and row counts. (c) Quality tests: verify expectation pass rates in event log post-run.</p>
+              <p>(5) <strong>Full refresh policy:</strong> Schema-breaking changes require <code>databricks bundle run --pipeline-id X --full-refresh</code> in staging for validation before promoting to prod.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Databricks</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

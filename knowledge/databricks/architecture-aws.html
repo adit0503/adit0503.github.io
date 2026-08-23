@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Databricks on AWS — Architecture Deep-Dive — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Databricks</a>
+        <span>→</span>
+        <span>Architecture Deep-Dive</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Databricks on AWS — Architecture Deep-Dive</h1>
+          <p class="article-desc">Complete guide to Databricks architecture on AWS — control plane vs data plane internals, VPC deployment models, IAM integration, DBFS, cluster lifecycle, Glue Catalog integration, multi-workspace patterns, and security architecture.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#control-data-plane">Control Plane vs Data Plane</a></li>
+            <li><a href="#network-architecture">Network Architecture</a></li>
+            <li><a href="#workspace-deployment">Workspace Deployment Internals</a></li>
+            <li><a href="#iam-integration">Instance Profiles & IAM</a></li>
+            <li><a href="#dbfs-architecture">DBFS Architecture</a></li>
+            <li><a href="#cluster-lifecycle">Cluster Lifecycle on AWS</a></li>
+            <li><a href="#glue-catalog">AWS Glue Catalog Integration</a></li>
+            <li><a href="#multi-workspace">Multi-Workspace Architecture</a></li>
+            <li><a href="#security">Security & Encryption</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="control-data-plane">Control Plane vs Data Plane</h2>
+
+          <p>Databricks on AWS uses a split-architecture model separating the management infrastructure from customer compute and data:</p>
+
+          <h3>Control Plane (Databricks-Managed AWS Account)</h3>
+          <ul>
+            <li><strong>Location</strong>: Runs in Databricks' own AWS account (multi-tenant, shared infrastructure).</li>
+            <li><strong>Components</strong>: Webapp (UI), REST API endpoints, Notebook server, Job scheduler, Cluster manager, Unity Catalog metastore, MLflow tracking server, Repos (Git integration).</li>
+            <li><strong>Data stored</strong>: Notebook commands (encrypted at rest), job configurations, cluster specs, user/group definitions, access control lists, audit logs.</li>
+            <li><strong>Network</strong>: Communicates with data plane over secure channels (TLS 1.2+). In SCC deployments, only outbound connections from data plane — no inbound access from control plane.</li>
+            <li><strong>Regional</strong>: Deployed per AWS region (us-east-1, eu-west-1, etc.). Your workspace region must match your data plane region.</li>
+          </ul>
+
+          <h3>Data Plane (Customer AWS Account)</h3>
+          <ul>
+            <li><strong>Location</strong>: Runs entirely in the customer's AWS account and VPC.</li>
+            <li><strong>Components</strong>: EC2 instances (Spark driver + executors), EBS volumes, cluster network traffic, S3 data access, local shuffle data.</li>
+            <li><strong>Data processed</strong>: All customer data stays within the customer's AWS account — never crosses to the control plane.</li>
+            <li><strong>Isolation</strong>: Each workspace gets its own VPC (or customer-managed VPC), its own security groups, its own IAM roles.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Key insight:</strong> The control plane never sees your data. It sends instructions (launch cluster, run notebook command) to the data plane. The Spark driver processes data in your VPC and sends only results (cell outputs, metrics) back to the control plane UI. This is critical for compliance (HIPAA, PCI-DSS) — data residency stays within your AWS account.
+          </div>
+
+          <h2 id="network-architecture">Network Architecture</h2>
+
+          <h3>Classic Deployment (Legacy)</h3>
+          <ul>
+            <li>Databricks creates a VPC in the customer's account using a cross-account IAM role.</li>
+            <li>The control plane communicates with the data plane via a <strong>public IP</strong> on the cluster's driver node.</li>
+            <li>Security groups restrict inbound traffic to the Databricks control plane IP range.</li>
+            <li><strong>Risk</strong>: Cluster nodes have public IPs — wider attack surface, may violate corporate network policies.</li>
+          </ul>
+
+          <h3>Secure Cluster Connectivity (SCC / No Public IP)</h3>
+          <ul>
+            <li>Cluster nodes have <strong>no public IP addresses</strong> — all communication is outbound-only from the data plane.</li>
+            <li>The Spark driver initiates a secure tunnel to the control plane relay endpoint (via NAT gateway).</li>
+            <li>Control plane cannot SSH or connect inbound to any cluster node.</li>
+            <li><strong>Network flow</strong>: EC2 (private subnet) → NAT Gateway → Internet → Databricks control plane relay.</li>
+            <li>Requires NAT gateway in each AZ used by Databricks subnets (cost consideration: ~$0.045/hr/NAT + data processing).</li>
+          </ul>
+
+          <h3>AWS PrivateLink</h3>
+          <ul>
+            <li>Eliminates traversal of the public internet entirely — traffic stays on the AWS backbone.</li>
+            <li><strong>Front-end PrivateLink</strong>: Users access the Databricks UI/API via a VPC endpoint in their VPC (no internet needed for workspace access).</li>
+            <li><strong>Back-end PrivateLink</strong>: Data plane to control plane communication via VPC endpoint (replaces the NAT gateway path).</li>
+            <li>Requires VPC endpoint services configured in the customer account pointing to Databricks' endpoint service.</li>
+            <li>Enables fully air-gapped deployments (no internet egress from data plane at all).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Terraform — Customer-Managed VPC with SCC + PrivateLink</div>
+            <pre><code># Customer VPC for Databricks data plane
+resource "aws_vpc" "databricks" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = { Name = "databricks-data-plane" }
+}
+
+# Private subnets (no public IP assignment)
+resource "aws_subnet" "private" {
+  count                   = 2
+  vpc_id                  = aws_vpc.databricks.id
+  cidr_block              = cidrsubnet("10.0.0.0/16", 8, count.index)
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
+  map_public_ip_on_launch = false  # SCC: no public IPs
+}
+
+# NAT Gateway for outbound (if not using back-end PrivateLink)
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id
+}
+
+# VPC Endpoint for S3 (Gateway type — free, avoids NAT charges for S3 traffic)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id       = aws_vpc.databricks.id
+  service_name = "com.amazonaws.${var.region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private.id]
+}
+
+# VPC Endpoint for STS (required for IAM authentication)
+resource "aws_vpc_endpoint" "sts" {
+  vpc_id              = aws_vpc.databricks.id
+  service_name        = "com.amazonaws.${var.region}.sts"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+}
+
+# Back-end PrivateLink endpoint (data plane → control plane)
+resource "aws_vpc_endpoint" "databricks_backend" {
+  vpc_id              = aws_vpc.databricks.id
+  service_name        = var.databricks_backend_privatelink_service  # provided by Databricks
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.databricks_backend_pl.id]
+  private_dns_enabled = true
+}</code></pre>
+          </div>
+
+          <h3>VPC Endpoints for S3 (Critical for Performance)</h3>
+          <ul>
+            <li>S3 Gateway endpoint is free and routes S3 traffic directly from VPC to S3 without traversing NAT gateway.</li>
+            <li>Without it: all S3 reads/writes go through NAT → internet → S3, incurring NAT data processing charges ($0.045/GB).</li>
+            <li>A cluster reading 1TB/day without S3 endpoint = $45/day in NAT charges alone.</li>
+          </ul>
+
+          <div class="callout-warning">
+            <strong>Pitfall:</strong> Forgetting the S3 VPC Gateway endpoint is the #1 unexpected cost in Databricks on AWS. A single job reading 500GB from S3 costs $22.50 in NAT data processing if routed through NAT. Always create the S3 gateway endpoint — it's free and eliminates this charge entirely.
+          </div>
+
+          <h2 id="workspace-deployment">Workspace Deployment Internals</h2>
+
+          <p>When you create a Databricks workspace on AWS, the following resources are provisioned:</p>
+
+          <h3>In the Customer AWS Account (via Cross-Account Role)</h3>
+          <ul>
+            <li><strong>VPC</strong> (if Databricks-managed): /16 CIDR, 2+ private subnets across AZs, NAT gateway, route tables.</li>
+            <li><strong>Security Groups</strong>: (1) Internal SG allowing all traffic between cluster nodes (Spark shuffle, block manager). (2) Egress SG allowing outbound HTTPS to control plane. (3) No inbound from public internet (SCC mode).</li>
+            <li><strong>S3 Root Bucket</strong>: <code>databricks-workspace-stack-{id}-bucket</code> — stores DBFS root, cluster logs, notebook revision history (encrypted). Default lifecycle: versioning enabled.</li>
+            <li><strong>IAM Cross-Account Role</strong>: Trust policy allows Databricks' AWS account to assume this role. Permissions: EC2 (launch/terminate), S3 (root bucket access), VPC (describe, manage ENIs), IAM (passRole for instance profiles).</li>
+            <li><strong>IAM Instance Profile</strong>: Attached to EC2 instances at launch — provides S3 access to the running Spark cluster.</li>
+          </ul>
+
+          <h3>Cross-Account IAM Trust</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Cross-Account IAM Role Trust Policy</div>
+            <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::414351767826:root"  
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "your-databricks-account-id"
+        }
+      }
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <ul>
+            <li><strong>414351767826</strong> is Databricks' production AWS account (us-east-1). Different account IDs for other regions.</li>
+            <li><strong>ExternalId</strong> prevents confused-deputy attacks — only your specific Databricks account can assume the role.</li>
+            <li>The cross-account role needs permissions for: <code>ec2:RunInstances</code>, <code>ec2:TerminateInstances</code>, <code>ec2:DescribeInstances</code>, <code>ec2:CreateSecurityGroup</code>, <code>iam:PassRole</code>, <code>s3:*</code> on root bucket, etc.</li>
+          </ul>
+
+          <h2 id="iam-integration">Instance Profiles & IAM</h2>
+
+          <h3>Legacy: Instance Profiles for S3 Access</h3>
+          <ul>
+            <li>An EC2 instance profile is attached to cluster nodes at launch time.</li>
+            <li>The IAM role behind the instance profile grants S3 access to specific buckets.</li>
+            <li><strong>Flow</strong>: Spark executor → EC2 instance metadata → STS temporary credentials → S3 API call.</li>
+            <li>Configured per-cluster: different clusters can use different instance profiles (different data access).</li>
+            <li><strong>Problem</strong>: Coarse-grained (all code on the cluster gets the same S3 access), no table-level governance, no audit trail per user.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Instance Profile IAM Policy for S3 Access</div>
+            <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::my-data-lake-bucket",
+        "arn:aws:s3:::my-data-lake-bucket/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:ListAllMyBuckets"
+      ],
+      "Resource": "arn:aws:s3:::*"
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <h3>Unity Catalog: Storage Credentials (Modern Approach)</h3>
+          <ul>
+            <li>UC uses its own IAM role (storage credential) that it assumes via STS to vend temporary, scoped tokens to clusters.</li>
+            <li><strong>Flow</strong>: User query → UC checks permissions → UC assumes storage credential role → generates scoped STS token (limited to specific S3 prefixes) → returns token to cluster → cluster accesses S3.</li>
+            <li>Fine-grained: permissions are per-table, per-column, per-user — not per-cluster.</li>
+            <li>Token lifetime: short-lived (typically 1 hour), automatically refreshed.</li>
+            <li>The instance profile on the cluster doesn't need S3 data access — UC handles all data authorization.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Unity Catalog Storage Credential IAM Role (Self-Assume Pattern)</div>
+            <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::414351767826:role/unity-catalog-prod-UCMasterRole-1234"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "your-databricks-account-id"
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::YOUR_ACCOUNT:role/this-role-itself"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <div class="callout">
+            <strong>Self-assume pattern:</strong> The UC storage credential role trusts itself (self-assume). This allows UC to scope down permissions at runtime by assuming the same role with a more restrictive session policy (limiting S3 access to only the paths the user is authorized to read). This is how UC implements fine-grained access without creating hundreds of IAM roles.
+          </div>
+
+          <h2 id="dbfs-architecture">DBFS Architecture</h2>
+
+          <h3>Root DBFS (S3-Backed)</h3>
+          <ul>
+            <li>DBFS (Databricks File System) is an abstraction layer over S3 that provides a POSIX-like path interface (<code>dbfs:/</code>, <code>/dbfs/</code>).</li>
+            <li>The root DBFS is backed by the workspace's S3 root bucket: <code>s3://databricks-workspace-stack-{id}-bucket/</code></li>
+            <li>Accessible by all users and clusters in the workspace — no per-user isolation by default.</li>
+            <li>Stores: uploaded files, library JARs, temporary data, MLflow artifacts (legacy), init scripts.</li>
+          </ul>
+
+          <h3>DBFS Mounts (Legacy — Avoid)</h3>
+          <ul>
+            <li>Mount an external S3 bucket to a DBFS path: <code>dbutils.fs.mount("s3a://my-bucket", "/mnt/data")</code></li>
+            <li>All users with cluster access can read <code>/mnt/data</code> — bypasses Unity Catalog governance entirely.</li>
+            <li>Credentials embedded in the mount configuration (stored in control plane).</li>
+            <li><strong>Problems</strong>: No table-level access control, no audit per user, shared credentials, no column masking.</li>
+          </ul>
+
+          <h3>External Locations (UC — Recommended)</h3>
+          <ul>
+            <li>Register S3 paths as external locations in Unity Catalog with explicit GRANT permissions.</li>
+            <li>Access controlled per-user, audited, supports row/column security.</li>
+            <li>No credentials stored on the cluster — UC vends temporary tokens per request.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Migration: Mount → External Location</div>
+            <pre><code>-- Legacy mount (AVOID for new development)
+-- dbutils.fs.mount("s3a://analytics-prod", "/mnt/analytics")
+-- spark.read.parquet("/mnt/analytics/events/")  -- no governance
+
+-- Modern: Unity Catalog External Location
+CREATE EXTERNAL LOCATION analytics_prod
+URL 's3://analytics-prod/'
+WITH (STORAGE CREDENTIAL analytics_cred);
+
+GRANT READ FILES ON EXTERNAL LOCATION analytics_prod TO `data-engineers`;
+
+-- Access via UC-governed path
+CREATE EXTERNAL TABLE catalog.schema.events
+LOCATION 's3://analytics-prod/events/'
+AS SELECT * FROM parquet.`s3://analytics-prod/events/`;
+
+-- Or use volumes for file-level access
+CREATE EXTERNAL VOLUME catalog.schema.raw_files
+LOCATION 's3://analytics-prod/raw/';</code></pre>
+          </div>
+
+          <div class="callout-warning">
+            <strong>Migration imperative:</strong> If you're still using DBFS mounts in production, you have a governance gap. Mounts completely bypass Unity Catalog — anyone on the cluster can read/write mounted data regardless of UC permissions. Migrate to external locations/volumes for any data that requires access control.
+          </div>
+
+          <h2 id="cluster-lifecycle">Cluster Lifecycle on AWS</h2>
+
+          <h3>Launch Sequence (What Happens When You Start a Cluster)</h3>
+          <ol>
+            <li><strong>API call</strong>: Control plane receives cluster creation request (instance type, count, Spark config).</li>
+            <li><strong>Cross-account assume</strong>: Control plane assumes the workspace's cross-account IAM role.</li>
+            <li><strong>EC2 provisioning</strong>: RunInstances API calls for driver + worker nodes. Instance profile attached. EBS volumes created (GP3 for root, optional additional volumes for shuffle).</li>
+            <li><strong>Security group assignment</strong>: Internal SG (all-traffic between cluster nodes on all ports) + workspace SG (outbound HTTPS).</li>
+            <li><strong>Bootstrap</strong>: Databricks agent starts on each node → downloads Spark/Delta/Photon binaries from S3 → runs init scripts → starts Spark processes.</li>
+            <li><strong>Registration</strong>: Driver registers with control plane (secure tunnel in SCC mode) → cluster marked "Running" → REPL/notebook attached.</li>
+          </ol>
+          <p><strong>Typical startup time</strong>: 3-7 minutes (EC2 provisioning + bootstrap). With instance pools: 30-90 seconds.</p>
+
+          <h3>EBS Volumes</h3>
+          <ul>
+            <li><strong>Root volume</strong>: GP3, stores OS + Databricks runtime + Spark binaries. Typically 100GB.</li>
+            <li><strong>Additional volumes</strong>: Configured per cluster for local shuffle/spill storage. GP3 or IO2 for high-throughput shuffle.</li>
+            <li><strong>Auto-scaling storage</strong>: Databricks can auto-attach additional EBS volumes when local disk fills up (prevents out-of-disk failures during large shuffles).</li>
+            <li><strong>Encryption</strong>: EBS encryption enabled by default using workspace KMS key or AWS-managed key.</li>
+          </ul>
+
+          <h3>Spot Instance Integration</h3>
+          <ul>
+            <li><strong>Configuration</strong>: <code>first_on_demand</code> specifies how many initial nodes are On-Demand (typically 1 for driver protection).</li>
+            <li><strong>Availability</strong>: SPOT (fail if no Spot), SPOT_WITH_FALLBACK (try Spot, fall back to On-Demand), ON_DEMAND.</li>
+            <li><strong>Spot price</strong>: <code>spot_bid_max_price = -1</code> (default) means bid up to On-Demand price — recommended for maximum availability.</li>
+            <li><strong>Eviction handling</strong>: Databricks decommissions the node gracefully, moves shuffle data if possible, Spark retries lost tasks.</li>
+          </ul>
+
+          <h3>Instance Pools</h3>
+          <ul>
+            <li>Pre-warmed EC2 instances in a STOPPED or RUNNING state, ready for immediate attachment to clusters.</li>
+            <li>Configuration: <code>min_idle_instances</code> (minimum warm capacity), <code>max_capacity</code> (total pool size), <code>idle_instance_autotermination_minutes</code>.</li>
+            <li>Reduces cluster startup from 5-7 minutes to 30-90 seconds.</li>
+            <li>Pools can be shared across multiple clusters — first-come-first-served allocation.</li>
+            <li>Cost: you pay for idle instances in the pool (EC2 charges), but save on startup time and reduce Spot interruption risk (instances already allocated).</li>
+          </ul>
+
+          <h2 id="glue-catalog">AWS Glue Catalog Integration</h2>
+
+          <h3>Glue as External Hive Metastore</h3>
+          <ul>
+            <li>Databricks can use AWS Glue Data Catalog as an external Hive-compatible metastore.</li>
+            <li>Tables created in Spark are visible in Athena, Redshift Spectrum, EMR — shared schema.</li>
+            <li>Configured via: <code>spark.hadoop.hive.metastore.client.factory.class = com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory</code></li>
+            <li><strong>Limitations</strong>: No column-level ACLs, no row security, no lineage — Glue is purely a schema registry.</li>
+          </ul>
+
+          <h3>Unity Catalog vs Glue</h3>
+
+          <table>
+            <thead>
+              <tr><th>Feature</th><th>AWS Glue Catalog</th><th>Unity Catalog</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Schema registry</td><td>✅</td><td>✅</td></tr>
+              <tr><td>Column-level security</td><td>❌ (via Lake Formation)</td><td>✅ Native</td></tr>
+              <tr><td>Row-level security</td><td>❌</td><td>✅ SQL functions</td></tr>
+              <tr><td>Lineage</td><td>❌</td><td>✅ Automatic</td></tr>
+              <tr><td>Cross-engine access</td><td>✅ (Athena, EMR, Redshift)</td><td>⚠️ Delta Sharing</td></tr>
+              <tr><td>Fine-grained audit</td><td>Limited (CloudTrail)</td><td>✅ system.access.audit</td></tr>
+              <tr><td>Data discovery</td><td>Basic (Glue Crawlers)</td><td>✅ Full search + tagging</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Production pattern:</strong> Use Unity Catalog as the primary metastore for all Databricks workloads (governance, lineage, access control). Register critical tables in Glue additionally (using Delta UniForm or external table sync) only if you need cross-engine access from Athena/EMR/Redshift. Don't use Glue as the sole metastore — you lose all UC governance features.
+          </div>
+
+          <h2 id="multi-workspace">Multi-Workspace Architecture</h2>
+
+          <h3>Hub-Spoke Model</h3>
+          <ul>
+            <li><strong>Hub workspace</strong>: Central governance workspace hosting the Unity Catalog metastore, shared Delta Sharing server, centralized audit logging.</li>
+            <li><strong>Spoke workspaces</strong>: Per-team or per-environment workspaces (dev, staging, prod) attached to the hub's UC metastore.</li>
+            <li><strong>Cross-account</strong>: Spoke workspaces can be in different AWS accounts — UC supports cross-account metastore binding.</li>
+            <li><strong>Network</strong>: Transit Gateway or VPC peering between spoke VPCs for direct data access (avoids internet traversal between workspaces).</li>
+          </ul>
+
+          <h3>Common Organizational Patterns</h3>
+          <ul>
+            <li><strong>Per-environment</strong>: workspace-dev, workspace-staging, workspace-prod (simplest, clear promotion path).</li>
+            <li><strong>Per-team</strong>: workspace-data-engineering, workspace-data-science, workspace-analytics (isolation, separate billing).</li>
+            <li><strong>Per-domain</strong>: workspace-finance, workspace-marketing, workspace-platform (data mesh alignment).</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Multi-Workspace Account-Level Setup (Databricks CLI)</div>
+            <pre><code># Create a metastore (once per region)
+databricks unity-catalog metastores create \
+  --name "production-metastore" \
+  --storage-root "s3://uc-metastore-prod-us-east-1/managed/" \
+  --region us-east-1
+
+# Assign metastore to multiple workspaces
+databricks unity-catalog metastores assign \
+  --workspace-id 1234567890 \  # dev workspace
+  --metastore-id "metastore-uuid" \
+  --default-catalog-name "dev"
+
+databricks unity-catalog metastores assign \
+  --workspace-id 9876543210 \  # prod workspace
+  --metastore-id "metastore-uuid" \
+  --default-catalog-name "prod"</code></pre>
+          </div>
+
+          <h2 id="security">Security & Encryption</h2>
+
+          <h3>Encryption at Rest</h3>
+          <ul>
+            <li><strong>S3</strong>: SSE-S3 (default) or SSE-KMS with customer-managed CMK. Configure at bucket level — all Databricks writes inherit.</li>
+            <li><strong>EBS</strong>: Encrypted by default using workspace-level KMS key. Protects local shuffle/spill data on cluster nodes.</li>
+            <li><strong>Managed services</strong>: Control plane data (notebooks, configs) encrypted with Databricks-managed keys, or customer-managed keys (CMK for control plane) for regulated workloads.</li>
+          </ul>
+
+          <h3>Encryption in Transit</h3>
+          <ul>
+            <li><strong>Control↔Data plane</strong>: TLS 1.2+ for all communication (API calls, notebook results, cluster registration).</li>
+            <li><strong>Intra-cluster</strong>: Spark encryption enabled via <code>spark.network.crypto.enabled=true</code> + <code>spark.authenticate=true</code> (AES-encrypted shuffle).</li>
+            <li><strong>S3 access</strong>: HTTPS enforced for all S3 API calls (TLS 1.2). Bucket policy can deny HTTP.</li>
+          </ul>
+
+          <h3>Network Isolation</h3>
+          <ul>
+            <li><strong>Customer-managed VPC</strong>: Full control over CIDR, subnets, NACLs, route tables. Restrict egress to only Databricks control plane + S3.</li>
+            <li><strong>No public IPs (SCC)</strong>: Eliminates direct internet exposure of cluster nodes.</li>
+            <li><strong>PrivateLink</strong>: Zero internet traversal — all Databricks traffic stays on AWS backbone.</li>
+            <li><strong>DNS</strong>: Custom DNS resolution for workspace URLs via Route53 private hosted zones (PrivateLink).</li>
+          </ul>
+
+          <h3>Credential Passthrough (Legacy)</h3>
+          <ul>
+            <li>Maps the IAM role of the user (via SSO) to the cluster's S3 access.</li>
+            <li>Only supported on single-user clusters (not shared clusters) — one user per cluster.</li>
+            <li><strong>Deprecated in favor of Unity Catalog</strong> — UC provides the same per-user credential scoping without the single-user cluster restriction.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Workspace-Level CMK Configuration (Terraform)</div>
+            <pre><code>resource "databricks_mws_customer_managed_keys" "storage" {
+  account_id = var.databricks_account_id
+  aws_key_info {
+    key_arn   = aws_kms_key.databricks_storage.arn
+    key_alias = aws_kms_alias.databricks_storage.name
+    key_region = var.region
+  }
+  use_cases = ["STORAGE"]  # Encrypts S3 root bucket + managed Delta tables
+}
+
+resource "databricks_mws_customer_managed_keys" "managed_services" {
+  account_id = var.databricks_account_id
+  aws_key_info {
+    key_arn   = aws_kms_key.databricks_control_plane.arn
+    key_alias = aws_kms_alias.databricks_control_plane.name
+    key_region = var.region
+  }
+  use_cases = ["MANAGED_SERVICES"]  # Encrypts notebooks, secrets in control plane
+}</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain the split between control plane and data plane in Databricks on AWS. What are the security implications?</div>
+            <div class="qa-answer">
+              <p>The <strong>control plane</strong> runs in Databricks' AWS account and handles orchestration — UI, job scheduling, cluster management, notebook storage, REST APIs. The <strong>data plane</strong> runs entirely in the customer's AWS account — all EC2 instances, EBS volumes, and S3 data access happen here.</p>
+              <p><strong>Security implications:</strong> (1) Customer data never leaves their AWS account — the control plane only receives cell outputs and metrics, not raw data. (2) For HIPAA/PCI compliance, this separation ensures data residency requirements are met. (3) However, notebook code and cell outputs ARE stored in the control plane — for maximum sensitivity, enable CMK for managed services to encrypt this with your own KMS key. (4) The cross-account IAM role is the trust boundary — audit its permissions carefully, use external ID condition, and limit to minimum required permissions.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your security team requires zero internet egress from compute nodes. How do you architect this?</div>
+            <div class="qa-answer">
+              <p><strong>Solution: SCC + Back-end PrivateLink + VPC endpoints.</strong></p>
+              <p>(1) Deploy with Secure Cluster Connectivity (no public IPs). (2) Configure back-end PrivateLink so data plane → control plane communication uses AWS backbone (no NAT, no internet). (3) Add VPC Gateway endpoint for S3 (free, keeps S3 traffic private). (4) Add VPC Interface endpoints for STS, Kinesis (if used), and any other AWS services the workload needs. (5) Remove all routes to internet gateway and NAT gateway from the Databricks subnets' route tables. (6) Configure front-end PrivateLink so users access the workspace UI without internet.</p>
+              <p><strong>Result:</strong> Complete air-gap — zero bytes traverse the public internet. All traffic stays on AWS internal network. Cost: VPC endpoint charges (~$0.01/hr each + $0.01/GB processed) replace NAT gateway costs.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why is the S3 VPC Gateway endpoint critical for Databricks performance and cost?</div>
+            <div class="qa-answer">
+              <p>Without the S3 Gateway endpoint, all S3 traffic from Databricks clusters routes through the NAT gateway. This creates two problems:</p>
+              <p><strong>Cost:</strong> NAT data processing charges are $0.045/GB. A typical ETL job reading/writing 100GB = $4.50. At 50 jobs/day = $225/day = $6,750/month in pure NAT charges. The S3 Gateway endpoint is completely free and eliminates this entirely.</p>
+              <p><strong>Performance:</strong> NAT gateways have a throughput cap of 45 Gbps per gateway. Multiple large clusters competing for NAT bandwidth creates a network bottleneck. With the Gateway endpoint, S3 traffic takes a direct path with no bandwidth ceiling (limited only by instance network bandwidth).</p>
+              <p><strong>Always do:</strong> Create the S3 Gateway endpoint in every Databricks VPC. Also consider STS, KMS, and Glue Interface endpoints for additional performance gains and security.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do instance pools reduce cluster startup time, and what's the cost tradeoff?</div>
+            <div class="qa-answer">
+              <p><strong>Mechanism:</strong> Instance pools maintain pre-allocated EC2 instances that are already provisioned and have the Databricks base image loaded. When a cluster requests nodes from a pool, it skips the EC2 RunInstances API call (1-3 min), skips AMI boot (1-2 min), and only needs to download the specific Databricks Runtime version and run init scripts (30-60 sec).</p>
+              <p><strong>Reduction:</strong> Startup goes from 5-7 minutes → 30-90 seconds. This is transformative for job clusters that start/stop per job — a pipeline with 10 sequential jobs saves 50-60 minutes of wait time per run.</p>
+              <p><strong>Cost tradeoff:</strong> Idle instances in the pool incur EC2 charges even when no cluster is using them. Mitigation: set <code>idle_instance_autotermination_minutes</code> to 10-15 min so unused instances release quickly. Set <code>min_idle_instances</code> conservatively (2-4) to cover immediate demand without over-provisioning. The cost of 2-3 idle instances is typically far less than the engineering time and pipeline delay savings.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Compare legacy instance profiles with Unity Catalog storage credentials for S3 access. When would you still use instance profiles?</div>
+            <div class="qa-answer">
+              <p><strong>Instance profiles (legacy):</strong> IAM role attached to EC2 instances. All code on the cluster gets identical S3 permissions. No per-user differentiation, no table-level controls, no audit trail by user identity.</p>
+              <p><strong>UC storage credentials (modern):</strong> UC vends short-lived STS tokens scoped to the exact S3 paths a user is authorized to access. Per-user access control, full audit logging (who accessed what table when), column masking, row filters — all enforced regardless of what code runs on the cluster.</p>
+              <p><strong>When instance profiles are still used:</strong> (1) Legacy workloads not yet migrated to UC. (2) Infrastructure operations (init scripts, library installation from private S3 repos) that happen before UC is available during cluster bootstrap. (3) Third-party integrations that don't support UC token vending. (4) The cluster still needs a minimal instance profile for accessing the DBFS root bucket and Databricks system resources — but data access should be UC-governed.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Databricks</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

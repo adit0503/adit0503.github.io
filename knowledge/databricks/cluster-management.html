@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Cluster Management & Cost Optimization — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Databricks</a>
+        <span>→</span>
+        <span>Cluster Management</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Cluster Management & Cost Optimization</h1>
+          <p class="article-desc">Complete guide to Databricks cluster management on AWS — cluster types, instance selection, Spot strategies, instance pools, autoscaling, cluster policies, serverless compute, DBU optimization, and cost allocation strategies.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#cluster-types">Cluster Types & DBU Rates</a></li>
+            <li><a href="#instance-selection">Instance Selection on AWS</a></li>
+            <li><a href="#spot-instances">Spot Instance Configuration</a></li>
+            <li><a href="#instance-pools">Instance Pools</a></li>
+            <li><a href="#autoscaling">Autoscaling</a></li>
+            <li><a href="#cluster-policies">Cluster Policies</a></li>
+            <li><a href="#auto-termination">Auto-Termination</a></li>
+            <li><a href="#job-vs-interactive">Job Clusters vs Interactive Clusters</a></li>
+            <li><a href="#serverless">Serverless Compute</a></li>
+            <li><a href="#dbu-optimization">DBU Optimization</a></li>
+            <li><a href="#cost-allocation">Cost Allocation & Chargeback</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="cluster-types">Cluster Types & DBU Rates</h2>
+
+          <table>
+            <thead>
+              <tr><th>Cluster Type</th><th>DBU Rate (Approx)</th><th>Use Case</th><th>Lifecycle</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>All-Purpose (Interactive)</td><td>~2-3x base</td><td>Notebooks, exploration, shared dev</td><td>Long-running, manual start/stop</td></tr>
+              <tr><td>Jobs (Automated)</td><td>1x base (cheapest)</td><td>Scheduled ETL, production pipelines</td><td>Created per job run, auto-terminates</td></tr>
+              <tr><td>DLT (Delta Live Tables)</td><td>~2-3x base (enhanced)</td><td>DLT pipelines</td><td>DLT-managed lifecycle</td></tr>
+              <tr><td>SQL Warehouse (Classic)</td><td>~2x base</td><td>BI queries, SQL analytics</td><td>Auto-scales, auto-suspends</td></tr>
+              <tr><td>SQL Warehouse (Serverless)</td><td>~2.5x base</td><td>BI queries, instant startup</td><td>Fully managed, pay-per-query</td></tr>
+            </tbody>
+          </table>
+
+          <div class="callout">
+            <strong>Cost impact:</strong> Running a notebook interactively on an All-Purpose cluster costs 2-3x more per DBU than the same code running as a scheduled job on a Jobs cluster. Always move production workloads to Jobs clusters — the same code runs at 1/2 to 1/3 the cost.
+          </div>
+
+          <h2 id="instance-selection">Instance Selection on AWS</h2>
+
+          <table>
+            <thead>
+              <tr><th>Family</th><th>Examples</th><th>Best For</th><th>Key Specs</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Memory-optimized</td><td>r5, r5d, r6g, r6gd</td><td>Caching, large joins, broadcast variables</td><td>8 GB/vCPU ratio</td></tr>
+              <tr><td>Compute-optimized</td><td>c5, c5d, c6g, c6gd</td><td>CPU-heavy transforms, Photon, UDFs</td><td>2 GB/vCPU ratio</td></tr>
+              <tr><td>Storage-optimized</td><td>i3, i3en, i4i</td><td>Shuffle-heavy, local NVMe SSD</td><td>NVMe local storage, high IOPS</td></tr>
+              <tr><td>General-purpose</td><td>m5, m5d, m6g, m6gd</td><td>Balanced workloads</td><td>4 GB/vCPU ratio</td></tr>
+              <tr><td>Graviton (ARM)</td><td>r6g, m6g, c6g</td><td>20-30% better price-performance</td><td>ARM-based, same or better performance</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Selection Guidelines</h3>
+          <ul>
+            <li><strong>Default choice</strong>: <code>i3.xlarge</code> or <code>m5d.xlarge</code> for most ETL (local SSDs help shuffle performance).</li>
+            <li><strong>Join-heavy / cache-heavy</strong>: <code>r6g.2xlarge</code> (more RAM per vCPU for hash tables and Delta cache).</li>
+            <li><strong>Photon SQL analytics</strong>: <code>c6g.xlarge</code> (Photon is CPU-bound, doesn't need excess RAM).</li>
+            <li><strong>Shuffle-heavy (large sorts, wide joins)</strong>: <code>i3.xlarge</code> (NVMe local disk for spill — orders of magnitude faster than EBS).</li>
+            <li><strong>Cost optimization</strong>: Always consider Graviton (r6g/m6g/c6g) — same performance at 20-30% lower cost per hour. Verify your dependencies are ARM-compatible first.</li>
+          </ul>
+
+          <h2 id="spot-instances">Spot Instance Configuration</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Cluster Spot Configuration (JSON)</div>
+            <pre><code>{
+  "num_workers": 10,
+  "node_type_id": "i3.xlarge",
+  "driver_node_type_id": "i3.xlarge",
+  "aws_attributes": {
+    "first_on_demand": 1,
+    "availability": "SPOT_WITH_FALLBACK",
+    "zone_id": "auto",
+    "spot_bid_max_price": -1,
+    "ebs_volume_type": "GENERAL_PURPOSE_SSD",
+    "ebs_volume_count": 1,
+    "ebs_volume_size": 100
+  },
+  "spark_conf": {
+    "spark.speculation": "true",
+    "spark.speculation.multiplier": "2"
+  }
+}</code></pre>
+          </div>
+
+          <h3>Configuration Options</h3>
+          <ul>
+            <li><strong><code>first_on_demand: 1</code></strong>: The first node (driver) is always On-Demand — driver failure kills the cluster. Never use Spot for the driver.</li>
+            <li><strong><code>availability: SPOT_WITH_FALLBACK</code></strong>: Try Spot first; if unavailable after timeout, fall back to On-Demand. Best for production jobs that must complete.</li>
+            <li><strong><code>availability: SPOT</code></strong>: Spot only — cluster fails if no Spot capacity. Use only for non-critical/retry-tolerant workloads.</li>
+            <li><strong><code>spot_bid_max_price: -1</code></strong>: Bid up to On-Demand price (default, recommended). Maximizes availability without overpaying.</li>
+            <li><strong>Speculation</strong>: Enable <code>spark.speculation=true</code> — if a Spot node is evicted mid-task, speculation re-runs the task on another node immediately.</li>
+          </ul>
+
+          <h3>Spot Savings Estimate</h3>
+          <ul>
+            <li>Typical Spot discount: 60-80% off On-Demand pricing.</li>
+            <li>10-worker cluster at $0.312/hr (i3.xlarge On-Demand) = $3.12/hr. With Spot: ~$0.94/hr (70% savings).</li>
+            <li>Risk: 5-15% chance of interruption per hour (varies by instance type and AZ). Mitigate with <code>SPOT_WITH_FALLBACK</code> + speculation.</li>
+          </ul>
+
+          <h2 id="instance-pools">Instance Pools</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Instance Pool Configuration</div>
+            <pre><code>{
+  "instance_pool_name": "etl-workers-pool",
+  "node_type_id": "i3.xlarge",
+  "min_idle_instances": 2,
+  "max_capacity": 50,
+  "idle_instance_autotermination_minutes": 15,
+  "aws_attributes": {
+    "availability": "SPOT_WITH_FALLBACK",
+    "zone_id": "auto",
+    "spot_bid_max_price": -1
+  },
+  "preloaded_spark_versions": [
+    "14.3.x-scala2.12",
+    "14.3.x-photon-scala2.12"
+  ],
+  "custom_tags": {
+    "team": "data-engineering",
+    "env": "production"
+  }
+}</code></pre>
+          </div>
+
+          <h3>How Pools Work</h3>
+          <ul>
+            <li><strong>Pre-warmed</strong>: <code>min_idle_instances</code> instances are always running (or allocated from Spot). When a cluster starts, it grabs instances from the pool immediately.</li>
+            <li><strong>Startup time reduction</strong>: Normal cluster: 5-7 min (EC2 provision + boot + Spark install). Pool-backed: 30-90 sec (instances pre-provisioned, just need to start Spark).</li>
+            <li><strong>Sharing</strong>: Multiple clusters can use the same pool. First-come-first-served allocation. Pool refills after cluster terminates (instances return to idle state).</li>
+            <li><strong>Preloaded runtimes</strong>: Pre-install specific Databricks Runtime versions — further reduces startup (no runtime download).</li>
+            <li><strong>Cost control</strong>: <code>idle_instance_autotermination_minutes: 15</code> — idle pool instances terminate after 15 min to avoid waste. <code>max_capacity: 50</code> caps total pool size.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>When to use pools:</strong> (1) Multi-task jobs where each task uses a new job cluster — pool eliminates startup delay between tasks. (2) Interactive notebooks where developers start/stop clusters frequently. (3) Pipelines with many short-running jobs (startup time > processing time without a pool).
+          </div>
+
+          <h2 id="autoscaling">Autoscaling</h2>
+
+          <h3>Standard Autoscaling</h3>
+          <ul>
+            <li>Scales workers between <code>min_workers</code> and <code>max_workers</code> based on cluster load.</li>
+            <li><strong>Scale-up trigger</strong>: Pending tasks in Spark scheduler (tasks waiting for executors).</li>
+            <li><strong>Scale-down</strong>: Graceful decommission — waits for running tasks to finish before removing nodes. Default timeout: 50 seconds.</li>
+            <li><strong>Lag</strong>: Scale-up can take 3-7 minutes (EC2 provisioning). With pools: 30-90 seconds.</li>
+          </ul>
+
+          <h3>Optimized Autoscaling (Databricks Enhanced)</h3>
+          <ul>
+            <li>More aggressive scale-up: proactively adds nodes based on workload prediction (not just pending tasks).</li>
+            <li>Faster scale-down: detects idle nodes more quickly.</li>
+            <li>Shuffle-aware: delays node removal if the node holds shuffle data needed by active tasks.</li>
+            <li>Enabled by default on newer Databricks Runtimes.</li>
+          </ul>
+
+          <h3>Autoscaling for Streaming</h3>
+          <ul>
+            <li><strong>Recommendation</strong>: Keep autoscaling conservative for streaming (min ≈ max or narrow range).</li>
+            <li>Frequent scale up/down causes Spark executor churn → lost cached data, recomputation.</li>
+            <li>For steady-state streaming: set <code>min_workers = max_workers</code> (fixed size). Scale manually during known peak hours.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Autoscaling Configuration</div>
+            <pre><code>{
+  "autoscale": {
+    "min_workers": 2,
+    "max_workers": 20
+  },
+  "spark_conf": {
+    "spark.databricks.cluster.profile": "serverless",
+    "spark.databricks.delta.preview.enabled": "true"
+  }
+}
+
+# For streaming workloads (stable):
+{
+  "num_workers": 8,  # Fixed, no autoscaling
+  "spark_conf": {
+    "spark.streaming.backpressure.enabled": "true"
+  }
+}</code></pre>
+          </div>
+
+          <h2 id="cluster-policies">Cluster Policies</h2>
+
+          <p>Cluster policies restrict what cluster configurations users can create — enforce guardrails on cost, security, and compliance:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Cluster Policy — Production Example</div>
+            <pre><code>{
+  "node_type_id": {
+    "type": "allowlist",
+    "values": ["i3.xlarge", "i3.2xlarge", "r6g.xlarge", "r6g.2xlarge", "m6g.xlarge"],
+    "defaultValue": "i3.xlarge"
+  },
+  "driver_node_type_id": {
+    "type": "fixed",
+    "value": "i3.xlarge"
+  },
+  "autoscale.min_workers": {
+    "type": "range",
+    "minValue": 1,
+    "maxValue": 5,
+    "defaultValue": 2
+  },
+  "autoscale.max_workers": {
+    "type": "range",
+    "minValue": 2,
+    "maxValue": 30,
+    "defaultValue": 10
+  },
+  "autotermination_minutes": {
+    "type": "range",
+    "minValue": 10,
+    "maxValue": 120,
+    "defaultValue": 30
+  },
+  "aws_attributes.availability": {
+    "type": "fixed",
+    "value": "SPOT_WITH_FALLBACK"
+  },
+  "aws_attributes.first_on_demand": {
+    "type": "fixed",
+    "value": 1
+  },
+  "spark_version": {
+    "type": "regex",
+    "pattern": "14\\.[0-9]+\\.x-.*"
+  },
+  "custom_tags.team": {
+    "type": "fixed",
+    "value": "data-engineering"
+  },
+  "custom_tags.cost_center": {
+    "type": "required"
+  }
+}</code></pre>
+          </div>
+
+          <h3>Policy Types</h3>
+          <ul>
+            <li><strong>fixed</strong>: Value cannot be changed by users (enforced).</li>
+            <li><strong>allowlist</strong>: Users select from approved values only.</li>
+            <li><strong>range</strong>: Numeric value within min/max bounds.</li>
+            <li><strong>regex</strong>: Value must match pattern (e.g., specific runtime versions).</li>
+            <li><strong>required</strong>: User must provide a value (e.g., cost_center tag).</li>
+            <li><strong>forbidden</strong>: Attribute cannot be set (e.g., forbid custom Docker images).</li>
+          </ul>
+
+          <h2 id="auto-termination">Auto-Termination</h2>
+
+          <ul>
+            <li><strong>Default</strong>: 120 minutes of inactivity before auto-termination.</li>
+            <li><strong>Recommendation</strong>: Set to 15-30 minutes for dev clusters. 10 minutes for automated job clusters (they complete and terminate anyway).</li>
+            <li><strong>"Idle" definition</strong>: No active Spark jobs, no running commands, no attached notebooks with pending execution.</li>
+            <li><strong>Notebook keepalive</strong>: An open notebook with a connected cluster prevents auto-termination even if no code is running. Users leaving notebooks open = wasted compute.</li>
+            <li><strong>Mitigation</strong>: Enforce via cluster policy (<code>autotermination_minutes.maxValue: 60</code>) + educate users on detaching from clusters.</li>
+          </ul>
+
+          <h2 id="job-vs-interactive">Job Clusters vs Interactive Clusters</h2>
+
+          <table>
+            <thead>
+              <tr><th>Aspect</th><th>All-Purpose (Interactive)</th><th>Job Clusters (Automated)</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>DBU rate</td><td>2-3x base</td><td>1x base (cheapest)</td></tr>
+              <tr><td>Lifecycle</td><td>User starts/stops manually</td><td>Created per job run, auto-terminates</td></tr>
+              <tr><td>Collaboration</td><td>Multiple users share cluster</td><td>Single job per cluster</td></tr>
+              <tr><td>Idle cost risk</td><td>High (forgot to terminate)</td><td>Zero (terminates on job completion)</td></tr>
+              <tr><td>Startup time</td><td>Paid once, stays running</td><td>Paid each job run (mitigate with pools)</td></tr>
+              <tr><td>Best for</td><td>Development, exploration, shared notebooks</td><td>Production ETL, scheduled jobs</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Multi-Task Job Cluster Sharing</h3>
+          <ul>
+            <li>In a multi-task Databricks Job, tasks can share a job cluster or use separate clusters.</li>
+            <li><strong>Shared cluster</strong>: All tasks run on the same cluster sequentially. No startup cost between tasks. Use when tasks are sequential and require similar resources.</li>
+            <li><strong>Separate clusters</strong>: Each task gets its own cluster. Parallel tasks can run simultaneously. Use when tasks have different resource needs or run in parallel.</li>
+            <li><strong>Pool-backed job clusters</strong>: Job cluster uses an instance pool → 30-sec startup per task cluster → best of both worlds (isolation + fast startup).</li>
+          </ul>
+
+          <h2 id="serverless">Serverless Compute</h2>
+
+          <h3>SQL Warehouses (Serverless)</h3>
+          <ul>
+            <li><strong>Instant startup</strong>: Queries start executing in <2 seconds (no cluster provisioning).</li>
+            <li><strong>Auto-scaling</strong>: Scales to zero when idle (no charges). Scales up for concurrent queries.</li>
+            <li><strong>Managed by Databricks</strong>: No instance type selection, no cluster configuration. Databricks handles all infrastructure.</li>
+            <li><strong>Cost model</strong>: Pay per DBU consumed during query execution. Higher per-DBU rate but zero idle cost.</li>
+            <li><strong>Best for</strong>: BI dashboards, ad-hoc SQL, low-frequency queries where idle cluster cost outweighs the premium DBU rate.</li>
+          </ul>
+
+          <h3>Serverless for Notebooks/Jobs (Preview)</h3>
+          <ul>
+            <li>Run notebooks and jobs without configuring clusters.</li>
+            <li>Databricks selects optimal resources based on workload characteristics.</li>
+            <li>Eliminates cluster management entirely — focus on code, not infrastructure.</li>
+            <li>Currently in preview — availability varies by region.</li>
+          </ul>
+
+          <h2 id="dbu-optimization">DBU Optimization</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">DBU Consumption Analysis</div>
+            <pre><code>-- Query billing usage (system tables)
+SELECT
+  workspace_id,
+  sku_name,
+  usage_date,
+  SUM(usage_quantity) AS total_dbus,
+  SUM(usage_quantity * list_price) AS estimated_cost
+FROM system.billing.usage
+WHERE usage_date >= current_date() - INTERVAL 30 DAYS
+GROUP BY workspace_id, sku_name, usage_date
+ORDER BY estimated_cost DESC;
+
+-- Identify top-consuming clusters
+SELECT
+  cluster_id,
+  custom_tags:team AS team,
+  SUM(usage_quantity) AS total_dbus,
+  SUM(usage_quantity * list_price) AS cost
+FROM system.billing.usage
+WHERE usage_date >= current_date() - INTERVAL 7 DAYS
+  AND sku_name LIKE '%ALL_PURPOSE%'
+GROUP BY cluster_id, custom_tags:team
+ORDER BY cost DESC
+LIMIT 20;
+
+-- Identify expensive jobs
+SELECT
+  usage_metadata.job_id,
+  usage_metadata.job_name,
+  SUM(usage_quantity) AS total_dbus,
+  COUNT(DISTINCT usage_date) AS days_active
+FROM system.billing.usage
+WHERE sku_name LIKE '%JOBS%'
+  AND usage_date >= current_date() - INTERVAL 30 DAYS
+GROUP BY usage_metadata.job_id, usage_metadata.job_name
+ORDER BY total_dbus DESC
+LIMIT 20;</code></pre>
+          </div>
+
+          <h3>Optimization Strategies</h3>
+          <ul>
+            <li><strong>Move to Jobs compute</strong>: Convert interactive development to scheduled jobs → 2-3x DBU savings.</li>
+            <li><strong>Right-size clusters</strong>: Check Spark UI — if executor utilization <50%, reduce worker count. If GC time >10%, increase memory or add workers.</li>
+            <li><strong>Enable Spot</strong>: 60-80% savings on EC2, no DBU rate change. Always use for workers.</li>
+            <li><strong>Auto-terminate aggressive</strong>: Set 15-min timeout for interactive, 5-min for job clusters.</li>
+            <li><strong>Photon selectively</strong>: Only enable for SQL-heavy workloads where speedup >2x. Disable for UDF/ML workloads.</li>
+            <li><strong>Instance pools</strong>: Reduce startup waste (paying for cluster boot time = wasted DBUs).</li>
+          </ul>
+
+          <h2 id="cost-allocation">Cost Allocation & Chargeback</h2>
+
+          <h3>Custom Tags for Chargeback</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Tag-Based Cost Allocation</div>
+            <pre><code># Enforce tags via cluster policy
+# Then query billing by tag:
+
+SELECT
+  custom_tags:team AS team,
+  custom_tags:cost_center AS cost_center,
+  custom_tags:project AS project,
+  sku_name,
+  SUM(usage_quantity) AS total_dbus,
+  SUM(usage_quantity * list_price) AS total_cost
+FROM system.billing.usage
+WHERE usage_date >= date_trunc('month', current_date())
+GROUP BY 
+  custom_tags:team,
+  custom_tags:cost_center,
+  custom_tags:project,
+  sku_name
+ORDER BY total_cost DESC;
+
+-- Monthly chargeback report per team
+SELECT
+  custom_tags:team AS team,
+  date_trunc('month', usage_date) AS month,
+  SUM(CASE WHEN sku_name LIKE '%JOBS%' THEN usage_quantity * list_price ELSE 0 END) AS jobs_cost,
+  SUM(CASE WHEN sku_name LIKE '%ALL_PURPOSE%' THEN usage_quantity * list_price ELSE 0 END) AS interactive_cost,
+  SUM(CASE WHEN sku_name LIKE '%SQL%' THEN usage_quantity * list_price ELSE 0 END) AS sql_cost,
+  SUM(usage_quantity * list_price) AS total_cost
+FROM system.billing.usage
+WHERE usage_date >= '2024-01-01'
+GROUP BY custom_tags:team, date_trunc('month', usage_date)
+ORDER BY month, total_cost DESC;</code></pre>
+          </div>
+
+          <h3>Budget Alerts</h3>
+          <ul>
+            <li>Set workspace-level budget alerts in Databricks account console.</li>
+            <li>Configure alerts at 50%, 75%, 90%, 100% of monthly budget.</li>
+            <li>Combine with cluster policies to hard-cap per-team resource usage.</li>
+            <li>Use <code>max_dbu_per_hour</code> in cluster policies to prevent runaway costs from over-provisioned clusters.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Your company's Databricks bill went from $50K/month to $120K/month in 3 months. How do you diagnose and reduce costs?</div>
+            <div class="qa-answer">
+              <p><strong>Diagnosis (prioritized):</strong></p>
+              <p>(1) <strong>Query system.billing.usage:</strong> Break down by SKU (All-Purpose vs Jobs vs SQL), by cluster_id, by team tag, by job_name. Identify the top 10 cost drivers.</p>
+              <p>(2) <strong>Common culprits:</strong> (a) Developers running production-scale data on interactive clusters (2-3x premium). (b) Clusters left running 24/7 with 120-min auto-termination (paying for idle time). (c) New jobs added without cost review — especially if using large clusters with Photon. (d) Streaming jobs scaled up but never scaled back.</p>
+              <p><strong>Reduction actions (ordered by impact):</strong></p>
+              <p>(1) <strong>Interactive → Jobs migration:</strong> Any notebook running on schedule should use a Jobs cluster. Savings: 50-66% on those workloads.</p>
+              <p>(2) <strong>Auto-termination enforcement:</strong> Policy: max 30 min for interactive. This alone can save 20-40% if users leave clusters idle.</p>
+              <p>(3) <strong>Spot instances:</strong> If not already using Spot, enable SPOT_WITH_FALLBACK for all workers. Savings: 60-80% on EC2 compute.</p>
+              <p>(4) <strong>Right-sizing:</strong> Check top 10 most expensive clusters — are they over-provisioned? Spark UI shows executor utilization. If <50% utilized, cut workers by half.</p>
+              <p>(5) <strong>Photon audit:</strong> Identify jobs with Photon enabled that aren't achieving 2x speedup. Disable Photon for those — instant 50% savings per job.</p>
+              <p>(6) <strong>Consolidation:</strong> If 10 developers each run their own 8-worker cluster for a few hours daily, consider a shared cluster with proper isolation or a serverless approach.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a cluster policy for a team of 15 data engineers that balances autonomy with cost control.</div>
+            <div class="qa-answer">
+              <p><strong>Policy design principles:</strong> Allow enough flexibility for legitimate use (different job types need different resources) while preventing accidental waste.</p>
+              <p><strong>Policy:</strong></p>
+              <p>(1) <strong>Instance types (allowlist):</strong> Allow i3.xlarge, i3.2xlarge, r6g.xlarge, r6g.2xlarge, m6g.xlarge, m6g.2xlarge. Block expensive instances (p3, x1, metal). Default: i3.xlarge.</p>
+              <p>(2) <strong>Autoscale bounds:</strong> min_workers: 1-4 (range). max_workers: 2-20 (range). Default: 2-8. Prevents accidental 100-node clusters.</p>
+              <p>(3) <strong>Auto-termination:</strong> min: 10 min, max: 60 min, default: 20 min. Cannot disable auto-termination.</p>
+              <p>(4) <strong>Spot:</strong> Fixed at SPOT_WITH_FALLBACK, first_on_demand=1. No option for full On-Demand (except driver).</p>
+              <p>(5) <strong>Tags (required):</strong> cost_center, project. Fixed: team=data-engineering. Enables billing attribution.</p>
+              <p>(6) <strong>Runtime (regex):</strong> Only allow LTS versions (14.x or 15.x). Prevent outdated runtimes with security vulnerabilities.</p>
+              <p>(7) <strong>Instance pools:</strong> Encourage pool usage by setting pool_id as default. Reduces startup time and Spot availability issues.</p>
+              <p><strong>Escape hatch:</strong> Create a separate "large-cluster" policy requiring manager approval for max_workers > 20. This handles legitimate large-scale jobs without blocking them entirely.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When should you choose Serverless SQL Warehouses over Classic SQL Warehouses?</div>
+            <div class="qa-answer">
+              <p><strong>Choose Serverless when:</strong></p>
+              <p>(1) <strong>Bursty query patterns:</strong> BI dashboards with peak hours (9am-5pm) and zero activity at night. Serverless scales to zero — no idle cost. Classic warehouse at minimum 1 cluster running 24/7 = wasted spend at night.</p>
+              <p>(2) <strong>Low total query volume:</strong> <100 queries/day. The higher per-DBU rate is offset by zero idle cost. Break-even: if your Classic warehouse runs <4 hours/day of actual query time, Serverless is cheaper.</p>
+              <p>(3) <strong>Instant startup needed:</strong> Serverless starts in <2 seconds. Classic cold-starts in 2-5 minutes. If users can't tolerate cold-start latency, Serverless is the only option.</p>
+              <p>(4) <strong>No infrastructure management:</strong> Team doesn't want to manage warehouse sizing, scaling policies, or startup/shutdown schedules.</p>
+              <p><strong>Choose Classic when:</strong></p>
+              <p>(1) <strong>Sustained high load:</strong> Hundreds of concurrent queries for hours — Classic at lower DBU rate is cheaper when the warehouse is consistently utilized >60% of the time.</p>
+              <p>(2) <strong>Predictable workload:</strong> You know exact peak times and can schedule startup/shutdown — no idle waste.</p>
+              <p>(3) <strong>Network isolation:</strong> Classic runs in your VPC. Serverless runs in Databricks' infrastructure — may not meet strict security/compliance requirements (data residency, PrivateLink).</p>
+              <p>(4) <strong>Custom configuration:</strong> Need specific Spark settings, custom libraries, or specialized instance types not available in Serverless.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">A multi-task job with 8 sequential tasks takes 45 minutes, but 35 minutes is cluster startup (5 min × 7 new clusters). How do you fix this?</div>
+            <div class="qa-answer">
+              <p><strong>Problem:</strong> Each task creates a new job cluster, incurring 5-min startup penalty. Total processing time is only 10 minutes but total wall-clock is 45 minutes.</p>
+              <p><strong>Solutions (from most to least impactful):</strong></p>
+              <p>(1) <strong>Shared job cluster:</strong> Configure all 8 tasks to use the same job cluster. One startup (5 min) + sequential tasks (10 min) = 15 min total. Limitation: all tasks must have compatible resource needs and can't run in parallel.</p>
+              <p>(2) <strong>Instance pool:</strong> Each task still gets its own cluster, but backed by a pool. Startup drops from 5 min to 30-60 sec per task. Total: 10 min processing + 4 min startup = 14 min. Advantage over shared: tasks can run in parallel if DAG allows, and each can be right-sized independently.</p>
+              <p>(3) <strong>Reduce task granularity:</strong> Combine the 8 tasks into 2-3 larger tasks that each do more work. Fewer cluster startups. Tradeoff: less granular retries (if task 3 fails, you re-run a bigger unit of work).</p>
+              <p>(4) <strong>Reuse cluster for sequential tasks:</strong> In the multi-task job configuration, group sequential tasks onto the same cluster, but give parallel branches their own clusters. Hybrid approach.</p>
+              <p><strong>Best practice:</strong> Use instance pools (option 2) — it preserves task isolation and retry granularity while eliminating 90% of startup overhead.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you implement cost allocation (chargeback) across 5 teams sharing a Databricks workspace?</div>
+            <div class="qa-answer">
+              <p><strong>Implementation:</strong></p>
+              <p>(1) <strong>Enforce tags via cluster policies:</strong> Each team gets a cluster policy with <code>"custom_tags.team": {"type": "fixed", "value": "team-name"}</code> and <code>"custom_tags.cost_center": {"type": "required"}</code>. No cluster can start without team identification.</p>
+              <p>(2) <strong>Query system.billing.usage:</strong> Billing data includes custom_tags. Build a monthly report: GROUP BY team tag, aggregate DBU cost. Break down by compute type (Interactive, Jobs, SQL, DLT).</p>
+              <p>(3) <strong>Automated reporting:</strong> Schedule a Databricks job that generates cost reports, writes to a Gold table, and sends email/Slack summaries per team monthly.</p>
+              <p>(4) <strong>Budget alerts:</strong> Set per-team budget alerts at the account level. When team X exceeds 80% of monthly allocation, alert the team lead.</p>
+              <p>(5) <strong>Visibility:</strong> Create a shared dashboard showing real-time cost per team, trend vs budget, top-cost clusters/jobs. Transparency drives self-regulation.</p>
+              <p><strong>For job-level attribution:</strong> Add job_name and cluster_id to billing queries. Tag jobs with team + project identifiers. This enables per-project chargeback (more granular than per-team).</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Databricks</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

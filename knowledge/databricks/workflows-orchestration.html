@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Databricks Workflows & Job Orchestration — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Databricks</a>
+        <span>→</span>
+        <span>Workflows & Orchestration</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">10 min read</span>
+          </div>
+          <h1>Databricks Workflows & Job Orchestration</h1>
+          <p class="article-desc">Complete guide to Databricks Workflows — multi-task jobs, DAG dependencies, task types, job clusters, scheduling, parameters, Databricks Asset Bundles (DABs), orchestration patterns, error handling, and comparison with Airflow.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#workflows-architecture">Workflows Architecture</a></li>
+            <li><a href="#task-types">Task Types</a></li>
+            <li><a href="#job-clusters">Job Clusters</a></li>
+            <li><a href="#multi-task">Multi-Task Job Configuration</a></li>
+            <li><a href="#scheduling">Scheduling & Triggers</a></li>
+            <li><a href="#parameters">Parameters & Dynamic References</a></li>
+            <li><a href="#dabs">Databricks Asset Bundles (DABs)</a></li>
+            <li><a href="#orchestration-patterns">Orchestration Patterns</a></li>
+            <li><a href="#error-handling">Error Handling</a></li>
+            <li><a href="#comparison-airflow">Comparison with Airflow</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="workflows-architecture">Workflows Architecture</h2>
+
+          <ul>
+            <li><strong>Multi-task jobs</strong>: A job consists of one or more tasks arranged in a DAG (Directed Acyclic Graph). Tasks execute in dependency order — parallel where possible, sequential where dependencies exist.</li>
+            <li><strong>Managed execution</strong>: Databricks handles cluster provisioning, task scheduling, retry logic, and cleanup.</li>
+            <li><strong>Job runs</strong>: Each execution of a job is a "run" with a unique run_id. Runs are tracked, logged, and queryable via API.</li>
+            <li><strong>Idempotent design</strong>: Jobs should be designed for safe re-execution (retries, manual reruns). Use MERGE/upsert patterns, not raw INSERT.</li>
+          </ul>
+
+          <h2 id="task-types">Task Types</h2>
+
+          <table>
+            <thead>
+              <tr><th>Task Type</th><th>Description</th><th>Use Case</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Notebook</td><td>Runs a Databricks notebook</td><td>ETL transformations, SQL, Python/Scala code</td></tr>
+              <tr><td>Python script</td><td>Runs a .py file from workspace/repos</td><td>Standalone Python scripts without notebook overhead</td></tr>
+              <tr><td>Python wheel</td><td>Installs and runs a Python package</td><td>Production-packaged Python applications</td></tr>
+              <tr><td>JAR</td><td>Runs a Java/Scala JAR (main class)</td><td>Spark applications compiled as JARs</td></tr>
+              <tr><td>SQL</td><td>Runs a SQL query or dashboard</td><td>Data quality checks, simple transformations</td></tr>
+              <tr><td>DLT pipeline</td><td>Triggers a Delta Live Tables pipeline</td><td>Managed streaming/batch ETL</td></tr>
+              <tr><td>dbt</td><td>Runs dbt models</td><td>dbt-based transformations</td></tr>
+              <tr><td>Spark submit</td><td>Submits a Spark application (spark-submit)</td><td>Legacy Spark apps, custom deployments</td></tr>
+              <tr><td>run_job</td><td>Triggers another Databricks job</td><td>Nested workflows, cross-job dependencies</td></tr>
+              <tr><td>if/else</td><td>Conditional branching based on task values</td><td>Dynamic pipeline logic</td></tr>
+              <tr><td>for_each</td><td>Iterates over a list, running a task per item</td><td>Dynamic fan-out (process each partition, each tenant)</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="job-clusters">Job Clusters</h2>
+
+          <h3>Cluster Configuration Options</h3>
+          <ul>
+            <li><strong>Dedicated job cluster per task</strong>: Each task gets a fresh cluster. Maximum isolation, but startup overhead per task.</li>
+            <li><strong>Shared job cluster</strong>: Multiple tasks share one cluster. Define a named cluster in job config, reference it from tasks. No startup between tasks (sequential only).</li>
+            <li><strong>Existing cluster</strong>: Run on an already-running interactive cluster. Not recommended for production (no isolation, higher DBU rate).</li>
+            <li><strong>Pool-backed</strong>: Job cluster backed by an instance pool. Fast startup (30-60 sec) with full isolation.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Job Configuration with Shared Cluster</div>
+            <pre><code>{
+  "name": "daily-etl-pipeline",
+  "job_clusters": [
+    {
+      "job_cluster_key": "etl-cluster",
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "num_workers": 8,
+        "aws_attributes": {
+          "availability": "SPOT_WITH_FALLBACK",
+          "first_on_demand": 1,
+          "spot_bid_max_price": -1
+        },
+        "spark_conf": {
+          "spark.sql.adaptive.enabled": "true",
+          "spark.databricks.delta.optimizeWrite.enabled": "true"
+        },
+        "custom_tags": {
+          "team": "data-engineering",
+          "pipeline": "daily-etl"
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "ingest_orders",
+      "notebook_task": {"notebook_path": "/pipelines/ingest_orders"},
+      "job_cluster_key": "etl-cluster"
+    },
+    {
+      "task_key": "transform_orders",
+      "notebook_task": {"notebook_path": "/pipelines/transform_orders"},
+      "job_cluster_key": "etl-cluster",
+      "depends_on": [{"task_key": "ingest_orders"}]
+    },
+    {
+      "task_key": "quality_check",
+      "sql_task": {
+        "query": {"query_id": "abc123"},
+        "warehouse_id": "warehouse-xyz"
+      },
+      "depends_on": [{"task_key": "transform_orders"}]
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <h2 id="multi-task">Multi-Task Job Configuration</h2>
+
+          <h3>Task Dependencies</h3>
+          <ul>
+            <li><code>depends_on</code>: Array of upstream task keys. Task runs only after ALL dependencies succeed.</li>
+            <li>Parallel execution: tasks with no dependencies (or satisfied dependencies) run simultaneously.</li>
+            <li>DAG visualization: Databricks UI shows the job as a visual graph with status per task.</li>
+          </ul>
+
+          <h3>Conditional Tasks (if/else)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Conditional and ForEach Tasks</div>
+            <pre><code>{
+  "tasks": [
+    {
+      "task_key": "check_data_volume",
+      "notebook_task": {"notebook_path": "/utils/check_volume"},
+      "job_cluster_key": "etl-cluster"
+    },
+    {
+      "task_key": "route_decision",
+      "condition_task": {
+        "op": "GREATER_THAN",
+        "left": "{{tasks.check_data_volume.values.row_count}}",
+        "right": "1000000"
+      },
+      "depends_on": [{"task_key": "check_data_volume"}]
+    },
+    {
+      "task_key": "large_batch_processing",
+      "notebook_task": {"notebook_path": "/pipelines/large_batch"},
+      "depends_on": [{"task_key": "route_decision", "outcome": "true"}]
+    },
+    {
+      "task_key": "small_batch_processing",
+      "notebook_task": {"notebook_path": "/pipelines/small_batch"},
+      "depends_on": [{"task_key": "route_decision", "outcome": "false"}]
+    },
+    {
+      "task_key": "process_partitions",
+      "for_each_task": {
+        "inputs": "{{tasks.check_data_volume.values.partitions}}",
+        "task": {
+          "task_key": "process_single_partition",
+          "notebook_task": {
+            "notebook_path": "/pipelines/process_partition",
+            "base_parameters": {"partition": "{{input}}"}
+          }
+        }
+      },
+      "depends_on": [{"task_key": "large_batch_processing"}]
+    }
+  ]
+}</code></pre>
+          </div>
+
+          <h3>Task Values (Cross-Task Communication)</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Task Values — Passing Data Between Tasks</div>
+            <pre><code># In upstream task notebook (check_data_volume):
+row_count = spark.table("prod.bronze.orders").count()
+partitions = ["2024-01-01", "2024-01-02", "2024-01-03"]
+
+# Set task values (accessible by downstream tasks)
+dbutils.jobs.taskValues.set(key="row_count", value=row_count)
+dbutils.jobs.taskValues.set(key="partitions", value=partitions)
+dbutils.jobs.taskValues.set(key="status", value="success")
+
+# In downstream task notebook (transform_orders):
+# Retrieve values from upstream task
+row_count = dbutils.jobs.taskValues.get(
+    taskKey="check_data_volume", 
+    key="row_count", 
+    default=0
+)
+print(f"Processing {row_count} rows from upstream")</code></pre>
+          </div>
+
+          <h2 id="scheduling">Scheduling & Triggers</h2>
+
+          <h3>Cron-Based Scheduling</h3>
+
+          <div class="code-block">
+            <div class="code-block-header">Schedule Configuration</div>
+            <pre><code>{
+  "schedule": {
+    "quartz_cron_expression": "0 0 6 * * ?",
+    "timezone_id": "America/New_York",
+    "pause_status": "UNPAUSED"
+  }
+}
+
+# Common cron patterns:
+# Every day at 6 AM ET:       "0 0 6 * * ?"
+# Every hour:                  "0 0 * * * ?"
+# Every 15 minutes:            "0 0/15 * * * ?"
+# Monday-Friday at 8 AM:       "0 0 8 ? * MON-FRI"
+# First day of month at 1 AM:  "0 0 1 1 * ?"</code></pre>
+          </div>
+
+          <h3>File Arrival Triggers</h3>
+          <ul>
+            <li>Trigger a job when new files arrive in an S3 location.</li>
+            <li>Uses S3 event notifications (SNS/SQS) internally.</li>
+            <li>Configurable: minimum file count, minimum time between triggers, file path patterns.</li>
+          </ul>
+
+          <h3>Continuous Scheduling</h3>
+          <ul>
+            <li>For always-on streaming jobs: <code>"continuous": {"pause_status": "UNPAUSED"}</code></li>
+            <li>When the job run completes (or fails), a new run starts automatically.</li>
+            <li>Combined with retry: failed run retries, then a new run starts.</li>
+          </ul>
+
+          <h2 id="parameters">Parameters & Dynamic References</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Job and Task Parameters</div>
+            <pre><code># Job-level parameters (set at job definition, override at run time)
+{
+  "parameters": [
+    {"name": "env", "default": "prod"},
+    {"name": "date", "default": "{{job.start_time.iso_date}}"},
+    {"name": "batch_size", "default": "10000"}
+  ]
+}
+
+# Dynamic references available in parameters:
+# {{job.run_id}}              — unique run identifier
+# {{job.start_time.iso_date}} — run start date (YYYY-MM-DD)
+# {{job.start_time.epoch_ms}} — run start time in epoch ms
+# {{task.task_key}}            — current task name
+# {{tasks.upstream_task.values.key}} — task value from upstream
+
+# In notebook, access parameters via widgets:
+env = dbutils.widgets.get("env")
+date = dbutils.widgets.get("date")
+
+# Or via job context:
+context = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+run_id = context.currentRunId().get()</code></pre>
+          </div>
+
+          <h2 id="dabs">Databricks Asset Bundles (DABs)</h2>
+
+          <p>DABs provide Infrastructure-as-Code for Databricks resources — declarative YAML definitions for jobs, pipelines, clusters, and more:</p>
+
+          <div class="code-block">
+            <div class="code-block-header">databricks.yml — Full DABs Example</div>
+            <pre><code>bundle:
+  name: data-engineering-pipeline
+
+variables:
+  catalog:
+    description: Target Unity Catalog
+    default: dev_catalog
+  warehouse_id:
+    description: SQL Warehouse for quality checks
+  notification_email:
+    default: data-eng@company.com
+
+workspace:
+  root_path: /Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.environment}
+
+resources:
+  jobs:
+    daily_etl:
+      name: "[${bundle.environment}] Daily ETL Pipeline"
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"
+        timezone_id: America/New_York
+      
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: run_date
+          default: "{{job.start_time.iso_date}}"
+      
+      job_clusters:
+        - job_cluster_key: etl-cluster
+          new_cluster:
+            spark_version: 14.3.x-photon-scala2.12
+            node_type_id: i3.xlarge
+            num_workers: 8
+            aws_attributes:
+              availability: SPOT_WITH_FALLBACK
+              first_on_demand: 1
+            instance_pool_id: ${var.pool_id}
+      
+      tasks:
+        - task_key: ingest
+          notebook_task:
+            notebook_path: ./src/notebooks/ingest.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+          job_cluster_key: etl-cluster
+
+        - task_key: transform
+          notebook_task:
+            notebook_path: ./src/notebooks/transform.py
+          job_cluster_key: etl-cluster
+          depends_on:
+            - task_key: ingest
+
+        - task_key: quality_gate
+          sql_task:
+            file:
+              path: ./src/sql/quality_checks.sql
+            warehouse_id: ${var.warehouse_id}
+          depends_on:
+            - task_key: transform
+
+        - task_key: notify_failure
+          notebook_task:
+            notebook_path: ./src/notebooks/notify.py
+            base_parameters:
+              status: "FAILED"
+          depends_on:
+            - task_key: quality_gate
+              outcome: failed
+      
+      email_notifications:
+        on_failure:
+          - ${var.notification_email}
+      
+      max_concurrent_runs: 1
+
+environments:
+  dev:
+    default: true
+    variables:
+      catalog: dev_catalog
+      warehouse_id: abc123
+    workspace:
+      host: https://dev.cloud.databricks.com
+
+  prod:
+    variables:
+      catalog: prod_catalog
+      warehouse_id: xyz789
+      notification_email: data-eng-oncall@company.com
+    workspace:
+      host: https://prod.cloud.databricks.com
+    permissions:
+      - level: CAN_MANAGE
+        group_name: data-engineering</code></pre>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">DABs CLI Commands</div>
+            <pre><code># Validate bundle configuration
+databricks bundle validate -e prod
+
+# Deploy to target environment
+databricks bundle deploy -e prod
+
+# Run a specific job
+databricks bundle run daily_etl -e prod
+
+# Run with parameter override
+databricks bundle run daily_etl -e prod --params run_date=2024-01-15
+
+# Destroy resources (tear down)
+databricks bundle destroy -e dev
+
+# Summary of what will be deployed
+databricks bundle summary -e prod</code></pre>
+          </div>
+
+          <h2 id="orchestration-patterns">Orchestration Patterns</h2>
+
+          <h3>ETL Pipeline Pattern</h3>
+          <ul>
+            <li><strong>Ingest</strong> → <strong>Transform</strong> → <strong>Quality Gate</strong> → <strong>Publish</strong> → <strong>Notify</strong></li>
+            <li>Quality gate uses a SQL task that queries data quality metrics. If quality check returns failures, downstream tasks are skipped, and notification task triggers.</li>
+          </ul>
+
+          <h3>ML Pipeline Pattern</h3>
+          <ul>
+            <li><strong>Feature Engineering</strong> → <strong>Training</strong> → <strong>Validation</strong> → <strong>Model Registry</strong> → <strong>Deployment</strong></li>
+            <li>Conditional task: if validation accuracy > threshold → deploy. Otherwise → alert and stop.</li>
+          </ul>
+
+          <h3>Fan-Out Pattern (for_each)</h3>
+          <ul>
+            <li>Process each tenant/partition/date independently in parallel.</li>
+            <li>Upstream task produces a list of items (e.g., list of tenant IDs).</li>
+            <li><code>for_each_task</code> iterates over the list, creating a task instance per item.</li>
+            <li>All instances run in parallel (subject to cluster resources).</li>
+          </ul>
+
+          <h3>Cross-Job Dependencies (run_job task)</h3>
+          <ul>
+            <li>A task in Job A triggers Job B as a nested run.</li>
+            <li>Use case: shared utility jobs (e.g., "refresh-materialized-views" job called by multiple pipelines).</li>
+            <li>The parent job waits for the child job to complete before continuing.</li>
+          </ul>
+
+          <h2 id="error-handling">Error Handling</h2>
+
+          <div class="code-block">
+            <div class="code-block-header">Error Handling Configuration</div>
+            <pre><code>{
+  "tasks": [
+    {
+      "task_key": "risky_transform",
+      "notebook_task": {"notebook_path": "/transforms/heavy_join"},
+      "max_retries": 3,
+      "min_retry_interval_millis": 60000,
+      "retry_on_timeout": true,
+      "timeout_seconds": 3600
+    }
+  ],
+  "email_notifications": {
+    "on_failure": ["oncall@company.com"],
+    "on_start": [],
+    "on_success": []
+  },
+  "webhook_notifications": {
+    "on_failure": [{"id": "slack-webhook-id"}]
+  },
+  "max_concurrent_runs": 1,
+  "run_as": {
+    "service_principal_name": "etl-pipeline-sp"
+  }
+}</code></pre>
+          </div>
+
+          <h3>Error Handling Features</h3>
+          <ul>
+            <li><strong>max_retries</strong>: Number of retry attempts for a failed task (default: 0). Retries use the same cluster (if still running) or a new one.</li>
+            <li><strong>timeout_seconds</strong>: Kill task if it exceeds this duration. Prevents runaway jobs from consuming resources indefinitely.</li>
+            <li><strong>retry_on_timeout</strong>: Whether timeout counts as a retriable failure (true) or permanent failure (false).</li>
+            <li><strong>on_failure callback</strong>: Downstream task that runs only when upstream FAILS — use for alerting, cleanup, or rollback.</li>
+            <li><strong>Conditional tasks</strong>: <code>depends_on.outcome = "failed"</code> — run a task only if the upstream task failed.</li>
+            <li><strong>max_concurrent_runs: 1</strong>: Prevent overlapping runs (critical for non-idempotent jobs). New trigger while previous is running → queued or skipped.</li>
+          </ul>
+
+          <h2 id="comparison-airflow">Comparison with Airflow</h2>
+
+          <table>
+            <thead>
+              <tr><th>Feature</th><th>Databricks Workflows</th><th>Apache Airflow</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Compute management</td><td>Built-in (job clusters, pools)</td><td>External (triggers Databricks via operator)</td></tr>
+              <tr><td>DAG definition</td><td>JSON/YAML (DABs) or UI</td><td>Python code (DAG files)</td></tr>
+              <tr><td>Cross-platform</td><td>Databricks only</td><td>Any system (K8s, AWS, GCP, Databricks)</td></tr>
+              <tr><td>Dynamic tasks</td><td>for_each, if/else</td><td>Dynamic task mapping, branching</td></tr>
+              <tr><td>Monitoring</td><td>Built-in UI, system tables</td><td>Airflow UI, plugins</td></tr>
+              <tr><td>Infrastructure</td><td>Fully managed (no Airflow infra to maintain)</td><td>Must manage Airflow cluster/MWAA</td></tr>
+              <tr><td>Complexity</td><td>Simpler (Databricks-native)</td><td>More powerful (arbitrary Python, sensors, hooks)</td></tr>
+              <tr><td>External dependencies</td><td>Limited (run_job, webhooks)</td><td>Rich (S3 sensors, API hooks, cross-DAG)</td></tr>
+              <tr><td>Cost</td><td>No extra cost (included in DBU)</td><td>MWAA: $0.49/hr + worker costs</td></tr>
+            </tbody>
+          </table>
+
+          <h3>When Workflows Suffice</h3>
+          <ul>
+            <li>All orchestrated tasks run within Databricks (notebooks, DLT, SQL).</li>
+            <li>Dependencies are simple (linear or DAG within one job).</li>
+            <li>No need to coordinate with external systems (APIs, non-Databricks databases, file watchers).</li>
+            <li>Team wants simplicity — no separate orchestration infrastructure to manage.</li>
+          </ul>
+
+          <h3>When You Need External Orchestration (Airflow)</h3>
+          <ul>
+            <li>Multi-system pipelines: S3 file sensor → trigger Databricks job → call external API → update RDS → send notification.</li>
+            <li>Complex scheduling: data-aware scheduling, pools of connections, SLA monitoring.</li>
+            <li>Cross-platform: orchestrate Databricks + Snowflake + dbt + custom services in one DAG.</li>
+            <li>Organization already has Airflow expertise and infrastructure.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>Recommendation:</strong> Start with Databricks Workflows for Databricks-native pipelines (simplest, no extra cost, tightest integration). Introduce Airflow only when you need cross-system orchestration or advanced scheduling features. Many organizations run both: Airflow as the top-level orchestrator that triggers Databricks Workflows for the heavy compute.
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Design a multi-task job for a daily ETL pipeline that ingests from 3 sources, transforms data, runs quality checks, and handles failures gracefully.</div>
+            <div class="qa-answer">
+              <p><strong>Job structure (7 tasks, 3 parallel branches):</strong></p>
+              <p><strong>Parallel ingestion (3 tasks):</strong> <code>ingest_orders</code>, <code>ingest_customers</code>, <code>ingest_products</code> — run in parallel (no dependencies between them). Each uses Auto Loader → Bronze Delta table. Shared job cluster for all three (saves startup time).</p>
+              <p><strong>Transform (1 task):</strong> <code>transform_silver</code> — depends on ALL three ingestion tasks. Joins orders with customers and products, deduplicates, applies business logic. Writes to Silver Delta tables using MERGE (idempotent).</p>
+              <p><strong>Quality gate (1 task):</strong> <code>quality_check</code> — SQL task running against a SQL Warehouse. Checks: row count within expected range, null rate below threshold, referential integrity between tables. Uses task values to report pass/fail.</p>
+              <p><strong>Conditional publish (1 task):</strong> <code>publish_gold</code> — depends on <code>quality_check</code> with <code>outcome: true</code>. Only runs if quality passes. Aggregates Silver → Gold tables.</p>
+              <p><strong>Failure notification (1 task):</strong> <code>notify_failure</code> — depends on <code>quality_check</code> with <code>outcome: false</code>. Sends Slack/email alert with failure details. Optionally rolls back partial writes.</p>
+              <p><strong>Error handling:</strong> Each ingestion task has <code>max_retries: 2</code> (transient S3 errors). Transform has <code>timeout_seconds: 3600</code>. Job-level <code>max_concurrent_runs: 1</code> prevents overlapping daily runs.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do Databricks Asset Bundles (DABs) enable CI/CD for Databricks jobs? Walk through the dev-to-prod promotion flow.</div>
+            <div class="qa-answer">
+              <p><strong>DABs CI/CD flow:</strong></p>
+              <p><strong>1. Development:</strong> Engineer works in a feature branch. <code>databricks.yml</code> defines the job with environment-specific variables. They run <code>databricks bundle deploy -e dev</code> to deploy to dev workspace. Test with <code>databricks bundle run -e dev</code>.</p>
+              <p><strong>2. Pull Request:</strong> PR triggers CI pipeline (GitHub Actions/Azure DevOps). CI runs: (a) <code>databricks bundle validate -e staging</code> — catches config errors. (b) Linting (ruff/black for Python). (c) Unit tests (pytest on transformation functions). (d) Optional: deploy to staging and run integration test.</p>
+              <p><strong>3. Merge to main:</strong> Auto-deploys to staging: <code>databricks bundle deploy -e staging</code>. Runs a full pipeline execution in staging with sample data. Validates output (row counts, schema, quality metrics).</p>
+              <p><strong>4. Production promotion:</strong> Manual approval gate (GitHub environment protection rule). On approval: <code>databricks bundle deploy -e prod</code>. DABs handles: different catalog (prod vs dev), different cluster sizes (larger in prod), different schedules (enabled in prod, disabled in dev), different notification recipients.</p>
+              <p><strong>5. Rollback:</strong> Revert Git commit → re-run deploy → previous job definition is restored. Or: <code>databricks bundle destroy -e prod</code> to remove entirely.</p>
+              <p><strong>Key benefit:</strong> The YAML is the source of truth. No manual UI changes in production. All changes are reviewed, versioned, and auditable via Git history.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you choose Databricks Workflows over Airflow for job orchestration? What are the limitations of Workflows?</div>
+            <div class="qa-answer">
+              <p><strong>Choose Workflows when:</strong></p>
+              <p>(1) All tasks execute within Databricks (notebooks, DLT, SQL). (2) You want zero additional infrastructure — Workflows is built into Databricks, no Airflow server/MWAA to manage. (3) You want native integration with Databricks features: job clusters, task values, Unity Catalog lineage tracking, system.billing attribution. (4) Your pipeline is a single job with clear task dependencies (DAG within one job). (5) You value simplicity — DABs YAML is much simpler than Airflow DAG Python code for Databricks-only workloads.</p>
+              <p><strong>Limitations of Workflows:</strong></p>
+              <p>(1) <strong>No external sensors:</strong> Can't wait for a file in S3 or an API to return 200 before triggering (Airflow has S3KeySensor, HttpSensor). Workaround: file arrival trigger (limited) or poll in a notebook (hacky).</p>
+              <p>(2) <strong>No cross-system tasks:</strong> Can't natively run a SQL query against RDS, trigger a Lambda, or call an external REST API. Must wrap in a notebook.</p>
+              <p>(3) <strong>Limited backfill:</strong> No native concept of data-interval-aware backfill (Airflow's execution_date and catchup). Must parameterize dates manually and run multiple times.</p>
+              <p>(4) <strong>No SLA monitoring:</strong> Airflow has built-in SLA miss detection. Workflows has timeout per task but no pipeline-level SLA alerting.</p>
+              <p>(5) <strong>Cross-job dependencies are weak:</strong> run_job task exists but lacks the flexibility of Airflow's ExternalTaskSensor or dataset-aware scheduling.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle dynamic fan-out (processing N partitions in parallel) in Databricks Workflows?</div>
+            <div class="qa-answer">
+              <p><strong>Using for_each_task:</strong></p>
+              <p>(1) <strong>Upstream task</strong> determines the list of items to process. Example: query distinct dates that need reprocessing, or list of tenant IDs. Sets the list as a task value: <code>dbutils.jobs.taskValues.set("partitions", ["2024-01-01", "2024-01-02", ...])</code></p>
+              <p>(2) <strong>for_each_task</strong> iterates over the list. Each iteration creates an independent task instance with the item as a parameter. All instances run in parallel (subject to cluster resources).</p>
+              <p>(3) <strong>Nested task</strong> receives <code>{{input}}</code> as the current item. Processes that single partition/tenant/date.</p>
+              <p><strong>Considerations:</strong></p>
+              <p>(1) <strong>Parallelism limit:</strong> By default, all items run in parallel. For 1000 items, this means 1000 concurrent task instances — may overwhelm the cluster. Set concurrency limits or use a shared cluster with autoscaling.</p>
+              <p>(2) <strong>Error handling:</strong> Individual iterations can fail independently. The for_each completes when all iterations finish. Failed iterations can be retried individually.</p>
+              <p>(3) <strong>Cluster sharing:</strong> All for_each iterations share the same job cluster. If processing is CPU-heavy, ensure the cluster has enough workers for the parallelism level.</p>
+              <p>(4) <strong>Alternative:</strong> For simple cases, process all partitions in a single Spark job using <code>df.filter(date.isin(dates))</code> — Spark's built-in parallelism may be more efficient than per-partition job tasks. Use for_each when each partition needs significantly different logic or isolation.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Databricks</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>
