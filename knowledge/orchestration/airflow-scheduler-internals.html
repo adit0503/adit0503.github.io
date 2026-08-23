@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Scheduler Loop, Parsing & TaskInstance State — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Orchestration</a>
+        <span>→</span>
+        <span>Scheduler</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Airflow</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Scheduler Loop, Parsing & TaskInstance State</h1>
+          <p class="article-desc">Parse time vs runtime, DagBag isolation, the scheduling loop, TI state machine, data intervals, catchup, datasets, and layered concurrency.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#parse-vs-run">Parse Time vs Run Time</a></li>
+            <li><a href="#loop">The Scheduling Loop</a></li>
+            <li><a href="#ti-states">TaskInstance State Machine</a></li>
+            <li><a href="#time">Data Interval, Logical Date, Catchup</a></li>
+            <li><a href="#datasets">Dataset / Asset Scheduling</a></li>
+            <li><a href="#concurrency">Concurrency Controls</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          
+          <h2 id="parse-vs-run">Parse Time vs Run Time</h2>
+          <p>DAG files are executed as Python <em>at parse time</em>, not only when a task runs. Anything at module scope runs on every processor heartbeat for that file.</p>
+          <ul>
+            <li><strong>Legal at parse time:</strong> constructing <code>DAG</code> / <code>@dag</code> objects, declaring tasks, reading cheap local config, using <code>Variable.get</code> with <code>deserialize_json</code> (still hits DB — avoid in a loop).</li>
+            <li><strong>Illegal / expensive at parse time:</strong> Spark sessions, boto3 list-buckets, <code>datetime.now()</code> for business logic, querying warehouses, sleeping, downloading files.</li>
+          </ul>
+          <div class="code-block">
+            <div class="code-block-header">Top-level code runs in the DAG processor</div>
+            <pre><code># BAD — processor blocks, DAG refresh lags
+rows = warehouse.query("select * from huge_table")  # at import
+
+# GOOD — inside the callable
+@task
+def extract(ds=None):
+    rows = warehouse.query(f"select * from huge_table where dt = '{ds}'")
+    return rows</code></pre>
+          </div>
+          <p><code>DagBag</code> imports the module, collects <code>DAG</code> objects from <code>globals()</code>, and the processor serializes them. A syntax error in one file is isolated to a subprocess; an infinite loop in a file can still starve that processor slot until <code>dag_file_processor_timeout</code>.</p>
+
+          <h2 id="loop">The Scheduling Loop</h2>
+          <p>Simplified Airflow 2 scheduler inner loop (conceptual):</p>
+          <ol>
+            <li>Heartbeat the <code>SchedulerJob</code> row.</li>
+            <li>Adopt orphaned TIs / detect zombies (TIs in <code>running</code> whose worker heartbeat expired).</li>
+            <li>Create <code>DagRun</code>s whose timetable says the data interval is due (<code>catchup</code>, <code>max_active_runs</code> gated).</li>
+            <li>For each active run, examine unfinished TIs: if upstreams succeeded (or skip-downstream logic), mark TI <code>scheduled</code>.</li>
+            <li><strong>Critical section:</strong> pick TIs that are scheduled, pool has slots, DAG/task concurrency not exceeded → set <code>queued</code>, send to executor.</li>
+            <li>Executor reports back → TI moves <code>running</code> → <code>success</code>/<code>failed</code>/<code>up_for_retry</code>.</li>
+            <li>Dataset/asset events may create additional DagRuns (data-aware scheduling).</li>
+          </ol>
+          <p><code>parallelism</code> (global queued+running cap), <code>max_active_tasks_per_dag</code>, pool slots, and executor capacity are <em>all</em> checked. Hitting any one of them looks like "Airflow is stuck" when TIs sit in <code>scheduled</code>.</p>
+
+          <h2 id="ti-states">TaskInstance State Machine</h2>
+          <ul>
+            <li><code>none</code> — row exists but not yet scheduled this run</li>
+            <li><code>scheduled</code> — dependencies met, waiting for a slot</li>
+            <li><code>queued</code> — handed to executor, not yet started</li>
+            <li><code>running</code> — worker called <code>execute()</code>; heartbeats tick</li>
+            <li><code>success</code> / <code>failed</code></li>
+            <li><code>up_for_retry</code> — failed, retry remaining, wait <code>retry_delay</code></li>
+            <li><code>up_for_reschedule</code> — sensor/reschedule mode released the slot</li>
+            <li><code>deferred</code> — triggerer owns the wait</li>
+            <li><code>removed</code> — task disappeared from DAG on a mapped expansion change</li>
+            <li><code>upstream_failed</code> / <code>skipped</code> — trigger rules</li>
+          </ul>
+          <p>Trigger rules (<code>all_success</code>, <code>all_done</code>, <code>one_failed</code>, <code>none_failed_min_one_success</code>, …) are evaluated in the scheduler, not in the worker. That is why changing a trigger rule does not require the task code to change — only the DAG structure.</p>
+
+          <h2 id="time">Data Interval, Logical Date, Catchup</h2>
+          <p>Airflow 2.2+ models a run as a <strong>data interval</strong> <code>[start, end)</code> plus a <strong>logical date</strong> (formerly execution date). For a daily DAG at midnight UTC, the run covering 2026-08-22 data typically has logical date 2026-08-22 and interval that day. Templates:</p>
+          <ul>
+            <li><code>{{ ds }}</code> — logical date as <code>YYYY-MM-DD</code></li>
+            <li><code>{{ data_interval_start }}</code> / <code>{{ data_interval_end }}</code> — the actual interval (prefer these for partitioning)</li>
+            <li><code>{{ ts }}</code> — ISO timestamp of logical date</li>
+          </ul>
+          <p><code>catchup=True</code> (historical default) creates one DagRun per missed interval since <code>start_date</code>. For a DAG added with a 3-year start_date that is a thundering herd. Production default should be <code>catchup=False</code> unless you intend backfill. Backfill is an explicit <code>airflow dags backfill</code> (or UI) with a date range — it still creates DagRuns and still consumes pool slots.</p>
+          <p><code>max_active_runs</code> caps concurrent intervals of the <em>same</em> DAG. Without it, catchup + a slow task means hundreds of parallel runs fighting Spark queues.</p>
+
+          <h2 id="datasets">Dataset / Asset Scheduling</h2>
+          <p>Classic DAGs are time-table driven. Airflow 2.4+ <strong>Datasets</strong> (Airflow 3 <strong>Assets</strong>) let a DAG schedule on <code>schedule=[Dataset("s3://bucket/silver/events")]</code>. An upstream task declares <code>outlets=[Dataset(...)]</code>. On success, a dataset event is recorded; the scheduler starts a downstream DagRun when the schedule's dataset condition is satisfied (AND of listed datasets by default).</p>
+          <p>This is still <em>orchestration-level</em> lineage (task emitted an event), not column-level warehouse lineage. It decouples DAG files: no <code>ExternalTaskSensor</code> poking another DAG's TI state, no cross-DAG ID hardcoding beyond the URI.</p>
+
+          <h2 id="concurrency">Concurrency Controls (layered)</h2>
+          <table>
+            <thead><tr><th>Knob</th><th>Scope</th><th>What it limits</th></tr></thead>
+            <tbody>
+              <tr><td><code>parallelism</code></td><td>Whole cluster</td><td>Queued + running TIs</td></tr>
+              <tr><td><code>max_active_tasks_per_dag</code></td><td>One DAG</td><td>Active tasks in that DAG</td></tr>
+              <tr><td><code>max_active_runs_per_dag</code></td><td>One DAG</td><td>Concurrent DagRuns</td></tr>
+              <tr><td>Pools</td><td>Named token bucket</td><td>Tasks that declare <code>pool=</code></td></tr>
+              <tr><td>Task <code>max_active_tis_per_dag</code></td><td>One task_id</td><td>Mapped or retried copies</td></tr>
+              <tr><td>Executor capacity</td><td>Workers / pods</td><td>Can physically start</td></tr>
+            </tbody>
+          </table>
+          <p>Debug "scheduled but not queued" by checking this table in order. The UI's Task Instance "Dependencies" / "Why isn't this running?" panel (2.x) surfaces the blocking reason.</p>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">A task is stuck in scheduled. Walk the diagnosis.</div>
+            <div class="qa-answer">
+              <p>Confirm upstreams are success/skipped per trigger rule. Then check pool slots (pool full), DAG max_active_tasks, global parallelism, executor queue depth, and whether the scheduler is alive (heartbeat). For mapped tasks, also check <code>max_map_length</code> and that expansion completed. Look at scheduler logs for "Not executing" / slot messages, not worker logs — the worker never saw the TI.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Why is using datetime.now() in a DAG file a backfill bug?</div>
+            <div class="qa-answer">
+              <p>Parse time and task run time both become "now" instead of the run's data interval. Backfills reprocess historical intervals but the code loads today's partition. Use <code>{{ ds }}</code> / <code>data_interval_start</code> in templates or <code>context["data_interval_start"]</code> in callables. <code>pendulum.now("UTC")</code> at module scope is even worse — it bakes one timestamp into every parse.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Orchestration</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

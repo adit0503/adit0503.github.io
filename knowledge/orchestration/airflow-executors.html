@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Executors, Workers, Pools & Zombies — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Orchestration</a>
+        <span>→</span>
+        <span>Executors</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Airflow</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>Executors, Workers, Pools & Zombies</h1>
+          <p class="article-desc">Local vs Celery vs Kubernetes executors, queues vs pools vs slots, heartbeats, zombie detection, adoption after failover, and XCom limits.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#interface">What an Executor Actually Does</a></li>
+            <li><a href="#local">LocalExecutor & SequentialExecutor</a></li>
+            <li><a href="#celery">CeleryExecutor Internals</a></li>
+            <li><a href="#k8s">KubernetesExecutor Internals</a></li>
+            <li><a href="#pools">Pools, Queues, Slots</a></li>
+            <li><a href="#zombies">Heartbeats, Zombies, Adopted Tasks</a></li>
+            <li><a href="#xcom">XCom Transport Limits</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          
+          <h2 id="interface">What an Executor Actually Does</h2>
+          <p>An executor is a scheduler-side plugin implementing roughly: <code>queue_command</code>, <code>heartbeat</code> (adopt finished work), <code>try_adopt_task_instances</code>. It does <em>not</em> run Python operators in the scheduler process (except Sequential/Local debug cases). The scheduler serializes a command like <code>airflow tasks run dag_id task_id run_id</code> and the executor starts that command in some isolation boundary.</p>
+
+          <h2 id="local">LocalExecutor & SequentialExecutor</h2>
+          <ul>
+            <li><strong>SequentialExecutor</strong> — one task at a time in-process. Tests and tiny laptops. No parallelism.</li>
+            <li><strong>LocalExecutor</strong> — multiprocessing pool on the scheduler machine. Fine for Composer-sized-small or a single VM. Shares the scheduler host's CPU/RAM; a memory leak in a task hurts scheduling. Not HA for workers (the host is a single point of capacity).</li>
+          </ul>
+
+          <h2 id="celery">CeleryExecutor Internals</h2>
+          <p>Architecture: scheduler → broker (Redis/RabbitMQ) → Celery workers → optional result backend.</p>
+          <ul>
+            <li>Workers are long-lived processes with a preloaded Python environment (providers, custom operators).</li>
+            <li><strong>Queues</strong> route tasks: <code>queue="spark"</code> vs <code>queue="short"</code>. Workers subscribe with <code>celery -A ... worker -Q spark</code>.</li>
+            <li><strong>Prefetch</strong> (<code>worker_prefetch_multiplier</code>) — a worker may reserve N tasks. Prefetch too high and a slow worker hoards work while idle workers starve. For heterogeneous task durations, set prefetch to 1.</li>
+            <li><strong>acks_late</strong> — acknowledge after success so a killed worker redelivers. Required for at-least-once; your operators must be idempotent.</li>
+            <li>Broker persistence: Redis AOF/Rabbit durable queues. Losing the broker loses queued (not yet running) work; TIs stay <code>queued</code> until zombie/timeout logic resets them.</li>
+          </ul>
+          <div class="callout">
+            <strong>Celery vs K8s latency:</strong>
+            <p>Celery task start is milliseconds (process already up). KubernetesExecutor pays pod schedule + image pull (often 15–60s). For 10-minute Spark submits that is noise; for 5-second Python pokes it dominates.</p>
+          </div>
+
+          <h2 id="k8s">KubernetesExecutor Internals</h2>
+          <p>Each TI becomes a Pod running the Airflow image with args <code>airflow tasks run …</code>. Isolation is the kernel + resource requests/limits. Configuration layers:</p>
+          <ul>
+            <li>Base pod template (<code>pod_template_file</code>)</li>
+            <li>Per-task <code>executor_config={"pod_override": …}</code> for memory/CPU/nodeSelector/image</li>
+            <li>KubernetesExecutor watches pod phase and maps it to TI state</li>
+          </ul>
+          <p>Failure modes unique to K8s: <code>ImagePullBackOff</code>, unschedulable pods (resource requests &gt; node), evictions (preemptible nodes), and log loss if remote logging is not configured. Use a cluster autoscaler; set sensible requests so the scheduler does not create 5,000 pending pods after a catchup.</p>
+          <p><strong>CeleryKubernetesExecutor</strong> (and Airflow 2.10+ executor teams): route by queue name — <code>kubernetes</code> queue uses pods, default queue uses Celery. Use this when 90% of tasks are tiny and 10% need 64Gi RAM.</p>
+
+          <h2 id="pools">Pools, Queues, Slots — Do Not Confuse Them</h2>
+          <ul>
+            <li><strong>Executor slots / parallelism</strong> — global Airflow cap.</li>
+            <li><strong>Celery queue</strong> — routing to a worker fleet (environment + hardware class).</li>
+            <li><strong>Pool</strong> — logical token bucket in the metadata DB (e.g. <code>pool=snowflake_load</code> with 8 slots to protect warehouse credits).</li>
+          </ul>
+          <p>A task can wait on a full pool even when Celery workers are idle. That is intended — pools protect <em>external</em> systems, not Airflow workers.</p>
+
+          <h2 id="zombies">Heartbeats, Zombies, Adopted Tasks</h2>
+          <p>While <code>running</code>, the task process updates <code>task_instance.pid</code> / hostname and a heartbeat timestamp. If the worker dies (OOM, node kill, <code>kill -9</code>), the scheduler notices heartbeat expiry (<code>scheduler_zombie_task_threshold</code>) and marks the TI failed or retries. False zombies happen if:</p>
+          <ul>
+            <li>The task is CPU-starved and cannot heartbeat (heavy C-extension, GIL deadlock)</li>
+            <li>Clock skew between worker and DB</li>
+            <li>Threshold too aggressive relative to GC pauses</li>
+          </ul>
+          <p>After scheduler failover, executors <strong>adopt</strong> TIs that were queued/running so work is not double-started. Adoption bugs historically caused duplicate Spark jobs — operators must still be idempotent.</p>
+
+          <h2 id="xcom">XCom Transport Limits</h2>
+          <p>XCom is a metadata-DB row (or custom XCom backend). Default pickling/JSON into Postgres is fine for kilobytes (partition lists, run IDs). Megabyte DataFrames will lock the DB and blow up the webserver. Custom backends (S3/GCS) store a pointer in the DB. TaskFlow <code>@task</code> return values <em>are</em> XCom — returning a pandas DataFrame is the same anti-pattern.</p>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">When is KubernetesExecutor the wrong choice?</div>
+            <div class="qa-answer">
+              <p>High-QPS tiny tasks (hundreds of 2-second tasks per minute), environments without a well-run cluster autoscaler, or when image size is 8GB and pull time exceeds task time. Prefer Celery (or Local on a beefy VM) for chatty control-flow; use K8s for bursty, heterogeneous, isolated ETL.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">How do you stop 200 DAGs from melting Snowflake?</div>
+            <div class="qa-answer">
+              <p>A dedicated pool with slot count = max concurrent warehouse queries you will allow, every Snowflake operator/task assigned to that pool. Optionally a Celery queue on a small worker set. Pools are the Airflow-native backpressure valve; warehouse auto-suspend is not sufficient if Airflow can still open 200 sessions.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Orchestration</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

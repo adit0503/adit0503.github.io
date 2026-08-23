@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Airflow Architecture Internals — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Orchestration</a>
+        <span>→</span>
+        <span>Architecture</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Airflow</span>
+            <span class="read-time">16 min read</span>
+          </div>
+          <h1>Airflow Architecture Internals</h1>
+          <p class="article-desc">Control plane vs data plane, scheduler/DAG processor/triggerer/webserver, metadata DB as the real bottleneck, HA locking, logging, and configuration.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#control-plane">Control Plane vs Data Plane</a></li>
+            <li><a href="#components">Component Internals</a></li>
+            <li><a href="#metadata-db">Metadata Database as Source of Truth</a></li>
+            <li><a href="#ha">High Availability</a></li>
+            <li><a href="#logging">Logging Path</a></li>
+            <li><a href="#config">Configuration Model</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          
+          <h2 id="control-plane">Control Plane vs Data Plane</h2>
+          <p>Airflow is an <strong>orchestrator</strong>, not a compute engine. The control plane (scheduler, webserver, triggerer, metadata DB) decides <em>when</em> tasks run and records <em>state</em>. The data plane (Spark, dbt, warehouses, Kubernetes pods) does the work. Putting GB-scale processing inside a <code>PythonOperator</code> is a category error — workers become your cluster, without Spark's shuffle, memory management, or isolation.</p>
+          <p>At the process level, a production Airflow 2.x/3.x deployment is several cooperating services that share one metadata database:</p>
+          <ul>
+            <li><strong>Scheduler</strong> — scheduling loop + (historically) DAG parsing. In 2.3+ parsing can be split to a dedicated <strong>DAG processor</strong>.</li>
+            <li><strong>Webserver</strong> — Flask/FastAPI UI and REST API. Reads <em>serialized</em> DAGs from the DB; it should not import DAG files in production.</li>
+            <li><strong>Triggerer</strong> — asyncio event loop that runs deferrable triggers (sensors that don't occupy a worker slot).</li>
+            <li><strong>Workers</strong> — executor-specific processes that actually invoke <code>execute()</code> on operators.</li>
+            <li><strong>Metadata DB</strong> — PostgreSQL (preferred) or MySQL. Source of truth for DAG runs, task instances, XCom, serialized DAGs, datasets/assets, slots.</li>
+          </ul>
+          <div class="callout">
+            <strong>🔑 Key insight:</strong>
+            <p>Every scheduling decision is a database transaction. Throughput is bounded by row locks, connection pool size, and how fast the scheduler can SELECT runnable TIs — not by how many cores the worker has.</p>
+          </div>
+
+          <h2 id="components">Component Internals</h2>
+          <h3>Scheduler job heartbeat</h3>
+          <p>The scheduler registers a row in <code>job</code> (type <code>SchedulerJob</code>) and updates <code>latest_heartbeat</code> on an interval (<code>scheduler_heartbeat_sec</code>, default 5s). Other schedulers and the UI use this to detect a dead scheduler. If heartbeats stop, HA peers continue; if you run a <em>single</em> scheduler and it dies, nothing new is queued until it restarts.</p>
+          <h3>DAG processor (Airflow 2.3+)</h3>
+          <p>Parsing DAG files in the same process as the scheduling loop couples CPU-heavy Python imports with latency-sensitive SQL. The standalone DAG processor:</p>
+          <ul>
+            <li>Walks <code>dags_folder</code> (and git-sync volume on K8s)</li>
+            <li>Spawns subprocesses per file (<code>DagFileProcessorProcess</code>) so a bad import cannot crash the parent</li>
+            <li>Writes <code>SerializedDagModel</code> + <code>DagModel</code> rows</li>
+            <li>Honors <code>min_file_process_interval</code> and <code>dag_file_processor_timeout</code></li>
+          </ul>
+          <h3>Webserver and serialization</h3>
+          <p>The UI never needs your DAG Python if serialization is on (default). It hydrates a lightweight DAG object from JSON stored in <code>serialized_dag</code>. That JSON includes task IDs, dependencies, operator class names, and UI fields — not closures, not open file handles. If a field is not serializable, the scheduler still runs the DAG but the UI may omit it.</p>
+          <h3>Triggerer</h3>
+          <p>Deferrable operators call <code>self.defer(trigger=..., method_name=...)</code>. The worker process <em>exits</em> (frees the slot). The triggerer process runs the trigger's <code>run()</code> async generator, watching an external condition (Hive partition, HTTP, time). When the trigger fires, it writes an event; the scheduler creates a new TI in <code>scheduled</code>/<code>queued</code> and the worker resumes <code>method_name</code> (usually <code>execute_complete</code>).</p>
+
+          <h2 id="metadata-db">Metadata Database as Source of Truth</h2>
+          <p>Hot tables:</p>
+          <ul>
+            <li><code>dag</code> / <code>dag_run</code> — DAG identity, next run, run state, data interval</li>
+            <li><code>task_instance</code> — one row per (dag_id, task_id, run_id) [+ map_index for mapped tasks]</li>
+            <li><code>task_instance_history</code> — retries (Airflow 2.10+/3.x depending on version)</li>
+            <li><code>xcom</code> — small payloads keyed by dag_id, task_id, run_id, key</li>
+            <li><code>slot_pool</code> — named concurrency tokens</li>
+            <li><code>serialized_dag</code> — JSON blob + hash for change detection</li>
+            <li><code>dataset</code> / <code>dataset_event</code> (2.4+) or assets in 3.x — data-aware scheduling</li>
+            <li><code>trigger</code> — parked deferrable work</li>
+          </ul>
+          <p>The scheduler's <strong>critical section</strong> locks candidate TIs with <code>SELECT … FOR UPDATE SKIP LOCKED</code> (PostgreSQL) so two schedulers cannot queue the same TI. MySQL InnoDB works but PostgreSQL + PgBouncer is the production default at scale.</p>
+          <div class="code-block">
+            <div class="code-block-header">Operational knobs that actually matter</div>
+            <pre><code># parsing vs scheduling isolation
+AIRFLOW__SCHEDULER__STANDALONE_DAG_PROCESSOR=True
+AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL=30
+AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT=30
+
+# DB
+AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE=10
+AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW=20
+# put PgBouncer in transaction pooling in front of Postgres
+
+# cleanup or the TI table becomes the outage
+airflow db clean --clean-before-timestamp "$(date -d '90 days ago' -Iseconds)"</code></pre>
+          </div>
+
+          <h2 id="ha">High Availability</h2>
+          <ul>
+            <li><strong>Multiple schedulers</strong> — active-active. Coordination is DB locking, not ZooKeeper/etcd. More schedulers increase scheduling throughput <em>and</em> DB QPS. Past 2–3 schedulers you often need DB vertical scale first.</li>
+            <li><strong>Multiple webservers</strong> — stateless behind a load balancer if they share the same fernet key, secret backend, and log storage.</li>
+            <li><strong>Multiple triggerers</strong> — triggers are claimed via DB; extra triggerers add asyncio capacity.</li>
+            <li><strong>Workers</strong> — scale horizontally with Celery or K8s. They are not HA of the control plane; they are capacity.</li>
+          </ul>
+          <p>Fernet key rotation, <code>secret_key</code> for sessions, and identical <code>AIRFLOW_HOME</code> configs across replicas are the usual HA footguns — mismatched keys mean "tasks ran but XCom/variables decrypt as garbage."</p>
+
+          <h2 id="logging">Logging Path</h2>
+          <p>Workers write task logs to local disk by default. The webserver then tries to <em>proxy</em> logs from the worker (Celery) or from the pod (K8s). In Kubernetes, pods die; logs must land on remote storage (<code>s3</code>, <code>gcs</code>, <code>wasb</code> log handlers) or you lose forensic data. Log filename includes try number; mapped tasks add <code>map_index</code>.</p>
+
+          <h2 id="config">Configuration Model</h2>
+          <p><code>airflow.cfg</code> is overridden by environment variables of the form <code>AIRFLOW__SECTION__KEY</code>. Secrets should never live in cfg: use a secrets backend (AWS Secrets Manager, Vault, GCP Secret Manager). Connections are stored encrypted with the Fernet key in <code>connection</code> unless you use a secrets backend lookup (<code>airflow/connections/my_conn</code>).</p>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">Why can the webserver show a DAG that the scheduler refuses to run?</div>
+            <div class="qa-answer">
+              <p>Usually a parse-time vs serialize-time split. The processor wrote a serialized DAG, so the UI renders it, but the DAG is paused, import errors exist on a later parse, <code>is_active</code> is false, or the timetable cannot compute a next run (misconfigured <code>schedule</code> / <code>schedule_interval</code>). Check <code>import_errors</code> table and scheduler logs for the file processor, not the webserver.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">What fails first when you have 2,000 DAGs and one Postgres?</div>
+            <div class="qa-answer">
+              <p>Scheduler queries against <code>task_instance</code> (runnable TI selection) and DAG parsing CPU. Symptoms: scheduling lag, webserver timeouts on Browse → Task Instances, lock waits. Fixes: standalone DAG processor, raise <code>min_file_process_interval</code>, PgBouncer, <code>db clean</code>, fewer top-level imports, multiple schedulers only after the DB can take the extra QPS.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Orchestration</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

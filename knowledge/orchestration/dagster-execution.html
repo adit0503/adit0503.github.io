@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Execution, Daemons, Sensors & Run Coordinators — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Orchestration</a>
+        <span>→</span>
+        <span>Execution</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Dagster</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>Execution, Daemons, Sensors & Run Coordinators</h1>
+          <p class="article-desc">Jobs vs ops, in-process/multiprocess/K8s executors, queued run coordinator, schedules vs sensors, retries, and run config.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#jobs-ops">Jobs, Ops, Graphs</a></li>
+            <li><a href="#executors">Run Executors</a></li>
+            <li><a href="#coordinator">Run Launchers & QueuedRunCoordinator</a></li>
+            <li><a href="#sensors-schedules">Schedules vs Sensors vs Asset Sensors</a></li>
+            <li><a href="#retries">Retries, Hooks, Run vs Step</a></li>
+            <li><a href="#config">Run Config & ConfigSchema</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          
+          <h2 id="jobs-ops">Jobs, Ops, Graphs — When Assets Are Not Enough</h2>
+          <p>Assets shine for durable data products. <strong>Ops</strong> are the lower-level unit (like Airflow tasks): they have inputs/outputs, retry policies, tags, and can be wired into a <strong>Graph</strong> then wrapped as a <strong>Job</strong>.</p>
+          <ul>
+            <li>Use ops for side effects with no durable asset (call a webhook, vacuum a table as a maintenance job, one-off backfill script).</li>
+            <li>A job can materialize a <em>selection</em> of assets (<code>define_asset_job</code>) — this is the usual production entrypoint for "nightly silver."</li>
+            <li>Resources (<code>ConfigurableResource</code>) are injected into ops/assets: warehouse clients, Spark session factories. They are constructed per run and should be connection-pooled carefully (do not open a SparkSession in a resource if 50 steps each create one — share via resource or external cluster).</li>
+          </ul>
+
+          <h2 id="executors">Run Executors (in-process vs multiprocess vs K8s)</h2>
+          <p>Inside a run, steps may run:</p>
+          <ul>
+            <li><strong>in_process_executor</strong> — one process, sequential or threaded depending on config. Debuggable. No isolation.</li>
+            <li><strong>multiprocess_executor</strong> — step subprocesses on the run worker host. Analogous to LocalExecutor scoped to one run.</li>
+            <li><strong>k8s_job_executor</strong> / Celery-K8s — each step (or the whole run) is a Kubernetes Job. Isolation and resource requests per step, startup tax like KubernetesExecutor.</li>
+            <li><strong>docker_executor</strong> — step containers on a Docker host.</li>
+          </ul>
+          <p>Decide two layers independently: <em>how a run is launched</em> (K8s Job for the run worker) vs <em>how steps fan out inside the run</em> (multiprocess vs k8s_job_executor). Nested K8s (run is a pod, each step more pods) is powerful and easy to over-create API load on kube-apiserver.</p>
+
+          <h2 id="coordinator">Run Launchers & QueuedRunCoordinator</h2>
+          <p>The <strong>run launcher</strong> starts the worker (K8s, ECS, local process). Without a coordinator, every scheduled tick launches immediately and you can stampede Spark.</p>
+          <p><strong>QueuedRunCoordinator</strong> keeps runs in <code>QUEUED</code> until <code>dequeue_interval</code> and tag-based concurrency limits allow. Tag runs with <code>{"dagster/priority": ...}</code> or custom tags like <code>snowflake:heavy</code> and set max concurrent runs per tag — Dagster's equivalent of Airflow pools at <em>run</em> granularity. Combine with warehouse-side warehouses/queues.</p>
+
+          <h2 id="sensors-schedules">Schedules vs Sensors vs Asset Sensors</h2>
+          <ul>
+            <li><strong>Schedule</strong> — cron (or custom tick). Deterministic. Use for "every day at 02:00 UTC materialize daily partitions."</li>
+            <li><strong>Sensor</strong> — poll external state (S3, Airflow DAG success, Kafka lag, API). Must return <code>SkipReason</code> or <code>RunRequest</code> quickly; store a cursor (last modified key, last offset).</li>
+            <li><strong>Asset sensor</strong> — fires when a watched asset materializes (in-process graph event, not S3 list). Prefer this over S3 sensors when the producer is also Dagster.</li>
+          </ul>
+          <p>Sensor evaluation interval too aggressive + slow S3 listing = daemon lag (similar to Airflow poke sensors burning slots, but here you burn daemon/gRPC time). Use event-driven webhooks where possible (S3 → SQS → sensor cursor, or Dagster+ event ingest).</p>
+
+          <h2 id="retries">Retries, Hooks, Run vs Step</h2>
+          <p>Ops/assets declare <code>RetryPolicy(max_retries=..., delay=...)</code> for <em>step</em> retries inside the same run. Run-level retries (submit a new run) are a different knob — useful when the worker VM died. Idempotent writes are mandatory in both cases.</p>
+          <p>Hooks (<code>success_hook</code>, <code>failure_hook</code>) are for notifications, not for compensating transactions. Failure hooks that "delete the partition" can race with a retry already rewriting it.</p>
+
+          <h2 id="config">Run Config & ConfigSchema</h2>
+          <p>Jobs can take structured YAML/JSON run config (op inputs, resource config). This is stronger than Airflow params: it is typed, nested, and validated before execute. For partition jobs, partition key is injected into context; do not also pass the date as untyped config unless you like mismatches.</p>
+          <div class="code-block">
+            <div class="code-block-header">Spark submit from an asset (pattern)</div>
+            <pre><code>@asset(partitions_def=daily, required_resource_keys={"emr"})
+def gold_customers(context):
+    dt = context.partition_key
+    context.resources.emr.submit_and_wait(
+        job="gold_customers",
+        args=["--dt", dt],
+    )
+    # IO manager records table partition metadata only
+    return f"glue.gold.customers/dt={dt}"</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">Sensor vs automation condition for downstream tables?</div>
+            <div class="qa-answer">
+              <p>If upstream is a Dagster asset, use automation conditions / asset jobs on the graph — no polling. If upstream is a black-box (SaaS dump to S3), use a sensor (or asset observation) to emit a materialization, then let automation take over. Polling the warehouse information_schema every 30s from a sensor is how you DDoS your catalog.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">How do you mimic Airflow pools in Dagster?</div>
+            <div class="qa-answer">
+              <p>QueuedRunCoordinator with tag concurrency limits for run-level caps. For intra-run step caps, use executor configuration / K8s resource quotas. For the warehouse, still use Snowflake warehouses, BigQuery reservations, or a dedicated resource that internally rate-limits. Dagster does not have Airflow's per-task DB pool tokens unless you build a resource that acquires a lease.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Orchestration</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

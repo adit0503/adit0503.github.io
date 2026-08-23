@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Airflow vs Dagster — Internals Comparison — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Orchestration</a>
+        <span>→</span>
+        <span>Compare</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Compare</span>
+            <span class="read-time">12 min read</span>
+          </div>
+          <h1>Airflow vs Dagster — Internals Comparison</h1>
+          <p class="article-desc">State machines, backpressure, failure domains, testing, when to choose which, and safe interop without dual-writing tables.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#models">Two Different State Machines</a></li>
+            <li><a href="#low-level">Low-Level Implications</a></li>
+            <li><a href="#choose">When to Choose Which</a></li>
+            <li><a href="#interop">Interop Patterns</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          
+          <h2 id="models">Two Different State Machines</h2>
+          <table>
+            <thead>
+              <tr><th></th><th>Airflow</th><th>Dagster</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Primary abstraction</td><td>DAG of tasks (operators)</td><td>Graph of assets (plus jobs/ops)</td></tr>
+              <tr><td>Unit of scheduled work</td><td>DagRun + TaskInstance rows</td><td>Run + event log steps / materializations</td></tr>
+              <tr><td>Time model</td><td>Timetable + data interval + logical date</td><td>Cron/schedules + partition keys</td></tr>
+              <tr><td>Data passing</td><td>XCom (DB or custom backend)</td><td>IO managers (your storage)</td></tr>
+              <tr><td>Wait without a slot</td><td>Deferrable + triggerer; reschedule sensors</td><td>Sensors in daemon; deferred not the same primitive</td></tr>
+              <tr><td>User code isolation</td><td>DAG processor subprocess; K8s pod per task optional</td><td>Code location gRPC + run worker image</td></tr>
+              <tr><td>Lineage</td><td>Datasets/assets events; otherwise external</td><td>Native asset graph</td></tr>
+              <tr><td>Local inner loop</td><td>Heavy (services + DB)</td><td><code>dagster dev</code> is genuinely usable</td></tr>
+              <tr><td>Ecosystem</td><td>Huge provider set, Composer/MWAA/Astro</td><td>Smaller; strong Python/modern DE; Dagster+</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="low-level">Low-Level Implications</h2>
+          <h3>Where backpressure lives</h3>
+          <p>Airflow: pools + parallelism + executor queue. You can cap "how many SnowflakeOperators run" without capping DAG count.</p>
+          <p>Dagster: queued runs + tags + (optionally) step executors. Asset automation can enqueue faster than you dequeue — always set max materializations / queue limits before enabling aggressive automation on a large graph.</p>
+          <h3>Failure domains</h3>
+          <p>Airflow scheduler down → no new TIs queued; running workers may finish. Dagster daemon down → no new ticks/automation; in-flight runs continue. Dagster code location down → that team's sensors/schedules stop; other locations continue. Airflow single DAG file poison → that file's parse fails; others continue.</p>
+          <h3>Testing</h3>
+          <p>Dagster: execute assets in-process with resources mocked; assert materialization events. Airflow: keep callables pure; use DagBag for structure tests; full runs need a test environment. Both fail equally if business logic lives only inside Spark submitted as a string.</p>
+
+          <h2 id="choose">When to Choose Which</h2>
+          <ul>
+            <li><strong>Airflow</strong> — existing MWAA/Composer/Astro estate; 100s of vendor operators; ops team already runs Celery/K8s executors; you think in jobs and SLAs; you need deferrable wait-for-Hive-partition patterns that are already written.</li>
+            <li><strong>Dagster</strong> — greenfield lakehouse where tables <em>are</em> the product; you want partition-aware freshness and catalog UI; multiple Python environments as code locations; testability is a hiring/quality requirement.</li>
+            <li><strong>Both</strong> — Airflow (or vendor ingest) lands bronze and emits a dataset/event; Dagster owns silver/gold asset graph. Or reverse: Dagster materializes, Airflow triggers legacy Java jobs. Keep a single system as the <em>source of truth</em> for each table to avoid dual scheduling.</li>
+          </ul>
+          <div class="callout">
+            <strong>Do not dual-schedule the same table.</strong>
+            <p>Two orchestrators writing the same Iceberg partition is a heisenbug factory. If you integrate, one side observes, the other writes.</p>
+          </div>
+
+          <h2 id="interop">Interop Patterns</h2>
+          <ul>
+            <li>Airflow <code>DagsterOperator</code> / GraphQL launch a Dagster job; poll run status with a deferrable trigger.</li>
+            <li>Dagster sensor watches Airflow REST API for DAG success, then <code>RunRequest</code> for downstream assets.</li>
+            <li>Shared contract: object store path + partition key + a completion marker (<code>_SUCCESS</code>) — boring and reliable.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">"We want lineage, so we must use Dagster." True?</div>
+            <div class="qa-answer">
+              <p>Dagster gives you computational lineage of declared assets. Column-level and cross-tool lineage still need OpenLineage/Marquez, warehouse access history, or Spark listener integrations. Airflow 2.4+ datasets give coarse producer/consumer links. Pick Dagster for asset-centric DX; pick a lineage platform for organization-wide truth.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Migrate a 400-DAG Airflow deployment to Dagster in one quarter?</div>
+            <div class="qa-answer">
+              <p>Usually no. Strangle: new data products as assets; leave stable Airflow DAGs; wrap the rest as jobs/ops only when you touch them. Rewrite cost is in business logic and backfill semantics (logical date vs partition key), not in YAML conversion. Prove IO managers and queued runs on one domain (e.g. Customer 360 gold) before moving ingestion.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Orchestration</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

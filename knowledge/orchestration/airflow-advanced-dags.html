@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Advanced DAGs — Mapping, Deferrable & Datasets — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Orchestration</a>
+        <span>→</span>
+        <span>Advanced DAGs</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Airflow</span>
+            <span class="read-time">16 min read</span>
+          </div>
+          <h1>Advanced DAGs — Mapping, Deferrable & Datasets</h1>
+          <p class="article-desc">TaskFlow/XComArg compilation, dynamic task mapping internals, deferrable operators and the triggerer, sensors, setup/teardown, and Airflow 3 asset notes.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#taskflow">TaskFlow API</a></li>
+            <li><a href="#mapping">Dynamic Task Mapping</a></li>
+            <li><a href="#deferrable">Deferrable Operators & Triggerer</a></li>
+            <li><a href="#sensors">Sensor Patterns</a></li>
+            <li><a href="#setup-teardown">Setup / Teardown, Branching, Callbacks</a></li>
+            <li><a href="#af3">Airflow 3 Notes</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          
+          <h2 id="taskflow">TaskFlow API — What It Compiles To</h2>
+          <p><code>@task</code> is syntactic sugar over <code>PythonOperator</code> + <code>XComArg</code>. <code>x = extract(); transform(x)</code> creates a dependency edge and an XCom pull of the return value. It does not magically pass objects in memory across Celery workers — it serializes through XCom. Multiple outputs use <code>@task(multiple_outputs=True)</code> returning a dict; each key becomes an XCom key.</p>
+          <div class="code-block">
+            <div class="code-block-header">TaskFlow still hits XCom</div>
+            <pre><code>@dag(schedule="@daily", start_date=datetime(2024, 1, 1), catchup=False)
+def media_daily():
+    @task
+    def list_partitions(ds=None) -> list[str]:
+        return [f"dt={ds}"]
+
+    @task
+    def submit_spark(parts: list[str]):
+        # parts came from XCom JSON, not shared RAM
+        spark_submit(parts)
+
+    submit_spark(list_partitions())
+
+media_daily()</code></pre>
+          </div>
+
+          <h2 id="mapping">Dynamic Task Mapping</h2>
+          <p>Airflow 2.3+ expands one task definition into N TaskInstances at runtime:</p>
+          <ul>
+            <li><code>op.expand(file=files)</code> — one TI per list element</li>
+            <li><code>expand_kwargs([...])</code> — per-TI keyword dicts</li>
+            <li><code>zip</code> / cross-product expansions for multiple mapped args</li>
+          </ul>
+          <p>Low-level details:</p>
+          <ul>
+            <li>Each mapped TI has <code>map_index</code> ≥ 0. Unmapped tasks use <code>map_index = -1</code>.</li>
+            <li>Expansion happens after the upstream that returns the list succeeds. The scheduler then inserts N rows. If the list is empty, you get zero TIs (configure <code>skip</code> vs fail via operator flags depending on version).</li>
+            <li><code>max_map_length</code> (default 1024) is a safety cap. Expanding 100k files will not "just work" — chunk in the callable or use a compute engine.</li>
+            <li>Mapped tasks still share one <code>task_id</code> in the DAG graph; concurrency uses <code>max_active_tis_per_dag</code>.</li>
+          </ul>
+          <p>Do not map 10,000 Spark submits. Map a reasonable fan-out (dozens to hundreds), or have one task submit a parameterized Spark job that internally foreach-partitions.</p>
+
+          <h2 id="deferrable">Deferrable Operators & the Triggerer</h2>
+          <p>Classic sensors in <code>mode="poke"</code> occupy a worker slot every poke interval. <code>mode="reschedule"</code> frees the slot between pokes but still creates many short TIs and scheduler churn.</p>
+          <p>Deferrable operators:</p>
+          <ol>
+            <li><code>execute()</code> starts work or immediately defers.</li>
+            <li>Worker process exits; TI state <code>deferred</code>; row in <code>trigger</code>.</li>
+            <li>Triggerer runs lightweight asyncio (e.g. <code>DateTimeTrigger</code>, <code>S3KeyTrigger</code>).</li>
+            <li>Event → scheduler re-queues TI → <code>execute_complete(event)</code>.</li>
+          </ol>
+          <p>Write custom triggers as <code>BaseTrigger</code> with a serializable payload (JSON). Triggers must be idempotent and must not do heavy CPU — they share one event loop per triggerer process.</p>
+
+          <h2 id="sensors">Sensor Patterns That Survive Production</h2>
+          <ul>
+            <li>Prefer datasets/assets or object-storage events over minute-level pokes.</li>
+            <li>If you must sensor: deferrable first, else <code>reschedule</code>, never long <code>poke</code> on Celery.</li>
+            <li><code>ExternalTaskSensor</code> couples DAG ids and execution dates — timezone and timetable mismatches cause silent waits. Prefer datasets.</li>
+            <li>Set <code>timeout</code> and <code>execution_timeout</code>; infinite sensors are silent capacity leaks.</li>
+          </ul>
+
+          <h2 id="setup-teardown">Setup / Teardown, Branching, Callbacks</h2>
+          <p>Airflow 2.7+ <strong>setup/teardown</strong> tasks are work that should run around a group (create/drop temp schema) and have special skip semantics so teardown still runs on failure when marked as teardown.</p>
+          <p>Branching (<code>BranchPythonOperator</code> / <code>@task.branch</code>) skips non-chosen downstream tasks. Skipped is not failed; <code>trigger_rule=none_failed_min_one_success</code> is the usual join after a branch.</p>
+          <p>Callbacks (<code>on_failure_callback</code>) run in the worker after the task ends — they can fail independently. Keep them small (Slack/PagerDuty). Do not start Spark from a callback.</p>
+
+          <h2 id="af3">Airflow 3 Notes (mental model)</h2>
+          <p>Airflow 3 continues the split of scheduling vs task execution, leans on <strong>assets</strong> as first-class data objects (evolution of datasets), and tightens the Task SDK / execution API so workers are thinner clients of the API server. When reading docs, map: dataset → asset, execution date → logical date / data interval. Internals you already know (TI states, executors, triggerer) still apply.</p>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">How would you fan out over 50,000 incoming files?</div>
+            <div class="qa-answer">
+              <p>Do not <code>expand()</code> 50k TIs. Batch keys in one task (S3 list → chunks of 500), map over chunks, each chunk a Spark/Glue job. Alternatively a single Spark job with input path glob. Airflow's unit of work should be a <em>job</em>, not a file, at that scale. Guard with <code>max_map_length</code> so a bad list cannot insert tens of thousands of TI rows and stall the scheduler.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Why did switching a sensor to deferrable not reduce DB load?</div>
+            <div class="qa-answer">
+              <p>Deferrable reduces <em>worker slot</em> occupancy. The triggerer still writes events; the scheduler still transitions TIs. If you have thousands of deferred sensors firing every second, you moved load from Celery to triggerer + <code>trigger</code> table. Coalesce waits (one sensor per DAG on a terminal object, or dataset events from the producer) rather than one deferrable per table.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Orchestration</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

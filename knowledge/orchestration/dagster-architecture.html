@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Dagster Architecture Internals — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">Orchestration</a>
+        <span>→</span>
+        <span>Architecture</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Dagster</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Dagster Architecture Internals</h1>
+          <p class="article-desc">Code locations and gRPC, DagsterInstance storage split, daemon loops, GraphQL webserver, and production deployment topologies.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#philosophy">Execution vs Asset Graph</a></li>
+            <li><a href="#code-locations">Code Locations & gRPC Isolation</a></li>
+            <li><a href="#instance">DagsterInstance — Storage Splits</a></li>
+            <li><a href="#daemon">The Dagster Daemon</a></li>
+            <li><a href="#webserver">Webserver & GraphQL</a></li>
+            <li><a href="#deploy">Deployment Topologies</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          
+          <h2 id="philosophy">Execution vs Asset Graph</h2>
+          <p>Dagster's core object is not a DAG of tasks. It is a <strong>graph of software-defined assets</strong> (plus optional ops/jobs). A run is a selection from that graph: "materialize these asset keys (and maybe parents) with this partition." Orchestration state lives in the <strong>event log</strong> (structured events: <code>STEP_SUCCESS</code>, <code>ASSET_MATERIALIZATION</code>, …), not a single TaskInstance row machine like Airflow.</p>
+
+          <h2 id="code-locations">Code Locations & gRPC Isolation</h2>
+          <p>User code is loaded in a dedicated process (or Kubernetes deployment) called a <strong>code location</strong>. The webserver and daemon do <em>not</em> import your <code>definitions.py</code> in-process in a proper deployment.</p>
+          <ul>
+            <li>The code location process hosts a <strong>gRPC server</strong>.</li>
+            <li>The webserver asks it for the <code>Definitions</code> snapshot (asset graph, jobs, schedules, sensors) to render the UI.</li>
+            <li>When a run starts, a <strong>run worker</strong> is launched that again loads that code location (same image) and executes the selected steps.</li>
+          </ul>
+          <p>This is why Dagster reloads are cheap to the control plane: you roll the user-code deployment; daemons keep running. It is also why a parse explosion in user code takes down <em>that location's</em> gRPC server, not the entire dagster-webserver — similar intent to Airflow's DAG processor subprocess, but the unit is a service, not a file.</p>
+          <div class="code-block">
+            <div class="code-block-header">Definitions is the load unit</div>
+            <pre><code>from dagster import Definitions, load_assets_from_modules
+from . import assets, jobs, schedules
+
+defs = Definitions(
+    assets=load_assets_from_modules([assets]),
+    jobs=[jobs.nightly_job],
+    schedules=[schedules.nightly],
+    resources={"io_manager": s3_pickle_io_manager, "snowflake": snowflake_resource},
+)</code></pre>
+          </div>
+
+          <h2 id="instance">DagsterInstance — Storage Splits</h2>
+          <p><code>DagsterInstance</code> is the control-plane handle. Typical production split:</p>
+          <ul>
+            <li><strong>Run storage</strong> — run records, status (Postgres <code>DagsterPostgresRunStorage</code>)</li>
+            <li><strong>Event log storage</strong> — append-only events, asset materialization history, used for the asset catalog and partitioning UI. This table grows fast; plan retention.</li>
+            <li><strong>Schedule storage</strong> — ticks for schedules/sensors</li>
+            <li><strong>Compute log manager</strong> — stdout/stderr of steps to S3/GCS</li>
+            <li><strong>Local artifact storage</strong> — intermediates if you use filesystem IO managers (avoid on ephemeral pods)</li>
+          </ul>
+          <p><code>dagster.yaml</code> on the instance (webserver + daemon + run workers must agree on storage) is analogous to <code>airflow.cfg</code>, but run workers also need network access to the same Postgres and blob store.</p>
+
+          <h2 id="daemon">The Dagster Daemon</h2>
+          <p>One (HA-capable with appropriate locks) daemon process runs several loops:</p>
+          <ul>
+            <li><strong>Scheduler</strong> — evaluates <code>ScheduleDefinition</code> cron, submits runs</li>
+            <li><strong>Sensor evaluation</strong> — calls sensor functions in the code location via gRPC, may yield <code>RunRequest</code>s</li>
+            <li><strong>Queued run coordinator</strong> — if enabled, runs sit <code>QUEUED</code> until slots free (global backpressure)</li>
+            <li><strong>Auto-materialize / AutomationCondition</strong> (version-dependent naming) — walks the asset graph, decides which assets are stale relative to parents/partitions/freshness, enqueues runs</li>
+            <li><strong>Backfill daemon</strong> — chunks large partition backfills into runs so you do not submit 10,000 runs in one API call</li>
+          </ul>
+          <p>Sensors and schedules execute <em>in the code location</em> (or daemon talking to gRPC), not in an Airflow-style worker slot. A slow sensor blocks that location's sensor ticks — keep them I/O bound and fast, persist cursor state via <code>context.update_cursor</code>.</p>
+
+          <h2 id="webserver">Webserver & GraphQL</h2>
+          <p>The UI is a GraphQL client (<code>dagster-webserver</code>). Launching a run is a GraphQL mutation that creates a run record, then the run launcher (K8s job, ECS task, process) starts a worker with env vars pointing at the instance. There is no "task_instance scheduled vs queued" split identical to Airflow; you have run status + step events inside the run.</p>
+
+          <h2 id="deploy">Deployment Topologies</h2>
+          <ul>
+            <li><strong>dagster dev</strong> — single process, in-memory or sqlite — local only</li>
+            <li><strong>Docker / docker-compose</strong> — webserver + daemon + user-code container + Postgres</li>
+            <li><strong>Helm (dagster-user-deployments)</strong> — control plane chart + N user-code Deployments (one per code location / team)</li>
+            <li><strong>Dagster+</strong> — hybrid: control plane hosted, runs in your cloud via an agent</li>
+          </ul>
+          <p>Multi-location is how large orgs isolate Python deps (Spark 3.4 vs 3.5, conflicting protobufs) — something Airflow solves with KubernetesExecutor pod images or separate Airflow deployments.</p>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">Where does a bug in asset code crash — UI, daemon, or run?</div>
+            <div class="qa-answer">
+              <p>Import/definition errors crash or fail health of the <strong>code location gRPC</strong> (UI shows location error; daemon cannot tick that location's sensors). Runtime exceptions during materialization crash the <strong>run worker</strong> step (event log <code>STEP_FAILURE</code>). The webserver should stay up. If the UI itself dies, you deployed user code into the webserver image — fix the topology.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Why is the event log a scaling concern?</div>
+            <div class="qa-answer">
+              <p>Every log line and materialization metadata is an event. High-cardinality partitions (per-minute assets) × many assets × retries can dominate Postgres I/O and UI query time. Use compute-log offload, wipe/retention policies, avoid storing payloads in materialization metadata, and prefer coarser partitions (hourly/daily) unless you truly need minute grains.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">Orchestration</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>
