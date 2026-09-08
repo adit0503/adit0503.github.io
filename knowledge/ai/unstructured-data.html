@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Grounding FMs on Unstructured Data — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Grounding FMs on Unstructured Data</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Grounding</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Grounding FMs on Unstructured Data</h1>
+          <p class="article-desc">How to add the context of PDFs, scanned documents, images, audio, HTML, and email into a foundation model — parsing, layout-aware extraction, multimodal embeddings, metadata enrichment, and the ingestion pipeline that turns messy files into retrievable context.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#problem">The Unstructured Data Problem</a></li>
+            <li><a href="#ways">Ways to Add Context to an FM</a></li>
+            <li><a href="#parsing">Parsing &amp; Extraction</a></li>
+            <li><a href="#tables">Tables, Layout &amp; OCR</a></li>
+            <li><a href="#multimodal">Images, Audio &amp; Multimodal</a></li>
+            <li><a href="#metadata">Metadata &amp; Enrichment</a></li>
+            <li><a href="#pipeline">A Reference Ingestion Pipeline</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="problem">The Unstructured Data Problem</h2>
+          <p>An estimated majority of enterprise data is unstructured — contracts, reports, emails, tickets, recordings, scanned forms. Foundation models can reason over this content, but only if you extract, clean, and structure it into something retrievable. This extraction is a classic data-engineering job, just with new targets: chunks and vectors instead of rows and columns.</p>
+
+          <div class="callout">
+            <strong>🔑 The reframe:</strong>
+            <p>"Adding unstructured context to an FM" is an ETL problem. Extract from the source, transform into clean chunks with metadata, load into a vector store, and retrieve at query time. Your lakehouse skills transfer directly.</p>
+          </div>
+
+          <h2 id="ways">Ways to Add Context to an FM</h2>
+          <p>Four escalating options, cheapest first:</p>
+          <ol>
+            <li><strong>In-context (prompt stuffing)</strong> — paste the document into the prompt. Simple, but bounded by the context window and costly per call.</li>
+            <li><strong>RAG</strong> — retrieve only relevant chunks at query time. The default for large, changing corpora.</li>
+            <li><strong>Long-context / caching</strong> — large context windows plus prompt caching let you keep a big reference document resident cheaply across calls.</li>
+            <li><strong>Fine-tuning</strong> — bake in behavior/style. Not for facts — expensive to keep current.</li>
+          </ol>
+
+          <div class="callout callout-tip">
+            <strong>💡 Decision rule:</strong>
+            <p>Small, stable reference that fits the window → in-context or caching. Large, changing knowledge → RAG. Need a consistent behavior/format → fine-tune. Most enterprise systems land on RAG, often combined with prompt caching.</p>
+          </div>
+
+          <h2 id="parsing">Parsing &amp; Extraction</h2>
+          <p>Getting clean text out of files is where most quality is won or lost.</p>
+          <ul>
+            <li><strong>PDFs</strong> — digital PDFs extract cleanly; scanned PDFs need OCR. Preserve reading order and headings.</li>
+            <li><strong>Office/HTML</strong> — strip navigation, boilerplate, and styling; keep semantic structure.</li>
+            <li><strong>Tools</strong> — Amazon Textract (OCR + forms + tables), Unstructured.io, Apache Tika, LlamaParse, Docling.</li>
+            <li><strong>Layout-aware parsing</strong> — capture headings, sections, and hierarchy so chunking can respect structure.</li>
+          </ul>
+
+          <h2 id="tables">Tables, Layout &amp; OCR</h2>
+          <p>Tables are the classic RAG killer — flattening a table to plain text scrambles rows and columns. Handle them explicitly:</p>
+          <ul>
+            <li>Extract tables as structured data (Textract table API) and serialize each row into a self-describing sentence, or store as Markdown/HTML tables.</li>
+            <li>OCR scanned documents before chunking; check confidence scores and flag low-confidence pages.</li>
+            <li>For complex layouts (multi-column, forms), use layout models rather than naive text extraction.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Garbage in, garbage retrieved:</strong>
+            <p>If parsing mangles the text, no embedding model or reranker can recover it. Invest in extraction quality first — it's the highest-ROI stage of the whole pipeline.</p>
+          </div>
+
+          <h2 id="multimodal">Images, Audio &amp; Multimodal</h2>
+          <ul>
+            <li><strong>Images</strong> — either caption them with a vision model (e.g. Claude's vision capability) and embed the caption, or use a multimodal embedding model to embed the image directly.</li>
+            <li><strong>Charts/diagrams</strong> — ask a vision model to describe the data, then index the description.</li>
+            <li><strong>Audio</strong> — transcribe with a speech-to-text model (Amazon Transcribe), then treat as text; keep timestamps as metadata.</li>
+            <li><strong>Multimodal RAG</strong> — retrieve across text and image vectors in the same space and pass both to a multimodal FM.</li>
+          </ul>
+
+          <h2 id="metadata">Metadata &amp; Enrichment</h2>
+          <p>Metadata is what makes retrieval filterable, governable, and auditable. Attach at ingestion:</p>
+          <ul>
+            <li><strong>Provenance</strong> — source system, document ID, URL, page/section, ingest timestamp.</li>
+            <li><strong>Access control</strong> — owner, tenant, classification, ACL tags carried from the source.</li>
+            <li><strong>Semantic tags</strong> — LLM-generated summary, entities, topic — useful for filtering and hybrid search.</li>
+            <li><strong>Freshness</strong> — effective/expiry dates so stale content can be excluded or down-weighted.</li>
+          </ul>
+
+          <h2 id="pipeline">A Reference Ingestion Pipeline</h2>
+          <div class="code-block">
+            <div class="code-block-header">Unstructured → retrievable context (medallion)</div>
+            <pre><code>Bronze:  land raw files in S3 (versioned, immutable)
+            │  trigger: S3 event / CDC / schedule
+            ▼
+Silver:  parse + OCR (Textract) → clean text
+         extract tables as structured rows
+         detect & redact PII
+         attach provenance + ACL metadata
+            │
+            ▼
+Gold:    chunk (structure-aware, parent-child)
+         embed (Titan / Cohere on Bedrock)
+         upsert vectors + metadata into
+         vector store (OpenSearch / Databricks
+         Vector Search) — incremental by content hash</code></pre>
+          </div>
+          <p>Orchestrate with Airflow or Dagster; process incrementally by hashing each source file so only changed documents are re-parsed and re-embedded. Track counts and embedding dimensions as data-quality checks.</p>
+
+          <div class="callout callout-tip">
+            <strong>💡 Managed shortcut:</strong>
+            <p>AWS Bedrock Knowledge Bases and Databricks Vector Search can automate much of this — point them at S3 / a Delta table and they handle chunking, embedding, and indexing. Build custom only when you need control over parsing, chunking, or metadata that the managed path doesn't expose.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What options exist to give a foundation model access to your private documents, and how do you choose?</div>
+            <div class="qa-answer">
+              <p>In-context prompting (paste it in — for small, stable docs), RAG (retrieve relevant chunks — for large, changing corpora), long-context with prompt caching (keep a big reference resident cheaply), and fine-tuning (for behavior/format, not facts). Choose by data size, volatility, and need for attribution. Most enterprise systems use RAG, often with prompt caching, because knowledge changes and must be auditable and access-controlled.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you handle tables and scanned PDFs in a RAG pipeline?</div>
+            <div class="qa-answer">
+              <p>Don't flatten tables to plain text — it scrambles row/column relationships. Extract them as structured data (e.g. Textract's table API) and serialize each row into a self-describing sentence or keep Markdown/HTML tables. For scanned PDFs, run OCR first, check confidence scores, and flag low-confidence pages for review. Use layout-aware parsing to preserve headings and reading order so chunking respects document structure.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you add images to a RAG system?</div>
+            <div class="qa-answer">
+              <p>Two approaches. Caption-and-embed: use a vision model to generate a rich text description of each image/chart, then embed and index the caption alongside text. Or use a multimodal embedding model to embed images directly into a shared space so text queries can retrieve images. For charts and diagrams, captioning the underlying data usually retrieves better than raw image embedding. Pass retrieved images to a multimodal FM for the final answer.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why is parsing the highest-ROI stage of unstructured ingestion?</div>
+            <div class="qa-answer">
+              <p>Because errors there propagate irrecoverably. If extraction mangles reading order, drops table structure, or produces OCR noise, the chunks are wrong, the embeddings encode garbage, and no reranker or prompt can fix it. Clean, layout-aware extraction is the foundation everything downstream depends on, so it deserves the most engineering attention and quality checks.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you keep unstructured ingestion incremental and governed?</div>
+            <div class="qa-answer">
+              <p>Land raw files immutably in Bronze, then process only changed files by hashing content and comparing to the last run — re-parse and re-embed just the deltas, upserting by a stable chunk key. Carry provenance and ACL metadata from source into every chunk so retrieval can be filtered and audited. Redact PII in Silver. Orchestrate with Airflow/Dagster and treat chunk counts and embedding dimensions as data-quality assertions.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

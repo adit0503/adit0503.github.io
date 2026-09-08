@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI Engineering Interview Prep — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Interview Prep</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Interview</span>
+            <span class="read-time">20 min read</span>
+          </div>
+          <h1>AI Engineering Interview Prep</h1>
+          <p class="article-desc">Rapid-fire conceptual questions plus system-design scenarios for GenAI and AI-platform roles — RAG, embeddings, vector search, agents, Bedrock, Claude, Databricks, and LLMOps. Answers frame trade-offs the way an interviewer wants to hear them.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#concepts">Core Concepts</a></li>
+            <li><a href="#platform">Platform &amp; Tooling</a></li>
+            <li><a href="#design-1">System Design — Enterprise RAG Assistant</a></li>
+            <li><a href="#design-2">System Design — Agentic Analytics</a></li>
+            <li><a href="#design-3">System Design — Multimodal Document Search</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="concepts">Core Concepts</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">RAG vs fine-tuning vs long-context — how do you choose?</div>
+            <div class="qa-answer">
+              <p>RAG for large, changing, attributable, access-controlled knowledge. Fine-tuning to instill behavior, format, or domain style — not facts. Long-context (with prompt caching) for a bounded, stable reference that fits the window. They combine: fine-tune for how to respond, RAG for what to respond with, caching to keep it cheap. Default to RAG for enterprise knowledge because it's fresh, auditable, and cheap to maintain.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Walk me through what happens on a single RAG query.</div>
+            <div class="qa-answer">
+              <p>Embed the query with the same model used at ingestion; apply metadata/ACL filters; run ANN search for top candidates; optionally fuse with keyword (BM25) results and rerank with a cross-encoder; assemble the best chunks into a prompt that instructs the model to answer only from context and cite sources; call the FM at low temperature; run a grounding check; return the answer with citations. Log the retrieved chunks for debugging.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Cosine vs dot product vs Euclidean — which and why?</div>
+            <div class="qa-answer">
+              <p>Cosine for text — it's magnitude-invariant, capturing semantic direction regardless of length. Dot product equals cosine when vectors are normalized and is faster, so vector DBs normalize and use it. Euclidean is magnitude-sensitive and rarely preferred for text embeddings. The practical answer: normalize embeddings and use dot-product/cosine.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the biggest sources of RAG failure?</div>
+            <div class="qa-answer">
+              <p>Mostly retrieval, not generation: bad chunking, embedding-model/version mismatch between query and docs, missing hybrid search for exact terms, stale indexes, and context stuffing that buries the answer. Generation-side failures — ignoring context, hallucinating — are usually fixed with stronger grounding prompts, low temperature, and grounding checks. Always inspect retrieved chunks first.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is an agent and when do you avoid one?</div>
+            <div class="qa-answer">
+              <p>An agent is an LLM that chooses its own actions (tools) in a reasoning loop until it's done. Avoid agency when the steps are known — a fixed workflow is cheaper, faster, and testable. Use agents only for genuinely open-ended or dynamic tasks, and bound them with step/cost/time limits, validated tools, and human approval for high-impact actions.</p>
+            </div>
+          </div>
+
+          <h2 id="platform">Platform &amp; Tooling</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">When Bedrock, when Databricks Mosaic AI, when roll-your-own?</div>
+            <div class="qa-answer">
+              <p>Bedrock when you're AWS-native and want managed models, Knowledge Bases, Agents, and Guardrails governed by IAM with data staying in your account. Databricks Mosaic AI when your data lives in Delta/Unity Catalog and you want Vector Search with Delta Sync, serving, and one governance model end to end. Roll your own only when you need control the managed platforms don't offer, accepting the operational burden of running vector DBs, pipelines, and evaluation yourself.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you pick an embedding model?</div>
+            <div class="qa-answer">
+              <p>Evaluate on your own queries, not just leaderboards. Weigh domain fit, deployment mode (API like Titan/Cohere on Bedrock vs self-hosted for residency), multilingual needs, context length, and cost/latency. Ensure the same model+version embeds documents and queries. Try a strong base model plus hybrid search and reranking before considering fine-tuning.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">HNSW vs IVF-PQ at scale?</div>
+            <div class="qa-answer">
+              <p>HNSW gives the best recall/latency and is simplest — great to tens of millions of vectors, but memory-hungry. IVF-PQ compresses vectors and probes a few clusters, scaling to hundreds of millions/billions with far less memory at some recall cost recovered by a rescore pass. Pick HNSW for quality and simplicity, IVF-PQ for huge corpora under memory constraints.</p>
+            </div>
+          </div>
+
+          <h2 id="design-1">System Design — Enterprise RAG Assistant</h2>
+          <p><em>"Design a company-wide assistant that answers from internal docs across SharePoint, Confluence, and S3, respecting per-user permissions."</em></p>
+          <div class="qa-block">
+            <div class="qa-question">How would you architect it?</div>
+            <div class="qa-answer">
+              <p><strong>Ingestion:</strong> connectors pull from each source on a schedule/CDC; parse with layout-aware extraction and OCR; chunk (parent-child); attach provenance + ACL metadata inherited from source permissions; redact PII; embed and upsert into a vector store, incremental by content hash. <strong>Query:</strong> authenticate the user, resolve their groups, apply ACL pre-filter, hybrid retrieve + rerank, assemble a grounded prompt, generate with a low-temp FM (Claude on Bedrock), run a grounding guardrail, return with citations. <strong>Governance:</strong> filter at retrieval — never rely on the model to withhold. <strong>Ops:</strong> trace every request, golden-set eval on each index refresh, monitor freshness/cost/feedback. Managed path: Bedrock Knowledge Base + Guardrails, or Databricks Vector Search + Unity Catalog.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">How do you guarantee a user never sees unauthorized content?</div>
+            <div class="qa-answer">
+              <p>Enforce access at the retrieval layer with deterministic metadata filters derived from the user's identity and groups, applied <em>before</em> similarity search, so unauthorized chunks are never candidates and can't be summarized into an answer. Carry ACLs from source at ingestion and keep them fresh. Use pre-filtered ANN (or over-fetch then filter) to avoid under-returning. Audit every query. The LLM is never the security boundary.</p>
+            </div>
+          </div>
+
+          <h2 id="design-2">System Design — Agentic Analytics</h2>
+          <p><em>"Let business users ask questions answered by querying the warehouse."</em></p>
+          <div class="qa-block">
+            <div class="qa-question">How do you build it safely?</div>
+            <div class="qa-answer">
+              <p>An agent with a constrained SQL tool over a governed semantic layer, not raw tables. Provide schema + metric definitions and few-shot examples as context. Execute with a read-only role, allow-list SELECT, enforce row/scan limits and timeouts, apply column-level access, and validate generated SQL before running. Show the SQL for transparency, cite the tables used, cap agent steps/cost, and log every query. Escalate ambiguous questions back to the user rather than guessing. Add caching for repeated questions.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">How do you evaluate and monitor it?</div>
+            <div class="qa-answer">
+              <p>Build a golden set of question→expected-SQL/answer pairs; measure execution accuracy (does the SQL run and return the right result) and answer correctness, not just string match. Online: track query success rate, user feedback, escalation rate, and cost per query via traces. Alert on failure/refusal spikes and cost regressions. Version prompts, schema context, and model together, and canary changes against the golden set before rollout.</p>
+            </div>
+          </div>
+
+          <h2 id="design-3">System Design — Multimodal Document Search</h2>
+          <p><em>"Search across scanned contracts, images, and tables, returning grounded answers with citations."</em></p>
+          <div class="qa-block">
+            <div class="qa-question">How do you handle the mixed content?</div>
+            <div class="qa-answer">
+              <p>Per modality: OCR + layout parsing for scanned contracts (flag low-confidence pages); extract tables as structured rows serialized into self-describing text; caption images/charts with a vision model (or use multimodal embeddings) and index the description. Chunk with structure awareness, attach page/section provenance, and embed into a shared retrieval layer. At query time, hybrid retrieve + rerank, pass text and any relevant images to a multimodal FM (e.g. Claude vision), and return answers citing the exact document, page, and region. Invest most in extraction quality — it caps everything downstream.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">How do you keep it fresh and correct as documents change?</div>
+            <div class="qa-answer">
+              <p>Land raw files immutably in Bronze; process incrementally by hashing content so only changed documents are re-parsed and re-embedded, upserting by stable chunk key and deleting orphans. Orchestrate with Airflow/Dagster on events or schedule. Assert extraction quality (OCR confidence), embedding dimensionality, and de-duplication as data-quality checks, track index freshness as an SLA, and run a golden retrieval regression set after each refresh so quality can't silently drift.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

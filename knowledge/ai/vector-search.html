@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Vector Search — ANN, HNSW &amp; Vector DBs — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Vector Search</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Vector Search</span>
+            <span class="read-time">16 min read</span>
+          </div>
+          <h1>Vector Search — ANN, HNSW &amp; Vector DBs</h1>
+          <p class="article-desc">How approximate nearest neighbor search works under the hood — HNSW and IVF indexes, the recall/latency trade-off, filtering, hybrid search, and how to choose between pgvector, OpenSearch, Pinecone, and Databricks Vector Search for a production platform.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#problem">The Nearest Neighbor Problem</a></li>
+            <li><a href="#ann">Approximate Nearest Neighbor</a></li>
+            <li><a href="#hnsw">HNSW Explained</a></li>
+            <li><a href="#ivf">IVF &amp; Product Quantization</a></li>
+            <li><a href="#filtering">Filtered &amp; Hybrid Search</a></li>
+            <li><a href="#databases">Choosing a Vector Store</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="problem">The Nearest Neighbor Problem</h2>
+          <p>Given a query vector, find the k stored vectors closest to it. A brute-force scan compares the query to every vector — <code>O(N × d)</code>. That's fine for thousands of vectors, but for tens of millions it's too slow for interactive latency. This is where approximate methods come in.</p>
+
+          <div class="callout">
+            <strong>🔑 The core trade-off:</strong>
+            <p>Vector search trades a little <em>recall</em> (did we find the true top-k?) for a huge gain in <em>speed</em>. Every index parameter is a knob on this recall-vs-latency dial.</p>
+          </div>
+
+          <h2 id="ann">Approximate Nearest Neighbor</h2>
+          <p>ANN algorithms build an index that lets you skip most comparisons. The two dominant families:</p>
+          <ul>
+            <li><strong>Graph-based</strong> — HNSW. Best recall/latency for most workloads; higher memory.</li>
+            <li><strong>Cluster/quantization-based</strong> — IVF, PQ. Lower memory, tunable, common at massive scale.</li>
+          </ul>
+          <p>Recall is measured as recall@k against a brute-force ground truth. Production targets are typically 0.95+.</p>
+
+          <h2 id="hnsw">HNSW Explained</h2>
+          <p><strong>Hierarchical Navigable Small World</strong> builds a multi-layer proximity graph. Upper layers are sparse (long hops for coarse navigation); lower layers are dense (fine-grained). A search starts at the top, greedily hops toward the query, and descends layer by layer.</p>
+          <ul>
+            <li><strong>M</strong> — edges per node. Higher M → better recall, more memory.</li>
+            <li><strong>efConstruction</strong> — candidate list size while building. Higher → better graph, slower builds.</li>
+            <li><strong>efSearch</strong> — candidate list size at query time. Higher → better recall, higher latency. Tune this per query without rebuilding.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">pgvector — HNSW index</div>
+            <pre><code>CREATE INDEX ON docs
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+
+-- tune recall vs latency at query time
+SET hnsw.ef_search = 100;
+
+SELECT id, text
+FROM docs
+ORDER BY embedding &lt;=&gt; :query_vec   -- cosine distance
+LIMIT 5;</code></pre>
+          </div>
+
+          <h2 id="ivf">IVF &amp; Product Quantization</h2>
+          <p><strong>IVF (Inverted File)</strong> clusters vectors into <code>nlist</code> centroids (k-means). At query time you search only the <code>nprobe</code> nearest clusters instead of all of them.</p>
+          <ul>
+            <li><strong>nlist</strong> — number of clusters. More clusters → finer partitions.</li>
+            <li><strong>nprobe</strong> — clusters searched per query. Higher → better recall, slower.</li>
+          </ul>
+          <p><strong>Product Quantization (PQ)</strong> compresses each vector into a compact code by splitting it into sub-vectors and quantizing each. IVF-PQ is the workhorse for billion-scale corpora (used by FAISS) — massive memory savings at a modest recall cost, usually recovered with a full-precision rescore of the top candidates.</p>
+
+          <div class="callout callout-tip">
+            <strong>💡 Rule of thumb:</strong>
+            <p>Under ~10M vectors and you want simplicity → HNSW. Hundreds of millions to billions with tight memory budgets → IVF-PQ. Already on Postgres and modest scale → pgvector with HNSW.</p>
+          </div>
+
+          <h2 id="filtering">Filtered &amp; Hybrid Search</h2>
+          <p>Real queries aren't pure similarity — they carry constraints (tenant, date, ACL) and exact terms (error codes, IDs).</p>
+          <ul>
+            <li><strong>Metadata filtering</strong> — restrict candidates by attributes. <em>Pre-filter</em> (filter then search — accurate, can be slow) vs <em>post-filter</em> (search then filter — fast, may under-return). Good engines do filtered ANN natively.</li>
+            <li><strong>Hybrid search</strong> — fuse dense (vector) with sparse (BM25/keyword) scores, typically via Reciprocal Rank Fusion. Catches exact matches embeddings miss.</li>
+            <li><strong>Reranking</strong> — a cross-encoder rescores the fused top candidates for final precision.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Post-filter under-return trap:</strong>
+            <p>If you retrieve top-20 then filter by tenant, you may be left with two results because the other 18 belonged to other tenants. Over-fetch, or use an engine with native pre-filtered ANN.</p>
+          </div>
+
+          <h2 id="databases">Choosing a Vector Store</h2>
+          <ul>
+            <li><strong>pgvector</strong> — vectors alongside relational data in Postgres. Great when you already run Postgres and are at moderate scale; transactional consistency for free.</li>
+            <li><strong>OpenSearch / Elasticsearch (k-NN)</strong> — strong hybrid search, mature ops, native on AWS. Good when you also need full-text.</li>
+            <li><strong>Amazon OpenSearch Serverless</strong> — the default vector store behind Bedrock Knowledge Bases.</li>
+            <li><strong>Pinecone / Weaviate / Milvus / Qdrant</strong> — purpose-built vector DBs with managed scaling and rich filtering.</li>
+            <li><strong>Databricks Vector Search</strong> — vectors governed by Unity Catalog, auto-synced from Delta tables. Ideal when your data already lives in the lakehouse (see the Databricks Mosaic AI article).</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain HNSW and its key parameters.</div>
+            <div class="qa-answer">
+              <p>HNSW is a multi-layer proximity graph. Higher layers are sparse for coarse, long-distance navigation; lower layers are dense for fine search. A query enters at the top and greedily walks toward the nearest neighbors, descending layers. <strong>M</strong> sets edges per node (recall vs memory), <strong>efConstruction</strong> controls build-time graph quality, and <strong>efSearch</strong> controls the query-time candidate list — the main runtime knob for trading latency against recall, adjustable without rebuilding.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">HNSW vs IVF-PQ — when do you pick which?</div>
+            <div class="qa-answer">
+              <p>HNSW gives the best recall/latency and is simplest to operate, but memory grows with the graph — great up to tens of millions of vectors. IVF-PQ compresses vectors and searches only a few clusters, so it scales to hundreds of millions or billions with far less memory, at some recall cost you recover with a rescore pass. Choose HNSW for quality and simplicity at moderate scale; IVF-PQ for huge corpora under memory constraints.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is hybrid search and why does it matter?</div>
+            <div class="qa-answer">
+              <p>Hybrid search fuses dense vector similarity with sparse keyword scoring (BM25), usually via Reciprocal Rank Fusion. Embeddings capture meaning but miss exact tokens like part numbers, error codes, or rare acronyms; BM25 nails those but misses paraphrases. Combining them improves recall across both query types. A reranker on the fused candidates then sharpens precision.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Pre-filtering vs post-filtering in vector search?</div>
+            <div class="qa-answer">
+              <p>Pre-filtering applies metadata constraints before the ANN search, guaranteeing all candidates are eligible but potentially slowing the search. Post-filtering runs ANN first and filters after, which is fast but can under-return when many top hits are ineligible. For correctness with selective filters (e.g. per-tenant), use an engine with native pre-filtered ANN or over-fetch generously before filtering.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you use Databricks Vector Search over a standalone vector DB?</div>
+            <div class="qa-answer">
+              <p>When your source data already lives in Delta tables and you want governance and lineage from Unity Catalog carried into retrieval. Databricks Vector Search can auto-sync an index from a Delta table so embeddings stay fresh as data changes, without a separate ETL job to a standalone store. It reduces the operational surface and keeps ACLs consistent between the lakehouse and the retrieval layer.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

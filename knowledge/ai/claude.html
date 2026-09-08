@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Claude — Prompting, Tool Use &amp; Context — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Claude</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Claude</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>Claude — Prompting, Tool Use &amp; Context</h1>
+          <p class="article-desc">Working effectively with Anthropic's Claude models — the messages format, system prompts, structured prompting with XML, tool use, prompt caching, extended thinking, vision, and the context-engineering habits that make outputs reliable in production.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#family">The Claude Model Family</a></li>
+            <li><a href="#messages">Messages &amp; System Prompts</a></li>
+            <li><a href="#prompting">Prompting Best Practices</a></li>
+            <li><a href="#tool-use">Tool Use</a></li>
+            <li><a href="#caching">Prompt Caching</a></li>
+            <li><a href="#thinking">Extended Thinking &amp; Vision</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="family">The Claude Model Family</h2>
+          <p>Claude ships in tiers that trade capability for speed and cost — a lightweight fast tier (Haiku), a balanced workhorse (Sonnet), and a top-capability tier (Opus). The engineering skill is <strong>routing</strong>: use the smallest model that meets the quality bar for each task, and reserve the biggest for genuinely hard reasoning.</p>
+
+          <div class="callout">
+            <strong>🔑 Cost lever:</strong>
+            <p>Model tiering is the biggest cost control you have. Classify or draft with a fast/cheap model, escalate only hard cases to a larger one. This alone can cut spend by an order of magnitude.</p>
+          </div>
+
+          <h2 id="messages">Messages &amp; System Prompts</h2>
+          <p>Claude uses a messages format: an optional <strong>system</strong> prompt (role, rules, persona) plus alternating <code>user</code> and <code>assistant</code> turns. The system prompt sets behavior; the conversation carries the task.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Anthropic Messages API</div>
+            <pre><code>import anthropic
+client = anthropic.Anthropic()
+
+msg = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    system="You are a data engineering assistant. Answer only from the provided context.",
+    messages=[{"role": "user", "content": "Explain this DAG failure."}],
+    temperature=0,
+)
+print(msg.content[0].text)</code></pre>
+          </div>
+
+          <h2 id="prompting">Prompting Best Practices</h2>
+          <ul>
+            <li><strong>Be explicit</strong> — state the goal, format, and constraints directly. Claude follows clear instructions well.</li>
+            <li><strong>Use XML tags</strong> — Claude is tuned to respect structure like <code>&lt;context&gt;…&lt;/context&gt;</code> and <code>&lt;instructions&gt;…&lt;/instructions&gt;</code> to separate data from directives.</li>
+            <li><strong>Give examples</strong> — a few-shot example of the exact input/output shape beats paragraphs of description.</li>
+            <li><strong>Prefill the response</strong> — start the assistant turn (e.g. with <code>{</code>) to force JSON or a format.</li>
+            <li><strong>Ask for reasoning</strong> — "think step by step" for complex tasks, or use extended thinking.</li>
+            <li><strong>Ground it</strong> — instruct it to answer only from provided context and to say when it doesn't know.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Separate data from instructions:</strong>
+            <p>Wrap retrieved documents or user-supplied content in XML tags and tell Claude the tagged content is data, not commands. This is a simple, effective defense against prompt injection in RAG apps.</p>
+          </div>
+
+          <h2 id="tool-use">Tool Use</h2>
+          <p>Claude supports structured tool use: you provide tool definitions with JSON schemas, Claude emits a <code>tool_use</code> block, your code runs it and returns a <code>tool_result</code>, and Claude continues. This is the foundation for agents (see the Agentic AI article) and for connecting Claude to databases, search, and APIs.</p>
+          <ul>
+            <li><strong>Parallel tool use</strong> — Claude can request several independent tools at once.</li>
+            <li><strong>Forced tool choice</strong> — require a specific tool or any tool when you need structured output.</li>
+            <li><strong>Available on Bedrock</strong> — the same tool-use pattern works through the Bedrock Converse API.</li>
+          </ul>
+
+          <h2 id="caching">Prompt Caching</h2>
+          <p>Prompt caching lets you mark a large, stable prefix (a system prompt, a big reference document, tool definitions) as cacheable. Subsequent calls reuse the cached prefix at a large discount and lower latency — ideal for RAG over a fixed corpus, long system prompts, or repeated document Q&A.</p>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Cache the stable part:</strong>
+            <p>Put the unchanging content (instructions, reference docs) at the front and mark it cacheable; keep the variable part (the user's question) after it. Reordering or editing the prefix busts the cache.</p>
+          </div>
+
+          <h2 id="thinking">Extended Thinking &amp; Vision</h2>
+          <ul>
+            <li><strong>Extended thinking</strong> — the model reasons through a problem before answering, improving multi-step math, coding, and analysis. Budget the thinking tokens for hard tasks only.</li>
+            <li><strong>Vision</strong> — Claude can read images: screenshots, charts, diagrams, scanned documents. Useful for multimodal RAG and document understanding.</li>
+            <li><strong>Long context</strong> — large context windows let you pass whole documents; combine with caching to keep it affordable.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you control cost when building on Claude?</div>
+            <div class="qa-answer">
+              <p>Route by difficulty: use the cheapest tier (Haiku) for classification, extraction, and drafting, and escalate only hard reasoning to Sonnet/Opus. Add prompt caching for stable prefixes (system prompt, reference docs, tool schemas) to cut repeated input cost and latency. Cap max tokens, use temperature 0 to avoid rambly retries, and trim retrieved context to only what's relevant. Model tiering usually delivers the largest savings.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why use XML tags in Claude prompts?</div>
+            <div class="qa-answer">
+              <p>Claude is trained to respect structural delimiters, so wrapping sections in tags like <code>&lt;context&gt;</code>, <code>&lt;instructions&gt;</code>, and <code>&lt;example&gt;</code> reliably separates data from directives and improves instruction-following. It also hardens against prompt injection: you can tell Claude that tagged content is untrusted data to be used, not commands to be obeyed — a practical defense in RAG pipelines.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain prompt caching and when it pays off.</div>
+            <div class="qa-answer">
+              <p>Prompt caching stores a marked, stable prefix so repeated calls reuse it at a large discount and lower latency instead of reprocessing it every time. It pays off when many requests share a large constant portion — a long system prompt, big tool definitions, or a fixed reference document in RAG. Keep the cacheable content at the front and the variable user input after it; any change to the prefix invalidates the cache.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does tool use work with Claude?</div>
+            <div class="qa-answer">
+              <p>You pass tool definitions with JSON input schemas. When Claude decides a tool is needed, it returns a structured <code>tool_use</code> block with arguments; your application executes the tool and sends back a <code>tool_result</code>, and Claude continues reasoning with that output. It supports parallel tool calls and forced tool choice for structured output. The same pattern is available through the Bedrock Converse API, so it's portable across direct-API and AWS deployments.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you get reliable JSON output from Claude?</div>
+            <div class="qa-answer">
+              <p>Specify the exact schema and give a few-shot example of the desired output, set temperature 0, and prefill the assistant turn with the opening brace to force it into JSON mode. Even more robust: define a tool whose input schema is your target structure and force that tool choice, so Claude returns validated structured arguments. Always validate the parsed output and retry on schema violations.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AWS Bedrock — Knowledge Bases, Agents &amp; Guardrails — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>AWS Bedrock</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Bedrock</span>
+            <span class="read-time">16 min read</span>
+          </div>
+          <h1>AWS Bedrock — Knowledge Bases, Agents &amp; Guardrails</h1>
+          <p class="article-desc">Amazon Bedrock as a managed platform for GenAI — model choice, the Converse API, managed RAG with Knowledge Bases, Bedrock Agents with action groups, Guardrails, and how it fits an AWS data platform with S3, OpenSearch, and Lake Formation.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what">What Bedrock Is</a></li>
+            <li><a href="#models">Models &amp; the Converse API</a></li>
+            <li><a href="#kb">Knowledge Bases (Managed RAG)</a></li>
+            <li><a href="#agents">Bedrock Agents</a></li>
+            <li><a href="#guardrails">Guardrails</a></li>
+            <li><a href="#security">Security &amp; Integration</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what">What Bedrock Is</h2>
+          <p>Amazon Bedrock is a fully managed service that exposes foundation models from multiple providers (Anthropic Claude, Amazon Titan/Nova, Meta Llama, Mistral, Cohere) behind a single API, with no infrastructure to manage. It adds managed building blocks — Knowledge Bases (RAG), Agents, Guardrails, evaluation, and fine-tuning — so you assemble GenAI apps from AWS-native, IAM-governed components.</p>
+
+          <div class="callout">
+            <strong>🔑 Why teams pick Bedrock:</strong>
+            <p>Data stays in your AWS account, access is governed by IAM, models are swappable behind one API, and it integrates natively with S3, OpenSearch, Lambda, and CloudWatch — no data leaves your VPC boundary.</p>
+          </div>
+
+          <h2 id="models">Models &amp; the Converse API</h2>
+          <p>The <strong>Converse API</strong> gives a single, model-agnostic interface for multi-turn chat, tool use, and multimodal input, so you can swap Claude for Llama without rewriting call code. <code>InvokeModel</code> remains for provider-specific payloads.</p>
+          <ul>
+            <li><strong>On-demand</strong> — pay per token, no commitment.</li>
+            <li><strong>Provisioned throughput</strong> — reserved capacity for high, steady load.</li>
+            <li><strong>Cross-region inference</strong> — route to available capacity for resilience.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Bedrock Converse API (boto3)</div>
+            <pre><code>import boto3
+client = boto3.client("bedrock-runtime")
+
+resp = client.converse(
+    modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+    messages=[{"role": "user",
+               "content": [{"text": "Summarize this pipeline failure log."}]}],
+    inferenceConfig={"temperature": 0, "maxTokens": 1024},
+)
+print(resp["output"]["message"]["content"][0]["text"])</code></pre>
+          </div>
+
+          <h2 id="kb">Knowledge Bases (Managed RAG)</h2>
+          <p>Bedrock Knowledge Bases give you RAG without building the pipeline yourself:</p>
+          <ul>
+            <li><strong>Data source</strong> — point it at S3 (also supported: web crawler, Confluence, SharePoint, Salesforce).</li>
+            <li><strong>Chunking + embedding</strong> — managed, using Titan or Cohere embeddings; supports fixed, hierarchical, and semantic chunking.</li>
+            <li><strong>Vector store</strong> — OpenSearch Serverless (default), Aurora pgvector, Pinecone, Redis, and others.</li>
+            <li><strong>Retrieval APIs</strong> — <code>Retrieve</code> (get chunks) and <code>RetrieveAndGenerate</code> (get chunks + generate a cited answer in one call).</li>
+            <li><strong>Advanced</strong> — metadata filtering, reranking, and structured/GraphRAG options.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Build vs managed:</strong>
+            <p>Start with a Knowledge Base for speed. Go custom when you need control over parsing (complex tables), bespoke chunking, or metadata the managed flow doesn't expose. You can mix: managed retrieval, custom generation.</p>
+          </div>
+
+          <h2 id="agents">Bedrock Agents</h2>
+          <p>Bedrock Agents orchestrate multi-step tasks by combining an FM with tools and knowledge:</p>
+          <ul>
+            <li><strong>Action groups</strong> — tools defined by an OpenAPI schema, backed by Lambda functions or return-of-control to your code.</li>
+            <li><strong>Knowledge base association</strong> — the agent retrieves context automatically as part of reasoning.</li>
+            <li><strong>Orchestration</strong> — the agent plans, calls actions, observes results, and iterates (a managed ReAct loop).</li>
+            <li><strong>Traces</strong> — full step-by-step reasoning traces for debugging and audit.</li>
+            <li><strong>Multi-agent collaboration</strong> — a supervisor agent can delegate to specialized sub-agents.</li>
+          </ul>
+
+          <h2 id="guardrails">Guardrails</h2>
+          <p>Bedrock Guardrails apply configurable safety policies independent of the model, and can be attached to any model, Knowledge Base, or Agent:</p>
+          <ul>
+            <li><strong>Content filters</strong> — block hate, violence, sexual, and prompt-attack categories at tunable strengths.</li>
+            <li><strong>Denied topics</strong> — define subjects the app must refuse.</li>
+            <li><strong>Sensitive information</strong> — detect and redact/block PII.</li>
+            <li><strong>Word filters</strong> — profanity and custom blocklists.</li>
+            <li><strong>Contextual grounding checks</strong> — score responses for grounding in the retrieved source and relevance to the query, filtering hallucinations.</li>
+          </ul>
+
+          <h2 id="security">Security &amp; Integration</h2>
+          <ul>
+            <li><strong>IAM</strong> — fine-grained permissions on models, KBs, and agents.</li>
+            <li><strong>VPC / PrivateLink</strong> — keep traffic off the public internet.</li>
+            <li><strong>Encryption</strong> — KMS for data at rest; your data isn't used to train base models.</li>
+            <li><strong>Governance</strong> — Lake Formation / IAM on the S3 source; CloudWatch + CloudTrail for logging and audit.</li>
+            <li><strong>Cost controls</strong> — token metering, provisioned throughput, and model tiering (route simple calls to smaller/cheaper models).</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What does a Bedrock Knowledge Base give you over building RAG yourself?</div>
+            <div class="qa-answer">
+              <p>It manages the whole retrieval pipeline: ingestion from S3/SharePoint/etc., chunking, embedding (Titan/Cohere), indexing into a vector store like OpenSearch Serverless, and retrieval via <code>Retrieve</code> / <code>RetrieveAndGenerate</code> with citations. You skip building and operating the pipeline and get IAM governance for free. You'd build custom only when you need control over parsing complex documents, bespoke chunking, or specialized metadata the managed flow doesn't expose.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do Bedrock Agents execute actions?</div>
+            <div class="qa-answer">
+              <p>Through action groups defined by an OpenAPI schema and backed by Lambda functions (or return-of-control to your own code). The agent runs a managed reasoning loop: it plans, selects an action, the Lambda executes it, and the result feeds back for the next step until the task completes. It can also pull context from an associated Knowledge Base and emit full traces for debugging and audit.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is the contextual grounding check in Guardrails?</div>
+            <div class="qa-answer">
+              <p>It scores a model response on two axes: grounding (is the answer supported by the retrieved source material?) and relevance (does it address the user's query?). Responses below your configured thresholds are blocked or flagged, which directly reduces hallucinations in RAG applications. Because Guardrails are model-independent, you can apply the same policy across different FMs, Knowledge Bases, and Agents.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why use the Converse API instead of InvokeModel?</div>
+            <div class="qa-answer">
+              <p>Converse gives a single, model-agnostic schema for multi-turn conversations, tool use, and multimodal content, so you can switch between Claude, Llama, Titan, etc. without rewriting request/response handling. InvokeModel requires provider-specific payload formats. Use Converse for portability and standard chat/tool workflows; drop to InvokeModel only when you need a provider-specific feature it doesn't cover.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Bedrock keep enterprise data secure?</div>
+            <div class="qa-answer">
+              <p>Data stays within your AWS account and isn't used to train the base models. Access is governed by IAM at the model/KB/agent level, traffic can stay private via VPC endpoints/PrivateLink, and data is encrypted with KMS. Source data in S3 is governed by Lake Formation/IAM, and CloudTrail plus CloudWatch provide audit logging. This account-boundary model is a primary reason regulated industries choose Bedrock.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

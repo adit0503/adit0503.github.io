@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LLMOps — Evaluation, Guardrails &amp; Cost — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>LLMOps</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">LLMOps</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>LLMOps — Evaluation, Guardrails &amp; Cost</h1>
+          <p class="article-desc">Operating GenAI in production — offline and online evaluation, LLM-as-judge, guardrails and safety, observability and tracing, prompt/version management, latency and cost optimization, and the feedback loops that keep quality from silently regressing.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#why">Why LLMOps Differs from MLOps</a></li>
+            <li><a href="#eval">Evaluation</a></li>
+            <li><a href="#judge">LLM-as-Judge</a></li>
+            <li><a href="#guardrails">Guardrails &amp; Safety</a></li>
+            <li><a href="#observability">Observability &amp; Tracing</a></li>
+            <li><a href="#versioning">Prompt &amp; Version Management</a></li>
+            <li><a href="#cost">Latency &amp; Cost</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="why">Why LLMOps Differs from MLOps</h2>
+          <p>Classic ML has a fixed label and a clear accuracy metric. GenAI outputs are open-ended and non-deterministic, "correctness" is often subjective, and behavior depends on prompts and retrieved context, not just weights. LLMOps therefore leans on curated eval sets, LLM judges, guardrails, and heavy tracing rather than a single accuracy number.</p>
+
+          <div class="callout">
+            <strong>🔑 First principle:</strong>
+            <p>You cannot ship or improve a GenAI system without an evaluation set. Build a golden dataset of inputs and expected outputs/sources before you optimize anything.</p>
+          </div>
+
+          <h2 id="eval">Evaluation</h2>
+          <ul>
+            <li><strong>Offline eval</strong> — run a fixed dataset through each version; compare metrics before promotion.</li>
+            <li><strong>Online eval</strong> — monitor live traffic: user feedback (👍/👎), acceptance rate, escalation rate.</li>
+            <li><strong>Reference-based</strong> — compare to a gold answer (exact match, semantic similarity).</li>
+            <li><strong>Reference-free</strong> — score properties like faithfulness and relevance without a gold answer (needed at scale).</li>
+            <li><strong>RAG-specific</strong> — retrieval (recall@k, nDCG) and generation (faithfulness, answer relevance) measured separately.</li>
+          </ul>
+
+          <h2 id="judge">LLM-as-Judge</h2>
+          <p>A strong model scores outputs against a rubric — useful when human labeling can't scale. Make it reliable:</p>
+          <ul>
+            <li>Give a precise rubric and a scoring scale; ask for a brief justification.</li>
+            <li>Prefer pairwise comparison (A vs B) over absolute scores — it's more consistent.</li>
+            <li>Calibrate the judge against human labels on a sample; watch for position and verbosity bias.</li>
+            <li>Use a different/stronger model as judge than the one under test where possible.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Judges are estimators, not oracles:</strong>
+            <p>LLM judges have biases and can be gamed. Validate them against human ratings periodically and treat their scores as directional, especially for high-stakes decisions.</p>
+          </div>
+
+          <h2 id="guardrails">Guardrails &amp; Safety</h2>
+          <ul>
+            <li><strong>Input</strong> — prompt-injection and jailbreak detection, PII scrubbing, topic restriction.</li>
+            <li><strong>Output</strong> — toxicity/safety filters, PII redaction, format/schema validation, grounding checks.</li>
+            <li><strong>Managed options</strong> — Bedrock Guardrails, Databricks/MLflow safety judges.</li>
+            <li><strong>Fail modes</strong> — decide default-deny vs safe fallback per action; log every block.</li>
+          </ul>
+
+          <h2 id="observability">Observability &amp; Tracing</h2>
+          <p>Trace every request end to end: prompt, retrieved chunks, tool calls, model version, tokens, latency, cost, and the final output. This is how you debug quality issues (usually retrieval) and detect drift.</p>
+          <ul>
+            <li>Tools: LangSmith, LangFuse, MLflow Tracing, Bedrock model-invocation logging.</li>
+            <li>Capture user feedback inline and link it to the trace for later eval.</li>
+            <li>Alert on spikes in latency, cost, refusal/guardrail rate, and negative feedback.</li>
+          </ul>
+
+          <h2 id="versioning">Prompt &amp; Version Management</h2>
+          <ul>
+            <li><strong>Version prompts like code</strong> — in source control, with change review.</li>
+            <li><strong>Pin model versions</strong> — provider updates can shift behavior; upgrade deliberately and re-evaluate.</li>
+            <li><strong>Track the full config</strong> — prompt + model + retrieval params + tools as one versioned unit.</li>
+            <li><strong>A/B and canary</strong> — roll out changes to a slice, compare eval metrics, then expand.</li>
+          </ul>
+
+          <h2 id="cost">Latency &amp; Cost</h2>
+          <ul>
+            <li><strong>Model tiering</strong> — route easy requests to a small model, hard ones to a large one.</li>
+            <li><strong>Prompt caching</strong> — reuse stable prefixes (system prompt, reference docs) at a discount.</li>
+            <li><strong>Semantic caching</strong> — return a cached answer for near-duplicate queries.</li>
+            <li><strong>Trim context</strong> — retrieve fewer, better chunks; rerank instead of stuffing.</li>
+            <li><strong>Streaming</strong> — stream tokens to cut perceived latency.</li>
+            <li><strong>Batch &amp; async</strong> — batch offline embedding/generation; use provisioned throughput for steady load.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Measure per-request cost:</strong>
+            <p>Track tokens and dollars per request in your traces. Cost regressions hide in longer prompts and larger top-k just as often as in model choice.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How is LLMOps different from traditional MLOps?</div>
+            <div class="qa-answer">
+              <p>Traditional MLOps optimizes a model with fixed labels and a clear accuracy metric. GenAI outputs are open-ended and non-deterministic, correctness is often subjective, and behavior depends on prompts and retrieved context as much as weights. So LLMOps emphasizes curated evaluation sets, reference-free metrics and LLM-as-judge, guardrails, prompt/version management, and detailed tracing — rather than a single accuracy score and a retraining loop.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you make LLM-as-judge reliable?</div>
+            <div class="qa-answer">
+              <p>Give a precise rubric and scale, require a short justification, and prefer pairwise comparison over absolute scoring for consistency. Calibrate the judge against human labels on a sample and monitor for position, verbosity, and self-preference bias. Use a stronger or different model as the judge than the one being evaluated, and treat scores as directional estimators — validate periodically, especially before high-stakes decisions.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">A production RAG app slowly degraded. How do you find out why?</div>
+            <div class="qa-answer">
+              <p>Lean on tracing. Compare recent traces to a healthy baseline: check whether retrieved chunks stopped containing the answer (stale index, source drift, embedding-version mismatch), whether the model version changed, or whether prompts/top-k changed. Run the golden eval set against the current config to localize the regression to retrieval vs generation. Correlate with negative user feedback and guardrail/refusal rates to pinpoint the affected query segment.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What levers reduce GenAI serving cost without hurting quality?</div>
+            <div class="qa-answer">
+              <p>Model tiering (small model for easy tasks, large only for hard ones), prompt caching for stable prefixes, and semantic caching for repeat queries. Retrieve fewer, higher-quality chunks via reranking instead of stuffing context, cap max tokens, and use temperature 0 to avoid wasteful retries. Batch offline workloads and use provisioned throughput for steady load. Track per-request tokens/cost in traces to catch regressions from creeping prompt size.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why pin model versions, and how do you upgrade safely?</div>
+            <div class="qa-answer">
+              <p>Provider model updates can shift behavior and silently change outputs, breaking prompts tuned to the old version. Pin an explicit version so production is reproducible. To upgrade, run the new version against your golden eval set, compare metrics to the current baseline, then canary to a small traffic slice while monitoring feedback and guardrail rates before full rollout. Version the prompt, model, and retrieval config together as one unit.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

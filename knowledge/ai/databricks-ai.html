@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Databricks Mosaic AI — Vector Search &amp; Serving — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Databricks Mosaic AI</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Databricks</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Databricks Mosaic AI — Vector Search &amp; Serving</h1>
+          <p class="article-desc">Building GenAI on the lakehouse — Mosaic AI Vector Search synced from Delta, Model Serving and external model gateways, Agent Framework, MLflow evaluation, and how Unity Catalog governs data, models, and retrieval end to end.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#why">Why GenAI on the Lakehouse</a></li>
+            <li><a href="#vector-search">Mosaic AI Vector Search</a></li>
+            <li><a href="#serving">Model Serving &amp; Gateway</a></li>
+            <li><a href="#agents">Agent Framework &amp; RAG</a></li>
+            <li><a href="#eval">Evaluation with MLflow</a></li>
+            <li><a href="#governance">Unity Catalog Governance</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="why">Why GenAI on the Lakehouse</h2>
+          <p>If your data already lives in Delta tables under Unity Catalog, building GenAI where the data sits avoids copying it into separate systems and keeps one governance model across raw data, features, embeddings, models, and endpoints. Databricks <strong>Mosaic AI</strong> is the umbrella for these capabilities.</p>
+
+          <div class="callout">
+            <strong>🔑 The lakehouse advantage:</strong>
+            <p>One catalog governs the source table, the vector index, the model, and the serving endpoint — so lineage and access control flow end to end instead of being re-implemented in a bolt-on vector DB.</p>
+          </div>
+
+          <h2 id="vector-search">Mosaic AI Vector Search</h2>
+          <p>A serverless vector database integrated with Unity Catalog. Its defining feature is <strong>Delta Sync</strong>: point an index at a Delta table and it stays automatically in sync as rows change — no separate embedding pipeline to operate.</p>
+          <ul>
+            <li><strong>Managed embeddings</strong> — Databricks computes embeddings from a text column using a served embedding model, or</li>
+            <li><strong>Self-managed embeddings</strong> — you supply the vector column and it indexes them.</li>
+            <li><strong>Delta Sync index</strong> — incremental updates as the source table changes (via Change Data Feed).</li>
+            <li><strong>Direct Vector Access index</strong> — you write vectors yourself for full control.</li>
+            <li><strong>Filtered &amp; hybrid search</strong> — metadata filters plus keyword+vector similarity.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Delta Sync vector index (Python SDK)</div>
+            <pre><code>from databricks.vector_search.client import VectorSearchClient
+vsc = VectorSearchClient()
+
+vsc.create_delta_sync_index(
+    endpoint_name="vs_endpoint",
+    index_name="main.rag.docs_index",
+    source_table_name="main.rag.docs",       # Delta table
+    pipeline_type="TRIGGERED",                 # or CONTINUOUS
+    primary_key="id",
+    embedding_source_column="content",         # managed embeddings
+    embedding_model_endpoint_name="databricks-bge-large-en",
+)</code></pre>
+          </div>
+
+          <h2 id="serving">Model Serving &amp; Gateway</h2>
+          <ul>
+            <li><strong>Model Serving</strong> — serverless REST endpoints for custom models, fine-tuned LLMs, or embedding models, autoscaling to zero.</li>
+            <li><strong>Foundation Model APIs</strong> — pay-per-token access to hosted open models, plus provisioned throughput for dedicated capacity.</li>
+            <li><strong>External models / AI Gateway</strong> — a governed proxy to third-party providers (including Claude/Bedrock, OpenAI) with a unified interface, rate limits, usage tracking, and key management.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 One endpoint, many backends:</strong>
+            <p>The AI Gateway lets you swap the underlying model provider without changing app code, and centralizes credentials, quotas, and usage logging — the same portability benefit Bedrock's Converse API provides on AWS.</p>
+          </div>
+
+          <h2 id="agents">Agent Framework &amp; RAG</h2>
+          <p>The <strong>Mosaic AI Agent Framework</strong> is used to build, log, and deploy RAG and agent applications:</p>
+          <ul>
+            <li>Author chains/agents (LangChain, LlamaIndex, or custom) and log them as MLflow models.</li>
+            <li>Retrieve from Vector Search, call a served LLM, and return cited answers.</li>
+            <li>Deploy as a Model Serving endpoint with a built-in review app for human feedback.</li>
+            <li>Capture request/response traces for evaluation and monitoring.</li>
+          </ul>
+
+          <h2 id="eval">Evaluation with MLflow</h2>
+          <p>MLflow LLM evaluation (Agent Evaluation) scores RAG/agent outputs with built-in LLM judges — correctness, groundedness, relevance, and safety — against an evaluation dataset, and tracks results across versions so you can prove a change actually improved quality before shipping.</p>
+
+          <h2 id="governance">Unity Catalog Governance</h2>
+          <ul>
+            <li><strong>Data + AI assets in one catalog</strong> — tables, volumes (unstructured files), functions/tools, models, and vector indexes are all governed objects.</li>
+            <li><strong>Lineage</strong> — trace an answer back through the endpoint, index, and source table.</li>
+            <li><strong>Access control</strong> — the same grants protect the source data and the retrieval index, so a user can't retrieve what they can't read.</li>
+            <li><strong>Volumes</strong> — govern raw unstructured files (PDFs, images) that feed the ingestion pipeline.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What makes Databricks Vector Search different from a standalone vector DB?</div>
+            <div class="qa-answer">
+              <p>Delta Sync: you point an index at a Delta table and it keeps the vectors in sync automatically as the table changes (via Change Data Feed), so there's no separate embedding pipeline to build and operate. It's governed by Unity Catalog, so access control and lineage extend from the source table to the index. This tight lakehouse integration is the main reason to choose it when your data already lives in Delta.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Managed vs self-managed embeddings in Vector Search?</div>
+            <div class="qa-answer">
+              <p>With managed embeddings you specify a text column and an embedding model endpoint, and Databricks computes and refreshes the vectors for you — simplest to operate. With self-managed (Direct Vector Access), you compute and write vectors yourself, giving full control over the embedding model, chunking, and update logic at the cost of running that pipeline. Choose managed for speed, self-managed when you need custom control.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What does the AI Gateway / external models feature provide?</div>
+            <div class="qa-answer">
+              <p>A governed proxy to model providers (Databricks-hosted models and third parties like Claude/Bedrock or OpenAI) behind one unified endpoint. It centralizes credential management, rate limiting, and usage/cost tracking, and lets you swap the backing model without changing application code. It's the lakehouse equivalent of a model-agnostic gateway, giving portability and central governance over all LLM traffic.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does Unity Catalog govern a RAG application end to end?</div>
+            <div class="qa-answer">
+              <p>All the assets — source Delta tables, volumes holding raw files, the vector index, the served model, and functions/tools — are Unity Catalog objects with grants and lineage. The same access controls that protect the source data protect the retrieval index, so users can't retrieve content they can't read. Lineage lets you trace a generated answer back through the endpoint and index to the exact source rows, which is essential for audit in regulated domains.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you prove a RAG change improved quality on Databricks?</div>
+            <div class="qa-answer">
+              <p>Use MLflow Agent Evaluation. Curate an evaluation dataset of questions with expected answers/sources, run built-in LLM judges for correctness, groundedness, relevance, and safety, and log the scores per model version. Compare the new version against the baseline on the same dataset before promoting it. Combine with production trace capture so offline eval and live monitoring use consistent metrics.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

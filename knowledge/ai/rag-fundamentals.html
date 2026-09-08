@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>RAG Fundamentals &amp; Architecture — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>RAG Fundamentals</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">RAG</span>
+            <span class="read-time">18 min read</span>
+          </div>
+          <h1>RAG Fundamentals &amp; Architecture</h1>
+          <p class="article-desc">Retrieval-Augmented Generation from first principles — why it exists, the ingestion and query pipelines, chunking, embeddings, retrieval, prompt assembly, generation, and the failure modes you must design around. The backbone pattern for grounding foundation models on your own data.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#why-rag">Why RAG Exists</a></li>
+            <li><a href="#anatomy">Anatomy of a RAG System</a></li>
+            <li><a href="#ingestion">Ingestion Pipeline</a></li>
+            <li><a href="#chunking">Chunking Strategies</a></li>
+            <li><a href="#retrieval">Retrieval &amp; Prompt Assembly</a></li>
+            <li><a href="#generation">Generation &amp; Grounding</a></li>
+            <li><a href="#failure-modes">Failure Modes</a></li>
+            <li><a href="#de-perspective">The Data Engineer's Role</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="why-rag">Why RAG Exists</h2>
+          <p>A foundation model (FM) knows only what was in its training data, frozen at a cutoff date. It cannot cite your internal documents, it invents plausible-sounding facts (hallucination), and retraining it on your data is expensive and slow. <strong>Retrieval-Augmented Generation (RAG)</strong> sidesteps all three problems by fetching relevant context at query time and injecting it into the prompt, so the model answers from evidence rather than memory.</p>
+          <ul>
+            <li><strong>Freshness</strong> — update the knowledge base, not the model weights.</li>
+            <li><strong>Attribution</strong> — return source documents so answers are auditable.</li>
+            <li><strong>Cost</strong> — no fine-tuning; you pay for inference plus a vector store.</li>
+            <li><strong>Access control</strong> — filter retrieval by user permissions before generation.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 The one-line definition:</strong>
+            <p>RAG = <code>retrieve(query) → augment(prompt, context) → generate(answer)</code>. You are turning an open-book exam into a closed-book model by handing it the right pages.</p>
+          </div>
+
+          <h2 id="anatomy">Anatomy of a RAG System</h2>
+          <p>Every RAG system splits into two pipelines that run at different times:</p>
+          <ol>
+            <li><strong>Ingestion (offline / batch)</strong> — load documents, clean, chunk, embed, and index them into a vector store. Runs on a schedule or on document change.</li>
+            <li><strong>Query (online / real-time)</strong> — embed the user query, retrieve top-k chunks, assemble a prompt, call the FM, post-process and return with citations.</li>
+          </ol>
+
+          <div class="code-block">
+            <div class="code-block-header">RAG query flow (pseudocode)</div>
+            <pre><code>def answer(query, k=5):
+    q_vec = embed(query)                      # same model as ingestion
+    hits  = vector_store.search(q_vec, k=k,   # ANN search
+                                filter=acl(user))
+    context = "\n\n".join(h.text for h in hits)
+    prompt = f"""Answer using ONLY the context below.
+If the answer is not present, say you don't know.
+
+Context:
+{context}
+
+Question: {query}"""
+    resp = llm.generate(prompt, temperature=0)
+    return resp, [h.source for h in hits]     # answer + citations</code></pre>
+          </div>
+
+          <h2 id="ingestion">Ingestion Pipeline</h2>
+          <p>This is where a data engineer adds the most value — it is an ETL pipeline with an embedding step bolted on. Stages:</p>
+          <ol>
+            <li><strong>Extract</strong> — pull from S3, Confluence, SharePoint, databases, PDFs, HTML. Parse layout (tables, headings) with tools like Amazon Textract, Unstructured.io, or Apache Tika.</li>
+            <li><strong>Clean &amp; normalize</strong> — strip boilerplate, de-duplicate, fix encoding, redact PII.</li>
+            <li><strong>Chunk</strong> — split into retrievable units (see below).</li>
+            <li><strong>Enrich</strong> — attach metadata: source, section, timestamp, tenant, ACL tags.</li>
+            <li><strong>Embed</strong> — convert each chunk to a vector with an embedding model.</li>
+            <li><strong>Index</strong> — upsert vectors + metadata into the vector store.</li>
+          </ol>
+
+          <div class="callout callout-tip">
+            <strong>💡 Treat embeddings as a derived dataset:</strong>
+            <p>Version your chunking + embedding logic. If you change the chunker or swap the embedding model, you must re-embed everything — mixed embedding spaces silently destroy retrieval quality.</p>
+          </div>
+
+          <h2 id="chunking">Chunking Strategies</h2>
+          <p>Chunking is the highest-leverage decision in a RAG system. Too large and you dilute relevance and blow the context budget; too small and you fragment meaning.</p>
+          <ul>
+            <li><strong>Fixed-size</strong> — N tokens with overlap (e.g. 512 tokens, 50 overlap). Simple, ignores structure.</li>
+            <li><strong>Recursive/structural</strong> — split on headings → paragraphs → sentences. Respects document layout.</li>
+            <li><strong>Semantic</strong> — split where embedding similarity between adjacent sentences drops. Keeps topics intact.</li>
+            <li><strong>Document-aware</strong> — one chunk per table row, code block, or slide.</li>
+            <li><strong>Parent-child (small-to-big)</strong> — embed small chunks for precise retrieval, but return the larger parent chunk to the LLM for context.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Overlap is not free:</strong>
+            <p>Overlap improves recall at chunk boundaries but inflates storage and can return near-duplicate chunks, wasting the context window. De-duplicate retrieved chunks before assembling the prompt.</p>
+          </div>
+
+          <h2 id="retrieval">Retrieval &amp; Prompt Assembly</h2>
+          <p>At query time you embed the question and run an approximate nearest neighbor (ANN) search. Key levers:</p>
+          <ul>
+            <li><strong>top-k</strong> — how many chunks to fetch. More context ≠ better; the model can get distracted (the "lost in the middle" effect).</li>
+            <li><strong>Metadata filtering</strong> — restrict by tenant, date, or ACL <em>before</em> similarity ranking.</li>
+            <li><strong>Hybrid search</strong> — combine dense (vector) with sparse (BM25/keyword) for exact terms like IDs and error codes.</li>
+            <li><strong>Reranking</strong> — a cross-encoder rescores the top candidates for precision.</li>
+          </ul>
+          <p>The retrieved chunks are assembled into a prompt with clear instructions: answer only from context, cite sources, and admit ignorance when the answer is absent. This last instruction is the single biggest hallucination reducer.</p>
+
+          <h2 id="generation">Generation &amp; Grounding</h2>
+          <p>The FM (Claude, an FM on Bedrock, or a Databricks-served model) receives system instructions + context + query. Best practices:</p>
+          <ul>
+            <li>Use <code>temperature=0</code> for factual grounding.</li>
+            <li>Ask for inline citations tied to chunk IDs so answers are verifiable.</li>
+            <li>Add a grounding check: a second pass (or a guardrail) that verifies claims are supported by retrieved context.</li>
+            <li>Stream tokens for UX, but validate citations server-side before display.</li>
+          </ul>
+
+          <h2 id="failure-modes">Failure Modes</h2>
+          <p>Most "RAG doesn't work" complaints trace to one of these:</p>
+          <ul>
+            <li><strong>Retrieval miss</strong> — the answer chunk was never fetched (bad chunking, wrong embedding model, no hybrid search).</li>
+            <li><strong>Context stuffing</strong> — too many chunks bury the relevant one.</li>
+            <li><strong>Stale index</strong> — documents changed but vectors weren't refreshed.</li>
+            <li><strong>Embedding drift</strong> — query and documents embedded with different models/versions.</li>
+            <li><strong>Ignoring context</strong> — the model answers from its parametric memory anyway; fix with stronger prompting and grounding checks.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Debugging tip:</strong>
+            <p>Always log the retrieved chunks alongside the generated answer. 80% of RAG bugs are retrieval bugs, not generation bugs — if the right chunk never showed up, no prompt will save you.</p>
+          </div>
+
+          <h2 id="de-perspective">The Data Engineer's Role</h2>
+          <p>RAG ingestion <em>is</em> a data pipeline. Your existing skills map directly:</p>
+          <ul>
+            <li><strong>Orchestration</strong> — Airflow/Dagster DAGs to refresh embeddings incrementally on CDC events.</li>
+            <li><strong>Incremental processing</strong> — only re-embed changed documents (hash the source, upsert deltas).</li>
+            <li><strong>Data quality</strong> — validate chunk counts, embedding dimensions, null text, and de-duplication.</li>
+            <li><strong>Governance</strong> — carry lineage and ACLs from source into vector metadata (Unity Catalog, Lake Formation).</li>
+            <li><strong>Medallion pattern</strong> — Bronze (raw docs) → Silver (cleaned chunks) → Gold (embedded, indexed).</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you choose RAG over fine-tuning?</div>
+            <div class="qa-answer">
+              <p>Use <strong>RAG</strong> when knowledge changes frequently, must be attributable, or is access-controlled — it grounds answers in retrievable evidence and updates instantly. Use <strong>fine-tuning</strong> to teach the model a <em>behavior, format, or style</em> (tone, JSON structure, domain jargon), not facts. They are complementary: fine-tune for how to respond, RAG for what to respond with. RAG is cheaper to maintain and far easier to audit.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Your RAG system returns irrelevant answers. How do you debug it?</div>
+            <div class="qa-answer">
+              <p>Isolate retrieval from generation. First log and inspect the top-k retrieved chunks: if the correct chunk isn't there, it's a retrieval problem — check chunking strategy, embedding model consistency, and add hybrid (BM25 + vector) search plus a reranker. If the correct chunk <em>is</em> retrieved but the answer is still wrong, it's a generation/prompting problem — tighten the instruction to answer only from context, lower temperature, and add a grounding check.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you keep a RAG index fresh at scale?</div>
+            <div class="qa-answer">
+              <p>Drive ingestion from change data capture. Hash each source document; on change, re-chunk and re-embed only the affected documents and upsert by a stable chunk key, deleting orphaned chunks. Orchestrate with Airflow/Dagster on a schedule or event trigger. For high-velocity sources, use a streaming ingest (e.g. Auto Loader → embed → upsert). Track index freshness as an SLA metric.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why does chunk size matter so much?</div>
+            <div class="qa-answer">
+              <p>Chunk size controls the granularity of retrieval. Large chunks carry more context but dilute the embedding (one vector must represent many ideas), reducing similarity precision and consuming the context budget. Small chunks embed precisely but fragment meaning across boundaries. The parent-child pattern resolves this: embed small chunks for accurate matching, then return the larger parent for the LLM to reason over.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you enforce access control in RAG?</div>
+            <div class="qa-answer">
+              <p>Attach ACL metadata (user, group, tenant, classification) to every chunk at ingestion, carried from the source system's permissions. At query time, apply a metadata filter <em>before</em> the similarity search so a user can never retrieve — and therefore never see summarized — content they aren't authorized for. Never rely on the LLM to redact; filter at the retrieval layer where it's deterministic and auditable.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

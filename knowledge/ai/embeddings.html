@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Embeddings — Models, Similarity &amp; Fine-Tuning — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Embeddings</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Embeddings</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Embeddings — Models, Similarity &amp; Fine-Tuning</h1>
+          <p class="article-desc">What embeddings actually are, how similarity is measured, choosing an embedding model, dimensionality and cost trade-offs, normalization, and when to fine-tune. The numeric foundation that makes vector search and RAG possible.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#what">What Is an Embedding</a></li>
+            <li><a href="#similarity">Similarity Metrics</a></li>
+            <li><a href="#models">Choosing an Embedding Model</a></li>
+            <li><a href="#dimensions">Dimensions &amp; Cost</a></li>
+            <li><a href="#normalization">Normalization &amp; Pitfalls</a></li>
+            <li><a href="#fine-tuning">Fine-Tuning Embeddings</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="what">What Is an Embedding</h2>
+          <p>An embedding is a dense vector of floating-point numbers that positions a piece of text (or an image, audio, code) in a high-dimensional space where <strong>semantic similarity becomes geometric proximity</strong>. "Cancel my subscription" and "how do I end my plan" land near each other even though they share no keywords.</p>
+          <p>An embedding model is a neural network (usually a transformer encoder) trained so that related inputs produce nearby vectors and unrelated inputs produce distant ones. The output is a fixed-length vector — 384, 768, 1024, or 1536 dimensions are common.</p>
+
+          <div class="callout">
+            <strong>🔑 Mental model:</strong>
+            <p>Keyword search matches <em>strings</em>. Embedding search matches <em>meaning</em>. That is the entire reason semantic retrieval and RAG work.</p>
+          </div>
+
+          <h2 id="similarity">Similarity Metrics</h2>
+          <ul>
+            <li><strong>Cosine similarity</strong> — angle between vectors; ignores magnitude. The default for text. Range −1 to 1.</li>
+            <li><strong>Dot product</strong> — cosine × magnitudes. Fast, and equal to cosine when vectors are normalized.</li>
+            <li><strong>Euclidean (L2) distance</strong> — straight-line distance; sensitive to magnitude.</li>
+          </ul>
+          <p>For normalized embeddings, cosine and dot product rank identically — so most vector databases store normalized vectors and use dot product for speed.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">cosine similarity</div>
+            <pre><code>import numpy as np
+
+def cosine(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+# If vectors are pre-normalized, this reduces to a dot product:
+# cosine(a, b) == np.dot(a, b)</code></pre>
+          </div>
+
+          <h2 id="models">Choosing an Embedding Model</h2>
+          <p>Selection criteria, in priority order:</p>
+          <ul>
+            <li><strong>Domain fit</strong> — does it perform on your data (legal, financial, code)? Check the MTEB benchmark and, better, evaluate on your own queries.</li>
+            <li><strong>Deployment mode</strong> — API (Amazon Titan Embeddings / Cohere on Bedrock, OpenAI) vs self-hosted open models (BGE, E5, GTE, Nomic) for data residency.</li>
+            <li><strong>Multilingual</strong> — if content spans languages, pick a multilingual model.</li>
+            <li><strong>Context length</strong> — max tokens per input; long-document models reduce chunking pressure.</li>
+            <li><strong>Cost &amp; latency</strong> — per-token API price vs GPU hosting cost.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Model consistency is non-negotiable:</strong>
+            <p>Documents and queries MUST be embedded with the same model and version. Mixing embedding spaces produces garbage retrieval. When you upgrade the model, re-embed the entire corpus.</p>
+          </div>
+
+          <h2 id="dimensions">Dimensions &amp; Cost</h2>
+          <p>Higher dimensionality can capture more nuance but costs more to store and search. A 1536-dim float32 vector is 6 KB; ten million of them is 60 GB before index overhead.</p>
+          <ul>
+            <li><strong>Matryoshka embeddings</strong> — models trained so you can truncate to fewer dimensions with graceful quality loss, trading accuracy for storage/speed.</li>
+            <li><strong>Quantization</strong> — store as int8 or binary vectors to cut memory 4–32×, with a small recall hit (recover via a rescore pass).</li>
+            <li><strong>Storage math</strong> — plan capacity as <code>N_chunks × dims × bytes_per_value</code> plus index structure overhead.</li>
+          </ul>
+
+          <h2 id="normalization">Normalization &amp; Pitfalls</h2>
+          <ul>
+            <li><strong>Normalize</strong> to unit length if you use dot-product indexes.</li>
+            <li><strong>Asymmetric tasks</strong> — some models expect a query prefix vs a passage prefix (e.g. E5's <code>query:</code> / <code>passage:</code>). Skipping this quietly halves quality.</li>
+            <li><strong>Truncation</strong> — inputs longer than the model's context are silently cut; chunk first.</li>
+            <li><strong>Batch drift</strong> — ensure the same preprocessing (casing, whitespace) at ingest and query time.</li>
+          </ul>
+
+          <h2 id="fine-tuning">Fine-Tuning Embeddings</h2>
+          <p>Off-the-shelf models work for most cases. Fine-tune when your domain vocabulary is unusual and retrieval quality plateaus. Approaches:</p>
+          <ul>
+            <li><strong>Contrastive fine-tuning</strong> — train on (query, positive passage, negative passage) triples so relevant pairs pull together and irrelevant ones push apart.</li>
+            <li><strong>Hard negatives</strong> — mine near-miss passages (retrieved but wrong) as negatives; this is where most of the gain comes from.</li>
+            <li><strong>Adapter/LoRA</strong> — cheap parameter-efficient tuning instead of full retraining.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Cheaper before fine-tuning:</strong>
+            <p>Before investing in fine-tuning, try a better base model, hybrid search, and a reranker. These usually close most of the quality gap at a fraction of the effort.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Why cosine similarity instead of Euclidean distance for text?</div>
+            <div class="qa-answer">
+              <p>Cosine measures the angle between vectors, ignoring magnitude, so it captures semantic direction regardless of text length or token count. Two documents about the same topic point in the same direction even if one is far longer. Euclidean distance is magnitude-sensitive and would penalize length differences. When embeddings are normalized to unit length, cosine and dot product are equivalent, which is why vector DBs normalize and use dot product for speed.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">You upgraded your embedding model. What must you do?</div>
+            <div class="qa-answer">
+              <p>Re-embed the entire corpus. Old vectors live in a different geometric space, so mixing them with new query embeddings breaks similarity. Do a blue/green migration: build a new index with the new model, backfill all chunks, validate retrieval quality on a golden query set, then cut queries over. Never serve queries against a partially migrated index.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you cut vector storage costs without wrecking recall?</div>
+            <div class="qa-answer">
+              <p>Use quantization (int8 or binary) to shrink vectors 4–32×, then add a rescore pass on the top candidates using full-precision vectors to recover accuracy. Alternatively use Matryoshka embeddings and truncate to fewer dimensions. Combine with metadata filtering so you search a smaller candidate set. Measure recall@k on a labeled set before and after to quantify the trade-off.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When is fine-tuning an embedding model worth it?</div>
+            <div class="qa-answer">
+              <p>When your domain has specialized vocabulary (medical codes, financial instruments, internal jargon) and retrieval quality plateaus despite a strong base model, hybrid search, and reranking. Fine-tune contrastively on query/passage pairs with mined hard negatives. If you lack labeled pairs, generate synthetic queries from your documents with an LLM. Otherwise, prefer the cheaper wins first.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

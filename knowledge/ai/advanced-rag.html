@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Advanced RAG — Reranking, Hybrid &amp; GraphRAG — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Advanced RAG</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">RAG</span>
+            <span class="read-time">16 min read</span>
+          </div>
+          <h1>Advanced RAG — Reranking, Hybrid &amp; GraphRAG</h1>
+          <p class="article-desc">Beyond naive RAG — query transformation, hybrid retrieval, cross-encoder reranking, parent-child and contextual retrieval, GraphRAG, agentic RAG, and how to evaluate a retrieval pipeline so you improve the right stage.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#why">Why Naive RAG Isn't Enough</a></li>
+            <li><a href="#query">Query Transformation</a></li>
+            <li><a href="#hybrid">Hybrid Retrieval &amp; Fusion</a></li>
+            <li><a href="#rerank">Reranking</a></li>
+            <li><a href="#context">Contextual &amp; Parent-Child Retrieval</a></li>
+            <li><a href="#graphrag">GraphRAG</a></li>
+            <li><a href="#agentic">Agentic RAG</a></li>
+            <li><a href="#eval">Evaluating RAG</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="why">Why Naive RAG Isn't Enough</h2>
+          <p>Naive RAG — embed query, fetch top-k, stuff into prompt — breaks on real workloads: ambiguous queries, questions that need multiple documents, exact-term lookups, and answers scattered across sources. Advanced RAG adds stages before and after retrieval to fix each failure.</p>
+
+          <div class="callout">
+            <strong>🔑 Frame RAG as a pipeline:</strong>
+            <p>query → <em>transform</em> → <em>retrieve (hybrid)</em> → <em>rerank</em> → <em>assemble</em> → generate. Each stage is independently measurable and tunable.</p>
+          </div>
+
+          <h2 id="query">Query Transformation</h2>
+          <ul>
+            <li><strong>Query rewriting</strong> — clean a messy conversational query into a standalone search query.</li>
+            <li><strong>Multi-query</strong> — generate several paraphrases, retrieve for each, and merge results to boost recall.</li>
+            <li><strong>HyDE (Hypothetical Document Embeddings)</strong> — ask the LLM to draft a hypothetical answer, embed <em>that</em>, and search with it; the fake answer often sits closer to real passages than the raw question.</li>
+            <li><strong>Decomposition</strong> — break a complex question into sub-questions, retrieve for each, then synthesize.</li>
+          </ul>
+
+          <h2 id="hybrid">Hybrid Retrieval &amp; Fusion</h2>
+          <p>Run dense (vector) and sparse (BM25) retrieval in parallel and fuse the rankings, typically with <strong>Reciprocal Rank Fusion (RRF)</strong>, which combines ranks rather than raw scores so the two systems' incomparable scores don't need calibration.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">Reciprocal Rank Fusion</div>
+            <pre><code>def rrf(rankings, k=60):
+    scores = {}
+    for ranking in rankings:            # e.g. [dense_hits, bm25_hits]
+        for rank, doc_id in enumerate(ranking):
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank)
+    return sorted(scores, key=scores.get, reverse=True)</code></pre>
+          </div>
+
+          <h2 id="rerank">Reranking</h2>
+          <p>Retrieval uses a <strong>bi-encoder</strong> (query and doc embedded separately) for speed. A <strong>cross-encoder reranker</strong> scores each (query, passage) pair jointly, which is far more accurate but too slow to run over the whole corpus. So you retrieve a large candidate set (say 50) cheaply, then rerank down to the best 5.</p>
+          <ul>
+            <li>Managed rerankers: Cohere Rerank (available on Bedrock), voyage-rerank.</li>
+            <li>Reranking is often the single biggest quality win after hybrid search.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Retrieve wide, rerank narrow:</strong>
+            <p>Over-fetch candidates to maximize recall, then let the cross-encoder maximize precision on the shortlist. This two-stage design gets you the best of both.</p>
+          </div>
+
+          <h2 id="context">Contextual &amp; Parent-Child Retrieval</h2>
+          <ul>
+            <li><strong>Parent-child (small-to-big)</strong> — embed small chunks for precise matching, return the enclosing parent for full context.</li>
+            <li><strong>Contextual retrieval</strong> — prepend an LLM-generated summary of the document to each chunk before embedding, so isolated chunks retain their context ("this snippet is from the Q3 revenue section of the 2025 annual report").</li>
+            <li><strong>Sentence-window</strong> — embed single sentences, expand to a window of neighbors at return time.</li>
+          </ul>
+
+          <h2 id="graphrag">GraphRAG</h2>
+          <p>Some questions ("how are these two entities connected?", "summarize themes across the whole corpus") can't be answered by independent chunks. <strong>GraphRAG</strong> extracts entities and relationships into a knowledge graph, then retrieves subgraphs or community summaries. It excels at multi-hop reasoning and global questions, at the cost of a heavier, LLM-driven ingestion step.</p>
+
+          <h2 id="agentic">Agentic RAG</h2>
+          <p>Instead of a fixed retrieve-then-generate flow, an agent decides <em>whether</em> to retrieve, <em>which</em> source to query, and whether the retrieved evidence is sufficient — looping to refine the query if not. This handles multi-step research and routing across multiple knowledge bases, trading determinism for adaptability. (See the Agentic AI article.)</p>
+
+          <h2 id="eval">Evaluating RAG</h2>
+          <p>You cannot improve what you don't measure. Split metrics by stage:</p>
+          <ul>
+            <li><strong>Retrieval</strong> — recall@k, precision@k, MRR, nDCG against a labeled query→relevant-doc set.</li>
+            <li><strong>Generation</strong> — <em>faithfulness</em> (is every claim supported by context?), <em>answer relevance</em>, <em>context precision/recall</em>. Tools: RAGAS, LLM-as-judge, Bedrock/MLflow evaluation.</li>
+            <li><strong>End-to-end</strong> — correctness on a golden Q&A set, plus latency and cost per query.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Build the eval set first:</strong>
+            <p>Without a golden set of questions and expected sources/answers, every "improvement" is a guess. Curate 50–200 representative queries before you start tuning.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What is a reranker and why add one?</div>
+            <div class="qa-answer">
+              <p>A reranker is a cross-encoder that scores a (query, passage) pair jointly, reading both together rather than comparing pre-computed embeddings. It's far more accurate than the bi-encoder used for initial retrieval but too slow to run over the whole corpus. So you retrieve a wide candidate set cheaply, then rerank the shortlist for precision. It's typically the biggest quality gain after adding hybrid search.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain HyDE and when it helps.</div>
+            <div class="qa-answer">
+              <p>HyDE (Hypothetical Document Embeddings) asks the LLM to generate a plausible answer to the query, then embeds that hypothetical answer and uses it for retrieval. The generated text resembles the target passages more than a terse question does, improving matches for underspecified or short queries. The trade-off is an extra LLM call and the risk the hypothetical drifts off-topic; it helps most when queries are vague.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you reach for GraphRAG?</div>
+            <div class="qa-answer">
+              <p>For multi-hop questions about relationships between entities and for global/thematic questions that require synthesizing across the whole corpus rather than a few chunks. GraphRAG builds a knowledge graph of entities and relations and retrieves subgraphs or community summaries. The cost is a heavier, LLM-driven ingestion pipeline, so use it only when standard chunk retrieval provably fails those query types.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you evaluate a RAG system?</div>
+            <div class="qa-answer">
+              <p>Separate retrieval from generation. Measure retrieval with recall@k, precision@k, MRR, and nDCG against a labeled query-to-document set. Measure generation with faithfulness (claims grounded in context), answer relevance, and context precision/recall — often via LLM-as-judge frameworks like RAGAS. Track end-to-end correctness on a golden Q&A set plus latency and cost. Build that golden set before tuning anything.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why Reciprocal Rank Fusion instead of adding scores?</div>
+            <div class="qa-answer">
+              <p>Dense and sparse retrievers produce scores on incomparable scales (cosine similarity vs BM25), so summing them requires fragile normalization. RRF fuses by <em>rank position</em> — each document gets 1/(k + rank) from each list — which is robust, parameter-light, and needs no score calibration. It reliably blends heterogeneous rankers, which is exactly what hybrid search requires.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

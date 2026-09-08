@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI for Data Engineering &amp; Data for AI — Knowledge Base</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>AI for Data Engineering</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Data Eng</span>
+            <span class="read-time">16 min read</span>
+          </div>
+          <h1>AI for Data Engineering &amp; Data for AI</h1>
+          <p class="article-desc">The two-way relationship between data engineering and GenAI — using LLMs to accelerate pipeline work (code, docs, quality, migration), and building the data platform that feeds AI: embedding pipelines, feature stores, vector sync, and governance.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#two-way">A Two-Way Street</a></li>
+            <li><a href="#ai-for-de">AI for Data Engineering</a></li>
+            <li><a href="#migration">AI-Assisted Migration</a></li>
+            <li><a href="#data-for-ai">Data for AI</a></li>
+            <li><a href="#embedding-pipelines">Embedding Pipelines</a></li>
+            <li><a href="#quality">Data Quality for AI</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="two-way">A Two-Way Street</h2>
+          <p>GenAI touches data engineering in two directions. <strong>AI for DE</strong>: LLMs accelerate how you build and operate pipelines. <strong>Data for AI</strong>: DE builds the pipelines that make GenAI possible — embeddings, retrieval, features, and governance. A modern data engineer works both sides.</p>
+
+          <div class="callout">
+            <strong>🔑 The durable skill:</strong>
+            <p>GenAI didn't replace data engineering — it created a new consumer of clean, governed, well-modeled data. The teams that ship reliable AI are the ones with strong data foundations underneath.</p>
+          </div>
+
+          <h2 id="ai-for-de">AI for Data Engineering</h2>
+          <ul>
+            <li><strong>Code generation</strong> — draft PySpark/SQL/dbt from a description; convert between dialects.</li>
+            <li><strong>Pipeline documentation</strong> — auto-generate docs and column descriptions from code and schemas.</li>
+            <li><strong>Data quality rules</strong> — suggest expectations/tests from profiling a dataset.</li>
+            <li><strong>Debugging</strong> — explain a stack trace or a slow query plan and propose fixes.</li>
+            <li><strong>Semantic layer / text-to-SQL</strong> — let analysts query in natural language over a governed model (with guardrails and read-only access).</li>
+            <li><strong>Anomaly triage</strong> — summarize failing runs and cluster related incidents.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Verify generated pipeline code:</strong>
+            <p>LLM-drafted transformations can be subtly wrong (join keys, null handling, timezone). Treat generated code as a first draft — review, test against real data, and reconcile counts before promoting.</p>
+          </div>
+
+          <h2 id="migration">AI-Assisted Migration</h2>
+          <p>A high-value, real-world use: migrating on-prem or legacy workloads to the cloud. LLMs translate stored procedures and legacy ETL to Spark/dbt, generate validation queries, and draft reconciliation logic — compressing timelines dramatically. The engineering discipline is in the validation harness: automated row counts, checksums, and business-rule reconciliation between source and target confirm the conversion is correct, not just plausible.</p>
+
+          <h2 id="data-for-ai">Data for AI</h2>
+          <p>The platform work that makes GenAI possible:</p>
+          <ul>
+            <li><strong>Ingestion &amp; chunking</strong> — turn source documents into retrievable, metadata-rich chunks (see Grounding FMs on Unstructured Data).</li>
+            <li><strong>Embedding pipelines</strong> — compute and refresh vectors incrementally.</li>
+            <li><strong>Vector sync</strong> — keep the index consistent with source (Delta Sync, CDC-driven upserts).</li>
+            <li><strong>Feature stores</strong> — serve fresh features for models and for prompt enrichment.</li>
+            <li><strong>Governance</strong> — carry lineage, PII tags, and ACLs from source into every downstream AI asset.</li>
+          </ul>
+
+          <h2 id="embedding-pipelines">Embedding Pipelines</h2>
+          <p>An embedding pipeline is an ETL job with an embed step, and it follows the medallion pattern:</p>
+          <div class="code-block">
+            <div class="code-block-header">Incremental embedding pipeline</div>
+            <pre><code># Silver → Gold, incremental by content hash
+changed = (spark.read.table("silver.doc_chunks")
+                 .where("_change_type IN ('insert','update')"))
+
+embedded = (changed
+    .withColumn("embedding", embed_udf("chunk_text"))   # batched model call
+    .select("chunk_id", "doc_id", "chunk_text",
+            "embedding", "acl_tags", "updated_at"))
+
+(embedded.write
+    .format("delta").mode("append")
+    .saveAsTable("gold.doc_embeddings"))
+# Vector index Delta-syncs from gold.doc_embeddings</code></pre>
+          </div>
+          <ul>
+            <li>Batch embedding calls to amortize model latency and cost.</li>
+            <li>Upsert by a stable chunk key; delete orphaned chunks when source rows disappear.</li>
+            <li>Orchestrate with Airflow/Dagster; trigger on CDC or schedule.</li>
+          </ul>
+
+          <h2 id="quality">Data Quality for AI</h2>
+          <ul>
+            <li><strong>Chunk integrity</strong> — assert non-empty text, expected token ranges, no duplicates.</li>
+            <li><strong>Embedding validity</strong> — correct dimensionality, no NaNs, consistent model version.</li>
+            <li><strong>Freshness SLAs</strong> — index lag behind source under a threshold.</li>
+            <li><strong>Retrieval regression tests</strong> — a golden query set that must keep passing after each refresh.</li>
+            <li><strong>PII controls</strong> — redaction verified before embedding; sensitive tags propagated for filtering.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Same rigor, new artifacts:</strong>
+            <p>Apply the data-quality discipline you already use on tables to chunks and vectors. "Is this embedding dataset correct and fresh?" is just a new flavor of a question you've answered for years.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">How does GenAI change the data engineer's role?</div>
+            <div class="qa-answer">
+              <p>It adds a new consumer of data — GenAI applications need clean, chunked, embedded, governed data to retrieve from — and a new set of tools that accelerate the work itself (code generation, documentation, migration, text-to-SQL). The core discipline is unchanged: reliable ingestion, modeling, quality, and governance. Engineers now also own embedding pipelines, vector index freshness, and carrying lineage/ACLs into AI assets.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">You used an LLM to convert legacy ETL to Spark. How do you trust the result?</div>
+            <div class="qa-answer">
+              <p>With a validation harness, not by eyeballing. Run the source and converted pipeline on the same input and reconcile: exact row counts, column checksums/hashes, aggregate totals, and business-rule assertions. Test edge cases (nulls, duplicates, timezones, late data). Only promote when reconciliation passes within tolerance. The LLM compresses the writing time; the engineering value is in proving correctness automatically.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Design an incremental embedding pipeline.</div>
+            <div class="qa-answer">
+              <p>Follow medallion: raw docs in Bronze, cleaned chunks with metadata in Silver, embeddings in Gold. Drive it from Change Data Feed/CDC so only inserted or updated chunks are re-embedded. Batch the embedding model calls for throughput, upsert by a stable chunk key, and delete orphaned chunks when source rows vanish. Sync the vector index from the Gold table (e.g. Delta Sync), and assert dimensionality, non-null text, and freshness as quality checks.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What data-quality checks are specific to AI/embedding datasets?</div>
+            <div class="qa-answer">
+              <p>Beyond standard null/uniqueness checks: verify embedding dimensionality matches the model, no NaN/zero vectors, and a single consistent embedding-model version across the corpus. Assert chunk text is non-empty and within expected token ranges, de-duplicate near-identical chunks, verify PII redaction ran before embedding, and monitor index freshness lag. Add retrieval regression tests on a golden query set so refreshes can't silently degrade quality.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you safely expose text-to-SQL to analysts?</div>
+            <div class="qa-answer">
+              <p>Constrain it heavily. Generate SQL against a governed semantic layer/curated model rather than raw tables, execute with a read-only role, allow-list SELECT only, and enforce row/scan limits and timeouts. Apply column-level access controls so restricted fields never appear, validate generated SQL before running, log every query for audit, and show the SQL to the user for transparency. Provide schema context and few-shot examples to improve accuracy.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>
