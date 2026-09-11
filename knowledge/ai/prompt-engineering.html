@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Prompt Engineering — Patterns &amp; Structured Output — Knowledge Base</title>
+    <meta name="description" content="Production prompt engineering — zero/few-shot, chain-of-thought, structured output, decomposition, injection defense, and how to make LLM outputs reliable and testable." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Prompt Engineering</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Prompting</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Prompt Engineering — Patterns &amp; Structured Output</h1>
+          <p class="article-desc">The reliable techniques — clear instructions, few-shot examples, chain-of-thought, decomposition, structured/JSON output, and prompt-injection defense — plus how to treat prompts as versioned, testable production artifacts rather than one-off strings.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#anatomy">Anatomy of a Good Prompt</a></li>
+            <li><a href="#shots">Zero-, Few-Shot &amp; CoT</a></li>
+            <li><a href="#decompose">Decomposition &amp; Chaining</a></li>
+            <li><a href="#structured">Structured Output</a></li>
+            <li><a href="#injection">Prompt Injection Defense</a></li>
+            <li><a href="#production">Prompts as Production Artifacts</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="anatomy">Anatomy of a Good Prompt</h2>
+          <p>A robust prompt is explicit about role, task, constraints, and output format. Vague prompts produce vague, inconsistent results. The components:</p>
+          <ul>
+            <li><strong>Role / system</strong> — who the model is and its overarching rules.</li>
+            <li><strong>Task</strong> — the specific instruction, stated directly.</li>
+            <li><strong>Context</strong> — the data to work from (retrieved chunks, documents), clearly delimited.</li>
+            <li><strong>Constraints</strong> — length, tone, what to do when unsure, what not to do.</li>
+            <li><strong>Format</strong> — the exact output shape, ideally with an example.</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 Positive instructions beat negative ones:</strong>
+            <p>"Respond in 2–3 sentences of plain text" works better than "don't be verbose." Tell the model what to do, not just what to avoid — it steers toward the target instead of guessing the boundary.</p>
+          </div>
+
+          <h2 id="shots">Zero-, Few-Shot &amp; CoT</h2>
+          <ul>
+            <li><strong>Zero-shot</strong> — instruction only. Fine for simple, well-understood tasks.</li>
+            <li><strong>Few-shot</strong> — include a handful of input→output examples. The single most reliable way to lock in format and edge-case handling. Make examples diverse and representative.</li>
+            <li><strong>Chain-of-thought (CoT)</strong> — ask the model to reason step by step before answering. Improves multi-step math, logic, and analysis. Pair with a final, clearly delimited answer so you can parse it.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Hide the reasoning, keep the answer:</strong>
+            <p>For user-facing apps, let the model reason in a scratchpad section (or use extended thinking) but return only the final answer in a parseable block. You get CoT quality without dumping raw reasoning on the user.</p>
+          </div>
+
+          <h2 id="decompose">Decomposition &amp; Chaining</h2>
+          <p>Complex tasks fail as one giant prompt. Break them into steps, each with a focused prompt, and pass outputs forward (prompt chaining). Example RAG-adjacent chain: <em>extract entities → generate a search query → retrieve → summarize with citations</em>. Smaller, single-purpose steps are more accurate, cheaper to debug, and let you use a cheap model for easy steps.</p>
+
+          <h2 id="structured">Structured Output</h2>
+          <p>For anything programmatic you need machine-parseable output, not prose.</p>
+          <ul>
+            <li><strong>Specify the schema</strong> explicitly and give one example instance.</li>
+            <li><strong>Tool/function calling</strong> — define the target structure as a tool input schema and let the model return validated arguments. The most robust approach.</li>
+            <li><strong>Prefill</strong> — start the assistant turn with <code>{</code> to force JSON.</li>
+            <li><strong>Validate + retry</strong> — parse against your schema; on failure, send the error back and ask for a fix.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Structured extraction prompt</div>
+            <pre><code>System: You extract data. Return ONLY valid JSON matching:
+{"vendor": string, "amount": number, "currency": string, "date": "YYYY-MM-DD"}
+If a field is missing, use null. No prose, no markdown.
+
+User: &lt;invoice&gt;{{raw_invoice_text}}&lt;/invoice&gt;
+
+# Then validate the parsed JSON against a schema and retry on failure.</code></pre>
+          </div>
+
+          <h2 id="injection">Prompt Injection Defense</h2>
+          <p>Prompt injection is the SQL injection of the LLM era: untrusted content (a retrieved document, a user message, a web page) contains instructions that hijack the model. In RAG and agent systems this is a real attack surface.</p>
+          <ul>
+            <li><strong>Separate data from instructions</strong> — wrap untrusted content in delimiters (XML tags) and tell the model the tagged content is data to analyze, never commands to follow.</li>
+            <li><strong>Least privilege on tools</strong> — an injected instruction can only do damage if the agent has a dangerous tool. Read-only, allow-listed, validated tools limit blast radius.</li>
+            <li><strong>Output filtering</strong> — scan responses for leaked system prompts, unexpected tool calls, or policy violations.</li>
+            <li><strong>Don't trust retrieved text as authority</strong> — treat corpus content as potentially adversarial, especially if any of it is user-generated.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ There is no perfect fix:</strong>
+            <p>Prompt injection can't be fully eliminated with prompting alone. Defense in depth — delimiting, least-privilege tools, human approval for high-impact actions, and output guardrails — is the realistic posture.</p>
+          </div>
+
+          <h2 id="production">Prompts as Production Artifacts</h2>
+          <ul>
+            <li><strong>Version control</strong> — store prompts in source control with review, not hardcoded strings scattered in code.</li>
+            <li><strong>Template + variables</strong> — separate the stable template from injected variables; sanitize the variables.</li>
+            <li><strong>Evaluate changes</strong> — run every prompt edit against a golden test set before shipping (see LLMOps).</li>
+            <li><strong>Pin the model</strong> — a prompt tuned for one model version may regress on another.</li>
+            <li><strong>Cache the stable prefix</strong> — put instructions/examples first so prompt caching applies.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">Few-shot vs zero-shot — when do you add examples?</div>
+            <div class="qa-answer">
+              <p>Use zero-shot for simple, unambiguous tasks the model already handles well. Add few-shot examples when you need a specific output format, consistent edge-case handling, or the task is nuanced — examples anchor behavior far more reliably than verbose instructions. Keep examples diverse and representative of real inputs, and watch token cost since they're sent on every call (prompt caching helps).</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you get reliable JSON out of an LLM?</div>
+            <div class="qa-answer">
+              <p>Best: define the structure as a tool/function input schema and force that tool, so the model returns validated arguments. Otherwise specify the exact schema with one example, set temperature 0, and prefill the response with the opening brace. Always parse and validate against a schema in code and retry on failure by feeding the validation error back. Never assume the first output is well-formed.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is prompt injection and how do you defend against it?</div>
+            <div class="qa-answer">
+              <p>It's when untrusted content — a retrieved document, user input, or web page — smuggles instructions that override your intended behavior. Defense is layered: delimit untrusted content in tags and tell the model it's data not commands; give agents only least-privilege, validated, read-only tools so an injected command can't do harm; filter outputs for leaks and rogue tool calls; and require human approval for high-impact actions. It can't be fully eliminated by prompting alone, so defense in depth is the goal.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">When would you decompose a task into multiple prompts instead of one?</div>
+            <div class="qa-answer">
+              <p>When a single prompt has to do several distinct things and accuracy drops or debugging becomes impossible. Chaining focused single-purpose prompts (extract → query → retrieve → summarize) is more accurate, isolates failures to a specific step, and lets you route easy steps to a cheaper model. The trade-off is more calls and orchestration, so balance step count against latency and cost.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why treat prompts like code?</div>
+            <div class="qa-answer">
+              <p>Because they directly determine production behavior. Store them in version control with review, separate the stable template from sanitized variables, and run every change against a golden evaluation set before shipping so you catch regressions. Pin the model version since a prompt tuned for one model can degrade on another, and structure prompts so the stable prefix is cacheable. Untracked prompt edits are silent production changes.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

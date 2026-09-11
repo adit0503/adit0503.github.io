@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Model Context Protocol (MCP) — Knowledge Base</title>
+    <meta name="description" content="The Model Context Protocol (MCP) explained — architecture, tools, resources and prompts, transports, why it standardizes tool integration for agents, and security considerations." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Model Context Protocol</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">MCP</span>
+            <span class="read-time">13 min read</span>
+          </div>
+          <h1>Model Context Protocol (MCP)</h1>
+          <p class="article-desc">The open standard for connecting AI applications to tools and data — what MCP is, its client/server architecture, the tools/resources/prompts primitives, transports, why it matters for agent ecosystems, and the security considerations that come with it.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#problem">The M×N Integration Problem</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#primitives">Primitives — Tools, Resources, Prompts</a></li>
+            <li><a href="#transport">Transports &amp; Lifecycle</a></li>
+            <li><a href="#ecosystem">Why It Matters</a></li>
+            <li><a href="#security">Security Considerations</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="problem">The M×N Integration Problem</h2>
+          <p>Before a standard existed, every AI application had to write custom integration code for every tool and data source it wanted to use. With M applications and N tools, you're facing M×N bespoke integrations. The <strong>Model Context Protocol (MCP)</strong>, an open standard introduced by Anthropic, turns that into M+N: each tool exposes an MCP server once, and each application implements an MCP client once.</p>
+
+          <div class="callout">
+            <strong>🔑 The analogy:</strong>
+            <p>MCP is often called "USB-C for AI." A single standardized interface lets any compliant client plug into any compliant server, decoupling tool providers from the models and apps that consume them.</p>
+          </div>
+
+          <h2 id="architecture">Architecture</h2>
+          <p>MCP is a client-server protocol built on JSON-RPC:</p>
+          <ul>
+            <li><strong>Host</strong> — the AI application the user interacts with (an IDE assistant, a chat app, an agent runtime).</li>
+            <li><strong>Client</strong> — lives inside the host and maintains a 1:1 connection to a server.</li>
+            <li><strong>Server</strong> — a program that exposes capabilities (tools, data, prompts) over MCP. It wraps a database, an API, a filesystem, etc.</li>
+          </ul>
+          <p>A host can connect to many servers at once, composing capabilities from multiple sources without knowing their internals.</p>
+
+          <h2 id="primitives">Primitives — Tools, Resources, Prompts</h2>
+          <p>MCP servers offer three kinds of capability:</p>
+          <ul>
+            <li><strong>Tools</strong> — executable functions the model can call (query a DB, send a request, run an action). Model-controlled, like function calling.</li>
+            <li><strong>Resources</strong> — read-only data the host can load into context (files, records, documents). Application-controlled.</li>
+            <li><strong>Prompts</strong> — reusable, parameterized prompt templates the server exposes for common workflows. User-controlled.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Tools vs Resources:</strong>
+            <p>Tools <em>do</em> things (side effects, actions); Resources <em>provide</em> things (context, data). Keeping this split clean helps the host decide what the model may invoke versus what merely enriches context.</p>
+          </div>
+
+          <h2 id="transport">Transports &amp; Lifecycle</h2>
+          <ul>
+            <li><strong>stdio</strong> — the server runs as a local subprocess communicating over standard input/output. Ideal for local tools (filesystem, local DB).</li>
+            <li><strong>Streamable HTTP</strong> — for remote servers over the network, supporting streaming responses.</li>
+            <li><strong>Discovery</strong> — on connect, the client asks the server what tools/resources/prompts it offers; the host then advertises those tools to the model.</li>
+            <li><strong>Capability negotiation</strong> — client and server agree on supported features during initialization.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Conceptual MCP flow</div>
+            <pre><code>1. Host starts, launches/connects to MCP server(s)
+2. Client ↔ Server: initialize + capability negotiation
+3. Client: "list tools" → Server returns tool schemas
+4. Host advertises those tools to the model
+5. Model emits a tool call → Client forwards to Server
+6. Server executes, returns result → Client → model context
+7. Model continues with the result</code></pre>
+          </div>
+
+          <h2 id="ecosystem">Why It Matters</h2>
+          <ul>
+            <li><strong>Reusability</strong> — write an MCP server for your data platform once; any MCP-aware assistant can use it.</li>
+            <li><strong>Ecosystem</strong> — a growing library of prebuilt servers (databases, cloud APIs, search, filesystems) you can plug in.</li>
+            <li><strong>Portability</strong> — swap the host/model without rewriting integrations; swap a server without touching the app.</li>
+            <li><strong>Data-platform angle</strong> — expose governed warehouse queries, catalog lookups, or pipeline controls as MCP tools so assistants operate through a controlled, audited interface.</li>
+          </ul>
+
+          <h2 id="security">Security Considerations</h2>
+          <p>Standardizing tool access also standardizes the attack surface — treat MCP servers as privileged components.</p>
+          <ul>
+            <li><strong>Trust the server</strong> — a malicious or compromised server can return poisoned tool descriptions or data (a prompt-injection vector). Only connect to servers you trust.</li>
+            <li><strong>Least privilege</strong> — scope each server's credentials and permissions tightly; prefer read-only where possible.</li>
+            <li><strong>Human approval</strong> — gate high-impact tool calls behind confirmation.</li>
+            <li><strong>Auth &amp; audit</strong> — authenticate remote servers, and log every tool invocation for accountability.</li>
+            <li><strong>Validate inputs/outputs</strong> — don't let tool arguments or results flow unchecked into privileged actions.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Tool descriptions are untrusted input:</strong>
+            <p>The model reads a server's tool descriptions, so a hostile server can attempt to steer behavior through them. Vet servers, isolate them, and apply the same defense-in-depth you'd use for any external integration.</p>
+          </div>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">What problem does MCP solve?</div>
+            <div class="qa-answer">
+              <p>The combinatorial integration problem: without a standard, every AI app needs custom code for every tool and data source (M×N integrations). MCP defines an open client-server protocol so each tool exposes one MCP server and each app implements one MCP client, collapsing it to M+N. It decouples tool providers from models and applications — the "USB-C for AI" idea — enabling reuse and portability across the ecosystem.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain MCP's three primitives.</div>
+            <div class="qa-answer">
+              <p>Tools are executable functions the model can invoke to take actions (with side effects) — model-controlled, like function calling. Resources are read-only data the host loads into context, such as files or records — application-controlled. Prompts are reusable, parameterized templates the server exposes for common workflows — typically user-invoked. The clean split is that tools <em>do</em> things while resources <em>provide</em> context.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does MCP relate to function calling?</div>
+            <div class="qa-answer">
+              <p>Function calling is a model capability — the model emits a structured request to invoke a described function. MCP is the standardized transport and discovery layer around that: it defines how a host discovers available tools from servers, negotiates capabilities, and routes calls and results over JSON-RPC. So the model still "function calls," but MCP standardizes where those tools come from and how they're connected, so integrations are reusable across hosts.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What are the main security risks with MCP?</div>
+            <div class="qa-answer">
+              <p>An untrusted or compromised server can return malicious tool descriptions or data that steer the model (prompt injection), or abuse over-broad credentials. Mitigate by only connecting to trusted servers, scoping each server's permissions to least privilege (read-only where possible), authenticating remote servers, gating high-impact actions behind human approval, validating tool inputs/outputs, and auditing every invocation. Treat tool descriptions as untrusted input.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How would you use MCP on a data platform?</div>
+            <div class="qa-answer">
+              <p>Expose governed platform capabilities as MCP servers — for example a read-only warehouse query tool over a semantic layer, a data-catalog lookup resource, or controlled pipeline operations — so any MCP-aware assistant interacts through a single audited, permissioned interface instead of bespoke integrations. This centralizes access control and logging, keeps credentials server-side, and lets you swap the assistant/model without rewriting the integration.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

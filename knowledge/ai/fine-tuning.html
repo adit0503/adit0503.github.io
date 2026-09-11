@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Fine-Tuning &amp; PEFT — LoRA, When &amp; How — Knowledge Base</title>
+    <meta name="description" content="When to fine-tune vs RAG, and how — full fine-tuning, PEFT with LoRA/QLoRA, instruction tuning, preference alignment, data prep, and evaluating a fine-tuned model." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>Fine-Tuning &amp; PEFT</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Fine-Tuning</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Fine-Tuning &amp; PEFT — LoRA, When &amp; How</h1>
+          <p class="article-desc">The decision framework for fine-tuning vs RAG vs prompting, the spectrum from full fine-tuning to parameter-efficient methods like LoRA and QLoRA, instruction tuning and preference alignment, dataset preparation, and how to evaluate whether it actually helped.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#when">When to Fine-Tune</a></li>
+            <li><a href="#spectrum">The Fine-Tuning Spectrum</a></li>
+            <li><a href="#peft">PEFT — LoRA &amp; QLoRA</a></li>
+            <li><a href="#types">Instruction Tuning &amp; Alignment</a></li>
+            <li><a href="#data">Dataset Preparation</a></li>
+            <li><a href="#eval">Evaluation &amp; Pitfalls</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="when">When to Fine-Tune</h2>
+          <p>The most common interview trap is reaching for fine-tuning to add knowledge. Fine-tuning teaches <strong>behavior, style, and format</strong> — not facts. Facts belong in RAG.</p>
+          <ul>
+            <li><strong>Fine-tune for</strong> — a consistent tone/persona, a strict output format, a narrow classification/extraction task, domain jargon, or reducing prompt length by baking in instructions.</li>
+            <li><strong>Use RAG for</strong> — knowledge that changes, must be cited, or is access-controlled.</li>
+            <li><strong>Use prompting for</strong> — anything a good prompt with few-shot examples already handles (try this first).</li>
+          </ul>
+
+          <div class="callout">
+            <strong>🔑 The ladder:</strong>
+            <p>Prompt engineering → RAG → fine-tuning, in that order of effort. Exhaust the cheaper rungs first. Fine-tuning is the last resort when prompting and retrieval have plateaued on a behavior the model consistently gets wrong.</p>
+          </div>
+
+          <h2 id="spectrum">The Fine-Tuning Spectrum</h2>
+          <ul>
+            <li><strong>Full fine-tuning</strong> — update all weights. Maximum adaptation, but expensive, needs lots of data and GPUs, and produces a full-size model copy per task.</li>
+            <li><strong>Parameter-efficient (PEFT)</strong> — freeze the base model, train a tiny set of new parameters. Cheap, fast, small artifacts. The default for most teams.</li>
+            <li><strong>Continued pretraining</strong> — more unsupervised training on domain text to shift the base distribution (rarely needed outside heavily specialized domains).</li>
+          </ul>
+
+          <h2 id="peft">PEFT — LoRA &amp; QLoRA</h2>
+          <p><strong>LoRA (Low-Rank Adaptation)</strong> freezes the original weights and injects small trainable low-rank matrices into the model's layers. You train only those — often &lt;1% of parameters — yet capture most of the benefit of full fine-tuning.</p>
+          <ul>
+            <li><strong>Tiny artifacts</strong> — a LoRA adapter is megabytes, not gigabytes; you can host many adapters over one base model.</li>
+            <li><strong>Key hyperparameters</strong> — rank <code>r</code> (capacity), <code>alpha</code> (scaling), and which layers to target.</li>
+            <li><strong>QLoRA</strong> — quantize the frozen base model to 4-bit and train LoRA adapters on top, so fine-tuning fits on a single GPU. Democratized fine-tuning.</li>
+            <li><strong>Adapter swapping</strong> — serve one base model and hot-swap task-specific adapters at inference.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Start with LoRA:</strong>
+            <p>For nearly all applied work, LoRA/QLoRA gets you most of full fine-tuning's quality at a fraction of the cost and operational complexity. Only consider full fine-tuning if LoRA provably falls short.</p>
+          </div>
+
+          <h2 id="types">Instruction Tuning &amp; Alignment</h2>
+          <ul>
+            <li><strong>Supervised fine-tuning (SFT)</strong> — train on curated (instruction, ideal response) pairs. This is what most applied fine-tuning means.</li>
+            <li><strong>Preference alignment (RLHF / DPO)</strong> — tune toward preferred responses using pairs of better/worse outputs. DPO is simpler than full RLHF and increasingly the default for preference tuning.</li>
+            <li><strong>Distillation</strong> — fine-tune a small model on a large model's outputs to get most of the quality at lower cost/latency.</li>
+          </ul>
+
+          <h2 id="data">Dataset Preparation</h2>
+          <p>Fine-tuning is a data problem, not a modeling problem. Quality and consistency beat volume.</p>
+          <ul>
+            <li><strong>Format consistency</strong> — every example must match the exact prompt/response structure you'll use in production.</li>
+            <li><strong>Quality over quantity</strong> — a few hundred to a few thousand clean, correct examples usually outperform a huge noisy set.</li>
+            <li><strong>Coverage</strong> — include edge cases and the failure modes you're trying to fix.</li>
+            <li><strong>Deduplicate &amp; split</strong> — remove near-duplicates; hold out a validation and test set that never leak into training.</li>
+            <li><strong>Synthetic data</strong> — a stronger model can generate/expand examples, but review for quality and bias.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Catastrophic forgetting:</strong>
+            <p>Aggressive fine-tuning on a narrow task can degrade the model's general abilities. Use conservative learning rates, PEFT (which freezes the base), and evaluate on general tasks too — not just your target task.</p>
+          </div>
+
+          <h2 id="eval">Evaluation &amp; Pitfalls</h2>
+          <ul>
+            <li><strong>Compare against baselines</strong> — the base model with good prompting and with RAG. Fine-tuning must beat those to justify itself.</li>
+            <li><strong>Held-out test set</strong> — measure on data the model never saw; watch for overfitting to the training style.</li>
+            <li><strong>Regression check</strong> — confirm general capability didn't drop.</li>
+            <li><strong>Total cost</strong> — training + hosting + the ops burden of maintaining a custom model and re-tuning as needs change.</li>
+            <li><strong>Managed options</strong> — Bedrock and Databricks both offer managed fine-tuning so you skip GPU infrastructure.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">RAG or fine-tuning to make a model answer from company docs?</div>
+            <div class="qa-answer">
+              <p>RAG. Fine-tuning teaches behavior, style, and format — not facts — and baked-in knowledge goes stale, can't be cited, and can't respect per-user access. RAG retrieves current, attributable, access-controlled context at query time and updates instantly. Fine-tuning would complement RAG only to fix <em>how</em> the model responds (tone, format), while RAG supplies <em>what</em> it responds with.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Explain LoRA and why it's so widely used.</div>
+            <div class="qa-answer">
+              <p>LoRA freezes the pretrained weights and inserts small trainable low-rank matrices into the layers, so you train under ~1% of parameters while capturing most of full fine-tuning's benefit. The adapters are tiny (megabytes), training is cheap and fast, you avoid a full model copy per task, and you can hot-swap adapters over one base model at serving time. QLoRA extends this by quantizing the base to 4-bit so it fits on a single GPU.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is catastrophic forgetting and how do you avoid it?</div>
+            <div class="qa-answer">
+              <p>It's when fine-tuning on a narrow task erodes the model's general capabilities. Mitigate with parameter-efficient methods like LoRA that freeze the base weights, conservative learning rates, fewer epochs, and mixing in some general-purpose examples. Crucially, evaluate on general benchmarks alongside your target task so you catch regressions rather than only measuring the narrow win.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How much data do you need, and what matters most?</div>
+            <div class="qa-answer">
+              <p>Quality and consistency far outweigh volume — often a few hundred to a few thousand clean, correctly formatted examples beat a huge noisy dataset. Every example must match the production prompt/response format, cover real edge cases and target failure modes, be deduplicated, and be split so the test set never leaks into training. Synthetic data from a stronger model can help but needs review for quality and bias.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How do you know fine-tuning was worth it?</div>
+            <div class="qa-answer">
+              <p>Beat the right baselines on a held-out test set: the base model with strong prompting and few-shot, and the RAG setup. If fine-tuning doesn't clearly outperform those, it's not justified given its training, hosting, and maintenance cost. Also verify general capability didn't regress and factor in the ongoing burden of re-tuning as requirements evolve — a static fine-tune can't track changing knowledge the way RAG does.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

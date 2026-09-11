@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LLM Fundamentals — Transformers, Tokens &amp; Sampling — Knowledge Base</title>
+    <meta name="description" content="How large language models work under the hood — transformers, attention, tokenization, context windows, and sampling — explained for engineers building on top of them." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">AI &amp; GenAI</a>
+        <span>→</span>
+        <span>LLM Fundamentals</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Foundations</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>LLM Fundamentals — Transformers, Tokens &amp; Sampling</h1>
+          <p class="article-desc">The mental model an engineer needs before building on LLMs — how transformers and attention work, what tokens really are, why context windows are limited, how decoding and sampling produce text, and where the cost and latency actually come from.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#next-token">It's Next-Token Prediction</a></li>
+            <li><a href="#transformer">The Transformer &amp; Attention</a></li>
+            <li><a href="#tokens">Tokens &amp; Tokenization</a></li>
+            <li><a href="#context">Context Windows &amp; KV Cache</a></li>
+            <li><a href="#sampling">Decoding &amp; Sampling</a></li>
+            <li><a href="#training">Pretraining, SFT &amp; RLHF</a></li>
+            <li><a href="#limits">Limitations You Design Around</a></li>
+            <li><a href="#interview-questions">Interview Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="next-token">It's Next-Token Prediction</h2>
+          <p>At its core, an LLM does one thing: given a sequence of tokens, predict a probability distribution over the next token. Text generation is that step run in a loop — append the chosen token, predict again, repeat. Everything else (reasoning, code, chat) is emergent behavior on top of this single objective.</p>
+
+          <div class="callout">
+            <strong>🔑 The one thing to internalize:</strong>
+            <p>An LLM is a probabilistic next-token predictor, not a database or a reasoner. Hallucination isn't a bug bolted on — it's the same mechanism that produces correct text, applied where the model has no grounding. That's why RAG and grounding matter.</p>
+          </div>
+
+          <h2 id="transformer">The Transformer &amp; Attention</h2>
+          <p>The transformer architecture replaced recurrence with <strong>self-attention</strong>, which lets every token look at every other token in the sequence and weigh their relevance. This is what captures long-range context ("it" refers to which noun?) and enables massive parallelism during training.</p>
+          <ul>
+            <li><strong>Self-attention</strong> — each token computes Query, Key, and Value vectors; attention scores = how much each token attends to others.</li>
+            <li><strong>Multi-head attention</strong> — several attention computations in parallel, each learning different relationships.</li>
+            <li><strong>Feed-forward layers</strong> — per-token transformations stacked between attention layers.</li>
+            <li><strong>Decoder-only</strong> — modern LLMs (GPT, Claude, Llama) use causal (left-to-right) attention: a token can only attend to earlier tokens.</li>
+          </ul>
+
+          <div class="callout callout-warning">
+            <strong>⚠️ Attention is quadratic:</strong>
+            <p>Self-attention cost grows with the <em>square</em> of sequence length. Doubling the input roughly quadruples attention compute — the core reason long contexts are expensive and slow, and why techniques like caching and efficient attention exist.</p>
+          </div>
+
+          <h2 id="tokens">Tokens &amp; Tokenization</h2>
+          <p>Models don't see words or characters — they see <strong>tokens</strong>, sub-word units produced by a tokenizer (BPE and variants). "tokenization" might be 2–3 tokens; a rare word or a code symbol may be several.</p>
+          <ul>
+            <li>Rough rule of thumb for English: ~4 characters or ~0.75 words per token.</li>
+            <li>You pay per token (input + output), and context limits are counted in tokens.</li>
+            <li>Non-English text and code often tokenize less efficiently — more tokens per character.</li>
+            <li>Tokenization explains quirks like poor arithmetic and character-counting: the model never sees individual digits/letters cleanly.</li>
+          </ul>
+
+          <h2 id="context">Context Windows &amp; KV Cache</h2>
+          <p>The <strong>context window</strong> is the maximum number of tokens (prompt + generated output) the model can attend to at once. Everything the model "knows" for a request must fit here — system prompt, history, retrieved chunks, and the answer.</p>
+          <ul>
+            <li><strong>KV cache</strong> — during generation, the Key/Value vectors of prior tokens are cached so each new token doesn't recompute the whole sequence. This is the main memory consumer at inference.</li>
+            <li><strong>Lost in the middle</strong> — models attend most strongly to the start and end of long contexts; information buried in the middle is easily missed. Put critical context at the edges.</li>
+            <li><strong>Bigger isn't free</strong> — a large window enables long-context prompting but costs more and can dilute focus. Retrieve precisely rather than stuffing.</li>
+          </ul>
+
+          <h2 id="sampling">Decoding &amp; Sampling</h2>
+          <p>The model outputs a probability distribution; the <em>decoding strategy</em> turns it into a chosen token.</p>
+          <ul>
+            <li><strong>Temperature</strong> — flattens (high) or sharpens (low) the distribution. <code>0</code> is near-deterministic (best for factual/grounded tasks); higher adds creativity and variability.</li>
+            <li><strong>Top-p (nucleus)</strong> — sample only from the smallest set of tokens whose cumulative probability ≥ p.</li>
+            <li><strong>Top-k</strong> — sample only from the k most likely tokens.</li>
+            <li><strong>Greedy</strong> — always take the most likely token; deterministic but can be repetitive.</li>
+          </ul>
+
+          <div class="callout callout-tip">
+            <strong>💡 Practical default:</strong>
+            <p>For RAG, extraction, and anything where correctness matters, use temperature 0. Raise temperature only for brainstorming or varied copy. If you need reproducibility, pin temperature <em>and</em> the model version.</p>
+          </div>
+
+          <h2 id="training">Pretraining, SFT &amp; RLHF</h2>
+          <ol>
+            <li><strong>Pretraining</strong> — next-token prediction over a huge corpus; learns language, facts, and reasoning patterns. Expensive, done once.</li>
+            <li><strong>Supervised fine-tuning (SFT)</strong> — train on curated instruction/response pairs so the model follows instructions.</li>
+            <li><strong>Preference alignment (RLHF / DPO)</strong> — tune toward human-preferred, helpful, harmless responses.</li>
+          </ol>
+          <p>Understanding this explains why base models complete text while instruct models follow directions, and why "knowledge" is frozen at the pretraining cutoff — the motivation for retrieval.</p>
+
+          <h2 id="limits">Limitations You Design Around</h2>
+          <ul>
+            <li><strong>Knowledge cutoff</strong> — no awareness of events after training → use RAG/tools.</li>
+            <li><strong>Hallucination</strong> — confident fabrication when ungrounded → ground and cite.</li>
+            <li><strong>Context limits</strong> — finite window → retrieve, summarize, chunk.</li>
+            <li><strong>Non-determinism</strong> — same prompt can vary → temperature 0, version pinning, evals.</li>
+            <li><strong>No true state</strong> — each call is stateless; memory is something you engineer.</li>
+          </ul>
+
+          <h2 id="interview-questions">Interview Questions</h2>
+
+          <div class="qa-block">
+            <div class="qa-question">In one sentence, what does an LLM actually do?</div>
+            <div class="qa-answer">
+              <p>It predicts a probability distribution over the next token given the preceding tokens, and generates text by sampling that distribution repeatedly in a loop. All higher-level behavior — chat, reasoning, code — emerges from this single objective, which is also why it hallucinates: fabrication uses the exact same mechanism as correct generation, just without grounding.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Why are long contexts expensive?</div>
+            <div class="qa-answer">
+              <p>Self-attention scales quadratically with sequence length — every token attends to every other token, so doubling the input roughly quadruples attention compute. Memory also grows because the KV cache stores Key/Value vectors for all prior tokens. That's why you retrieve precise, small context via RAG instead of stuffing whole documents, and why prompt caching exists to amortize a stable prefix.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is a token and why does it matter operationally?</div>
+            <div class="qa-answer">
+              <p>A token is a sub-word unit from the tokenizer (roughly 4 characters of English). It matters because you're billed per input and output token, context limits are measured in tokens, and non-English text and code tokenize less efficiently, inflating both cost and context usage. Tokenization also explains weak arithmetic and character counting — the model never cleanly sees individual digits or letters.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">How does temperature affect output, and what should you use for RAG?</div>
+            <div class="qa-answer">
+              <p>Temperature scales the sharpness of the next-token distribution: low values concentrate probability on the top tokens (more deterministic), high values flatten it (more diverse and creative). For RAG, extraction, and factual tasks, use temperature 0 for consistency and to reduce drift. Reserve higher temperatures for creative generation. For reproducibility, pin temperature and the model version together.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What's the "lost in the middle" problem?</div>
+            <div class="qa-answer">
+              <p>LLMs attend most strongly to the beginning and end of a long context and can overlook information placed in the middle, so recall degrades for buried content even when it's within the window. Mitigate by retrieving fewer, more relevant chunks, reranking so the best evidence lands at the edges, and not relying on giant stuffed prompts to surface the one fact that matters.</p>
+            </div>
+          </div>
+
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">AI &amp; GenAI</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

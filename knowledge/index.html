@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Knowledge Base — Aditya Shashank Chavan</title>
+    <meta name="description" content="Deep-dive reference for data engineering concepts — Spark internals, lakehouse architectures, cloud platforms, and production patterns. Built for interview prep and quick recall." />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -58,8 +59,8 @@
             <a href="ai/index.html" class="kb-category-card">
               <span class="kb-cat-icon">🤖</span>
               <h3>AI &amp; GenAI Engineering</h3>
-              <p>RAG, vector search, embeddings, agentic AI, grounding FMs on unstructured data, plus Bedrock, Claude, and Databricks Mosaic AI</p>
-              <span class="kb-article-count">12 articles</span>
+              <p>LLM fundamentals, prompt engineering, RAG, vector search, embeddings, fine-tuning, agentic AI &amp; MCP, plus Bedrock, Claude, and Databricks Mosaic AI</p>
+              <span class="kb-article-count">16 articles</span>
             </a>
 
             <a href="spark/index.html" class="kb-category-card">
@@ -119,6 +120,16 @@
             <div class="kb-article-list" id="kb-article-list">
 
               <!-- AI & GenAI -->
+              <a href="ai/llm-fundamentals.html" class="kb-article-item" data-tags="ai genai llm transformers attention tokenization context window sampling temperature foundations">
+                <span class="kb-tag">Foundations</span>
+                <span class="kb-article-title">LLM Fundamentals — Transformers, Tokens &amp; Sampling</span>
+                <span class="kb-read-time">15 min</span>
+              </a>
+              <a href="ai/prompt-engineering.html" class="kb-article-item" data-tags="ai genai prompt engineering few-shot chain of thought structured output json injection">
+                <span class="kb-tag">Prompting</span>
+                <span class="kb-article-title">Prompt Engineering — Patterns &amp; Structured Output</span>
+                <span class="kb-read-time">15 min</span>
+              </a>
               <a href="ai/rag-fundamentals.html" class="kb-article-item" data-tags="ai genai rag retrieval augmented generation chunking grounding">
                 <span class="kb-tag">RAG</span>
                 <span class="kb-article-title">RAG Fundamentals &amp; Architecture</span>
@@ -134,6 +145,11 @@
                 <span class="kb-article-title">Embeddings — Models, Similarity &amp; Fine-Tuning</span>
                 <span class="kb-read-time">15 min</span>
               </a>
+              <a href="ai/fine-tuning.html" class="kb-article-item" data-tags="ai genai fine-tuning peft lora qlora instruction tuning rlhf dpo alignment distillation">
+                <span class="kb-tag">Fine-Tuning</span>
+                <span class="kb-article-title">Fine-Tuning &amp; PEFT — LoRA, When &amp; How</span>
+                <span class="kb-read-time">15 min</span>
+              </a>
               <a href="ai/vector-search.html" class="kb-article-item" data-tags="ai genai vector search ann hnsw ivf pq pgvector opensearch pinecone databricks">
                 <span class="kb-tag">Vector Search</span>
                 <span class="kb-article-title">Vector Search — ANN, HNSW &amp; Vector DBs</span>
@@ -143,6 +159,11 @@
                 <span class="kb-tag">Agents</span>
                 <span class="kb-article-title">Agentic AI — Tools, Planning &amp; Multi-Agent</span>
                 <span class="kb-read-time">17 min</span>
+              </a>
+              <a href="ai/mcp.html" class="kb-article-item" data-tags="ai genai mcp model context protocol tools resources prompts transport anthropic standard">
+                <span class="kb-tag">MCP</span>
+                <span class="kb-article-title">Model Context Protocol (MCP)</span>
+                <span class="kb-read-time">13 min</span>
               </a>
               <a href="ai/unstructured-data.html" class="kb-article-item" data-tags="ai genai unstructured data pdf ocr textract multimodal grounding context foundation models">
                 <span class="kb-tag">Grounding</span>
