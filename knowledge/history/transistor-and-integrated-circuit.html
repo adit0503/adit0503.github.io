@@ -69,50 +69,36 @@
         </nav>
 
         <div class="article-content">
+          <p>By the early 1950s the electronic computer existed, but it was a beast — a room full of vacuum tubes that ran hot, burned out constantly, drank electricity, and cost a fortune. If computing was to reach beyond a handful of laboratories and military installations, something had to replace the tube. This chapter tells the story of that replacement and its consequences — arguably the single most important run of hardware invention in the whole of technology. It is the story of how the room-sized computer was shrunk, step by relentless step, until it could hide beneath your fingernail.</p>
+
           <h2 id="transistor">The Transistor — Bardeen, Brattain &amp; Shockley</h2>
-          <p>At <strong>Bell Labs in 1947</strong>, <strong>John Bardeen</strong>, <strong>Walter Brattain</strong>, and <strong>William Shockley</strong> invented the <strong>transistor</strong>, a solid-state switch that could amplify and switch electrical signals.</p>
-          <ul>
-            <li>It replaced the bulky, hot, fragile <strong>vacuum tube</strong> with a small, cool, reliable, low-power device.</li>
-            <li>The three shared the <strong>1956 Nobel Prize in Physics</strong>. (Bardeen would later win a second Nobel for superconductivity.)</li>
-            <li>Shockley moved to California and founded <strong>Shockley Semiconductor</strong>, seeding the region that became Silicon Valley.</li>
-          </ul>
+          <p>The breakthrough came, as so many did in this era, from <strong>Bell Labs</strong>, the research arm of the American telephone monopoly and perhaps the most fertile scientific institution of the twentieth century. There, in 1947, three physicists — the theorist <strong>John Bardeen</strong>, the experimentalist <strong>Walter Brattain</strong>, and their ambitious, difficult group leader <strong>William Shockley</strong> — coaxed a sliver of germanium into doing something wonderful: it could switch and amplify an electrical signal, just like a vacuum tube, but with no glass, no vacuum, no glowing filament, and almost no heat. They called it the <strong>transistor</strong>.</p>
+          <p>Everything that a tube did, this tiny solid-state device did better — smaller, cooler, faster, more reliable, sipping a fraction of the power. It earned the three men the 1956 Nobel Prize in Physics (Bardeen would astonishingly win a second, years later, for superconductivity). But the human drama mattered too: Shockley, brilliant and impossible to work with, soon left to found his own company in the sleepy orchards of northern California — an act that, as we will see, planted the seed of an entire industry in a place that had no name for it yet.</p>
           <div class="callout">
-            <strong>🔑 Why it mattered:</strong>
-            <p>The transistor is the fundamental building block of all modern electronics. Every logic gate and memory cell in a computer is built from transistors — a modern CPU contains tens of billions of them.</p>
+            <strong>🔑 The atom of the digital age:</strong>
+            <p>The transistor is the fundamental building block of all modern electronics — every logic gate, every memory cell, every processor is made of them. Hold that thought against the scale of what came later: a single modern chip now packs tens of billions of these switches. The whole rest of this chapter is the story of learning to make them smaller and more numerous.</p>
           </div>
 
           <h2 id="integrated-circuit">The Integrated Circuit — Kilby &amp; Noyce</h2>
-          <p>Wiring individual transistors together by hand did not scale. The solution came almost simultaneously from two inventors:</p>
-          <ul>
-            <li><strong>Jack Kilby</strong> at Texas Instruments (1958) built the first working <strong>integrated circuit</strong>, placing multiple components on a single piece of semiconductor. He won the <strong>2000 Nobel Prize in Physics</strong>.</li>
-            <li><strong>Robert Noyce</strong> at Fairchild Semiconductor (1959) independently devised a <strong>silicon-based IC using the planar process</strong>, which was far more practical to manufacture — the design that made mass production possible.</li>
-          </ul>
+          <p>The transistor solved one problem and created another. As engineers designed ever more ambitious circuits, they faced the "tyranny of numbers" — thousands of individual transistors, resistors, and wires, each one soldered by hand, each joint a chance to fail. Building anything complex became a nightmare of tangled connections. The obvious-in-hindsight answer arrived almost simultaneously from two men who had never coordinated.</p>
+          <p>In the summer of 1958, <strong>Jack Kilby</strong>, a new engineer at Texas Instruments too junior to have earned the company vacation everyone else was taking, sat alone in an empty lab and had the crucial thought: why not build <em>all</em> the components — transistors, resistors, the lot — out of a single block of semiconductor, wiring them together as one piece? He built a crude but working <strong>integrated circuit</strong>, and decades later, in 2000, received the Nobel Prize for it.</p>
+          <p>Months later, and independently, <strong>Robert Noyce</strong> at the young Fairchild Semiconductor arrived at the same idea but solved it more elegantly. Using the "planar process" — a way of building components flat on a wafer of silicon and laying down their connections in a printed metal layer — Noyce devised an integrated circuit that could actually be <em>manufactured</em> in quantity. Kilby proved the concept; Noyce made it practical. The industry, sensibly, honors them both as co-inventors.</p>
 
           <h2 id="silicon-valley">Silicon Valley &amp; Fairchild</h2>
-          <p>Eight engineers — the <strong>"Traitorous Eight"</strong>, including Noyce and Gordon Moore — left Shockley Semiconductor in 1957 to found <strong>Fairchild Semiconductor</strong>.</p>
-          <ul>
-            <li>Fairchild became the birthplace of the practical silicon IC and the training ground for a generation of chip pioneers.</li>
-            <li>Its alumni ("Fairchildren") founded dozens of companies, including <strong>Intel</strong> and <strong>AMD</strong>, giving <strong>Silicon Valley</strong> its name and its industry.</li>
-          </ul>
+          <p>Fairchild itself was born of rebellion. Shockley's tyrannical management had become unbearable, and in 1957 eight of his most talented young researchers — Noyce and a quiet, deeply capable chemist named <strong>Gordon Moore</strong> among them — resigned together to start their own firm. Shockley called them the "traitorous eight"; history calls them the founders of an industry.</p>
+          <p>Fairchild Semiconductor became the wellspring of the practical silicon chip and, just as importantly, a school. Its restless engineers kept leaving to start companies of their own, and those "Fairchildren" seeded dozens of firms across the same valley of orchards south of San Francisco — including, in 1968, Noyce and Moore's own venture, <strong>Intel</strong>, and later its great rival AMD. So many of these companies worked in silicon that a journalist gave the region the name that stuck: <strong>Silicon Valley</strong>. The culture of the technology startup — brilliant people defecting to chase a better idea — was set in these first defections.</p>
 
           <h2 id="moores-law">Gordon Moore &amp; Moore's Law</h2>
-          <p><strong>Gordon Moore</strong>, co-founder of Intel, observed in <strong>1965</strong> that the number of transistors on a chip was roughly <strong>doubling about every year</strong>, later revised to about every <strong>two years</strong>.</p>
-          <ul>
-            <li><strong>Moore's Law</strong> became the industry's self-fulfilling roadmap for decades, driving exponential gains in computing power and drops in cost.</li>
-            <li>Physical limits (heat, quantum effects, atomic scale) have slowed the pace, pushing the industry toward multi-core designs, specialized accelerators (GPUs, TPUs), and advanced packaging.</li>
-          </ul>
+          <p>In 1965, Gordon Moore was asked to write a short article predicting the future of his young field, and he made an observation that would become the metronome of the entire industry. Looking at the first few years of integrated circuits, he noticed that the number of transistors engineers could pack onto a chip was <em>doubling</em> at a steady pace — roughly every year, a figure he later revised to about every two years.</p>
+          <p>This is <strong>Moore's Law</strong>, and its power was self-fulfilling. Once the industry accepted the doubling as a schedule to be met, chip makers, equipment builders, and software writers all organized their roadmaps around it, each betting that the others would keep pace. For half a century they did, and the result was the most sustained exponential improvement in the history of technology: computing power that grew relentlessly while cost collapsed, carrying us from room-sized machines to phones.</p>
           <div class="callout callout-warning">
-            <strong>⚠️ Not a law of physics:</strong>
-            <p>Moore's Law is an economic and engineering observation, not a physical law. It held for roughly half a century because the industry organized itself around meeting it.</p>
+            <strong>⚠️ A promise, not a law of nature:</strong>
+            <p>It is worth remembering that Moore's Law was never a law of physics — it was an economic and engineering expectation that the industry chose to fulfill. In recent years, as transistors shrink toward the size of a handful of atoms and heat and quantum effects bite, the classic doubling has slowed. The industry's response — multi-core chips, specialized accelerators like GPUs and TPUs, stacking chips in three dimensions — is the subject of much of modern hardware design.</p>
           </div>
 
           <h2 id="microprocessor">The Microprocessor — Intel 4004</h2>
-          <p>The IC's ultimate expression was putting an entire CPU on one chip.</p>
-          <ul>
-            <li>In <strong>1971</strong>, Intel released the <strong>4004</strong>, the first commercial <strong>microprocessor</strong>, designed by a team including <strong>Federico Faggin</strong>, <strong>Ted Hoff</strong>, and <strong>Masatoshi Shima</strong>.</li>
-            <li>It packed ~2,300 transistors and put the power of ENIAC onto a chip the size of a fingernail.</li>
-            <li>The microprocessor made the <strong>personal computer</strong> possible — a general-purpose CPU cheap enough for individuals.</li>
-          </ul>
+          <p>The logic of the integrated circuit pointed toward one dazzling destination: if you could put many components on a chip, why not put an <em>entire computer's brain</em> on a single chip? That leap came in 1971 at Intel. Asked to design a set of custom chips for a Japanese calculator company, engineers including <strong>Ted Hoff</strong>, <strong>Federico Faggin</strong>, and <strong>Masatoshi Shima</strong> proposed something more general — a single programmable processor that could be told what to do by software rather than hard-wired for one task.</p>
+          <p>The result was the <strong>Intel 4004</strong>, the first commercial <strong>microprocessor</strong>: about twenty-three hundred transistors on a sliver of silicon the size of a fingernail, holding as much raw computing capability as the thirty-ton ENIAC had a quarter-century before. It is difficult to overstate the significance. The microprocessor made the computer cheap enough and small enough to belong to an individual rather than an institution — and with that, the stage was set for the revolution we turn to next, when the computer would leave the corporate machine room and land on the desk, and eventually in the pocket, of ordinary people.</p>
 
           <div class="code-block">
             <div class="code-block-header">Timeline — shrinking the computer</div>

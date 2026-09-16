@@ -70,59 +70,38 @@
         </nav>
 
         <div class="article-content">
+          <p>Grace Hopper had proved that a machine could translate human-readable instructions into its own binary tongue. That single idea threw open a door, and through it poured a generation of inventors who set about designing <em>languages</em> — ways for people to express ideas to computers that were closer to mathematics, or to English, or to pure logic, than to the raw switching of circuits. This chapter is their story. It is worth noticing a pattern as we go: nearly every figure here won the <strong>Turing Award</strong>, computing's equivalent of the Nobel Prize, and nearly every language they built still shapes the code written today. Hardware, however clever, is inert without them.</p>
+
           <h2 id="backus">John Backus — FORTRAN &amp; BNF</h2>
-          <p><strong>John Backus (1924–2007)</strong> led the IBM team that created <strong>FORTRAN (1957)</strong>, the first widely used <strong>high-level programming language</strong>.</p>
-          <ul>
-            <li>FORTRAN (Formula Translation) let scientists write math-like code instead of assembly, and its optimizing compiler produced code fast enough to win skeptics over.</li>
-            <li>Backus later co-developed <strong>Backus–Naur Form (BNF)</strong>, the standard notation for describing programming language <strong>grammar/syntax</strong> — still taught and used today.</li>
-            <li>Received the <strong>1977 Turing Award</strong>.</li>
-          </ul>
+          <p>The first great leap belonged to <strong>John Backus</strong>, an IBM programmer who found the work of writing in machine code so painful and error-prone that he pitched his bosses on a radical idea: let scientists write formulas that looked like actual mathematics, and have the computer do the translating. The prevailing wisdom said the resulting code would be hopelessly slow — no automatic translator could match a skilled human writing assembly by hand. Backus's team spent years, from 1954 to 1957, proving the skeptics wrong.</p>
+          <p>The result was <strong>FORTRAN</strong> — "Formula Translation" — the first high-level programming language to see wide use. Crucially, its compiler was good enough that the generated code ran nearly as fast as hand-written assembly, which won over the doubters and made abstraction respectable. Backus later gave the field another essential tool: <strong>Backus–Naur Form</strong>, a compact notation for precisely describing the grammar of a programming language, still taught to every computer science student. He received the Turing Award in 1977.</p>
 
           <h2 id="mccarthy">John McCarthy — Lisp &amp; AI</h2>
-          <p><strong>John McCarthy (1927–2011)</strong> created <strong>Lisp (1958)</strong>, the second-oldest high-level language still in use.</p>
-          <ul>
-            <li>Introduced ideas that shaped modern programming: <strong>recursion</strong>, <strong>garbage collection</strong>, <strong>conditionals</strong>, and treating <strong>code as data</strong> (homoiconicity).</li>
-            <li>Coined the term <strong>"Artificial Intelligence"</strong> in 1956 and founded the AI labs at MIT and Stanford.</li>
-            <li>Received the <strong>1971 Turing Award</strong>.</li>
-          </ul>
+          <p>Where Backus took his cue from the engineer's formula, <strong>John McCarthy</strong> took his from the logician's abstraction — and reached back to a thread we met two chapters ago, Alonzo Church's lambda calculus. In 1958 McCarthy created <strong>Lisp</strong>, a language built not around commands and memory addresses but around functions, lists, and recursion. It was strange and elegant, and it introduced ideas so far ahead of their time that the rest of the industry spent decades catching up: automatic memory management (garbage collection), the conditional expression, and the beautiful notion that a program's code could be treated as ordinary data to be manipulated by other code.</p>
+          <p>McCarthy's ambitions ran even higher than language design. In 1956 he had coined the very term <strong>"artificial intelligence"</strong> and helped convene the summer workshop that founded the field, later building its great research laboratories at MIT and Stanford. Lisp became the native tongue of AI research for a generation. He received the Turing Award in 1971. Lisp, remarkably, is still in use today — the second-oldest high-level language that never died.</p>
 
           <h2 id="unix-c">Ritchie &amp; Thompson — C and Unix</h2>
-          <p>At <strong>Bell Labs</strong>, <strong>Dennis Ritchie (1941–2011)</strong> and <strong>Ken Thompson (b. 1943)</strong> built two of the most influential pieces of software ever written.</p>
-          <ul>
-            <li>Thompson created the first <strong>Unix</strong> (1969); Ritchie created the <strong>C language</strong> (1972) and they rewrote Unix in C — making the OS <strong>portable</strong> across hardware.</li>
-            <li><strong>C</strong> became the foundation for operating systems, embedded systems, and nearly every later language (C++, Java, C#, Go, Rust all trace lineage to it).</li>
-            <li><strong>Unix</strong> shaped Linux, macOS, Android, and the philosophy of small composable tools.</li>
-            <li>Both shared the <strong>1983 Turing Award</strong>.</li>
-          </ul>
+          <p>Now the story returns to Bell Labs, that endlessly productive institution, for what may be the most consequential software project ever undertaken. In the late 1960s <strong>Ken Thompson</strong>, partly to have a decent system on which to run a game he had written, began building a small, clean, elegant operating system he named <strong>Unix</strong>. His colleague <strong>Dennis Ritchie</strong> joined him, and to write the system in something better than assembly, Ritchie designed a new language: <strong>C</strong>.</p>
+          <p>C struck a rare and perfect balance. It was low-level enough to control the machine directly, yet abstract and portable enough to move from one kind of computer to another. In a decisive move, Thompson and Ritchie rewrote Unix itself in C — making it the first operating system that could be lifted off one machine and dropped onto another, rather than rebuilt from scratch. This portability changed everything. C became the substrate of the computing world: operating systems, embedded devices, and the direct ancestor of C++, Java, C#, JavaScript, Go, and Rust all trace their lineage to it. Unix, meanwhile, grew into Linux, macOS, and Android, and its philosophy of small, sharp tools that combine cleanly still shapes how software is built. The two shared the Turing Award in 1983.</p>
           <div class="callout">
-            <strong>🔑 Enduring impact:</strong>
-            <p>The C/Unix combination is arguably the most consequential software project in history. Most of the digital infrastructure running today descends from it, directly or by influence.</p>
+            <strong>🔑 The bedrock beneath everything:</strong>
+            <p>If you could point to a single project underlying most of the digital world, it would be C and Unix. The servers that run the internet, the phone in your hand, the languages you write in — nearly all descend from what these two men built in a back room over a few years. Influence in software is rarely so total.</p>
           </div>
 
           <h2 id="wirth">Niklaus Wirth — Pascal &amp; Simplicity</h2>
-          <p><strong>Niklaus Wirth (1934–2024)</strong>, a Swiss computer scientist, designed <strong>Pascal (1970)</strong> and later Modula-2 and Oberon.</p>
-          <ul>
-            <li>Pascal was designed for <strong>teaching structured programming</strong> and dominated computer science education for decades.</li>
-            <li>Championed clarity and minimalism — "Wirth's Law": software gets slower faster than hardware gets faster.</li>
-            <li>Received the <strong>1984 Turing Award</strong>.</li>
-          </ul>
+          <p>Not every pioneer chased power; some chased <em>clarity</em>. The Swiss computer scientist <strong>Niklaus Wirth</strong> believed that a language should above all be simple, disciplined, and teachable, and in 1970 he designed <strong>Pascal</strong> to embody those virtues. It was never meant to run the world's infrastructure — it was meant to teach people to think cleanly about programs, and for decades it dominated computer science education, the language on which a generation first learned the craft.</p>
+          <p>Wirth spent his career designing successively smaller and cleaner languages — Modula-2, then Oberon — as a standing rebuke to the industry's tendency toward bloat. He is remembered, too, for a wry observation now called Wirth's Law: software grows slower faster than hardware grows quicker. He received the Turing Award in 1984 and remained an advocate for elegance until his death in 2024.</p>
 
-          <h2 id="oop">Object-Oriented Pioneers — Kay, Stroustrup, Liskov</h2>
-          <ul>
-            <li><strong>Alan Kay</strong> — pioneered <strong>Smalltalk</strong> and coined "object-oriented programming," envisioning software built from communicating objects. Turing Award 2003.</li>
-            <li><strong>Bjarne Stroustrup</strong> — created <strong>C++ (1979–1985)</strong>, adding object orientation to C. It powers browsers, game engines, databases, and high-performance systems.</li>
-            <li><strong>Barbara Liskov</strong> — pioneered <strong>data abstraction</strong> and the CLU language; the <strong>Liskov Substitution Principle</strong> (the "L" in SOLID) is named for her. Turing Award 2008.</li>
-            <li><strong>Kristen Nygaard &amp; Ole-Johan Dahl</strong> — created <strong>Simula (1960s)</strong>, the first object-oriented language, introducing classes and objects. Turing Award 2001.</li>
-          </ul>
+          <h2 id="oop">The Object-Oriented Idea — Nygaard, Kay, Stroustrup &amp; Liskov</h2>
+          <p>As programs grew larger, a new way of organizing them took hold — the idea that software should be built from self-contained <strong>objects</strong> that bundle data together with the operations on that data, and that communicate with one another like little machines. The seed was planted in Norway in the 1960s, where <strong>Kristen Nygaard</strong> and <strong>Ole-Johan Dahl</strong> created <strong>Simula</strong> to model complex real-world systems, inventing the notions of classes and objects and earning the Turing Award in 2001.</p>
+          <p>The vision was carried forward by the American <strong>Alan Kay</strong>, who coined the phrase "object-oriented programming" and, with his work on <strong>Smalltalk</strong>, imagined software as a society of communicating objects — a vision entangled, as we will see in the next chapter, with the invention of the graphical interface at Xerox PARC (Turing Award, 2003). The idea reached the mainstream through <strong>Bjarne Stroustrup</strong>, who in the early 1980s grafted objects onto the trunk of C to create <strong>C++</strong>, still the language of choice where raw performance meets complexity — browsers, game engines, databases. And <strong>Barbara Liskov</strong> gave the movement its rigor, pioneering the theory of data abstraction; the principle of sound inheritance that bears her name, the Liskov Substitution Principle, is still taught as a cornerstone of good design (Turing Award, 2008).</p>
 
           <h2 id="dijkstra-knuth">Dijkstra &amp; Knuth — The Science of Programming</h2>
-          <ul>
-            <li><strong>Edsger Dijkstra (1930–2002)</strong> — advocated <strong>structured programming</strong> ("Go To Statement Considered Harmful"), invented Dijkstra's shortest-path algorithm, and worked on concurrency (semaphores). Turing Award 1972.</li>
-            <li><strong>Donald Knuth (b. 1938)</strong> — author of <em>The Art of Computer Programming</em>, formalized algorithm analysis (Big-O usage), and created the <strong>TeX</strong> typesetting system. Turing Award 1974.</li>
-          </ul>
+          <p>Alongside those who built languages stood those who insisted that programming become a genuine <em>science</em> — rigorous, provable, analyzable — rather than a seat-of-the-pants craft. Two figures loom largest. The Dutch theorist <strong>Edsger Dijkstra</strong> was programming's sharp-tongued conscience; his famous 1968 note "Go To Statement Considered Harmful" launched the movement toward <strong>structured programming</strong>, and his elegant shortest-path algorithm and work on managing concurrent processes remain foundational (Turing Award, 1972). He believed, and argued relentlessly, that a program should be reasoned about and proven correct, not merely tested until it seemed to work.</p>
+          <p>The American <strong>Donald Knuth</strong> gave the field its scholarly backbone. His multi-volume <em>The Art of Computer Programming</em>, begun in the 1960s and still unfinished, set out to analyze algorithms with mathematical precision, popularizing the way we measure an algorithm's efficiency. So exacting was he that, frustrated by the ugly typesetting of his own books, he paused for years to invent <strong>TeX</strong>, the typesetting system mathematicians and scientists still use today (Turing Award, 1974).</p>
           <div class="callout callout-warning">
-            <strong>⚠️ Software as engineering:</strong>
-            <p>Dijkstra and Knuth pushed programming from ad-hoc craft toward a rigorous discipline with provable correctness and analyzable performance — the intellectual backbone of computer science.</p>
+            <strong>⚠️ From craft to discipline:</strong>
+            <p>It is easy to take for granted that computer science is a science. Dijkstra and Knuth are a large part of why it is one — they dragged programming from improvised tinkering toward a discipline with provable correctness and analyzable performance, giving the whole field an intellectual spine.</p>
           </div>
 
           <div class="code-block">

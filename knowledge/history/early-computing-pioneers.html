@@ -70,75 +70,51 @@
 
         <div class="article-content">
           <h2 id="mechanical-calculators">The First Mechanical Calculators</h2>
-          <p>Long before the word "computer" meant a machine, it meant a person who performed calculations. The dream of automating arithmetic drove the earliest inventors.</p>
-          <ul>
-            <li><strong>Blaise Pascal (1642)</strong> — built the <em>Pascaline</em>, a geared adding machine that could add and subtract, developed to help his father with tax calculations.</li>
-            <li><strong>Gottfried Wilhelm Leibniz (1673)</strong> — designed the <em>Step Reckoner</em>, which could add, subtract, multiply, and divide. Crucially, Leibniz also formalized the <strong>binary number system</strong>, the language every modern computer speaks.</li>
-            <li><strong>Joseph Marie Jacquard (1804)</strong> — the <em>Jacquard loom</em> used <strong>punched cards</strong> to control weaving patterns, the first use of stored instructions to drive a machine. This idea directly inspired later computer pioneers.</li>
-          </ul>
+          <p>To understand where computing begins, you have to remember what the word once meant. For most of history a "computer" was not a machine at all but a <em>person</em> — a clerk, an astronomer's assistant, a room full of people doing arithmetic by hand. It was slow, it was tedious, and it was riddled with error. The story of this chapter is really the story of a single stubborn dream: that the drudgery of calculation might be handed over to gears and levers, so the human mind could be freed for the thinking that mattered.</p>
+          <p>The first to make real progress was a teenage prodigy. In 1642, watching his father toil over tax accounts, <strong>Blaise Pascal</strong> built a small brass box of interlocking wheels — the <em>Pascaline</em> — that could add and subtract by turning dials, the carry rippling automatically from one digit to the next. It was limited and expensive, but it proved something profound: arithmetic was <em>mechanical</em>. A machine could hold a number and transform it.</p>
+          <p>A generation later, the German polymath <strong>Gottfried Wilhelm Leibniz</strong> pushed the idea further. His <em>Step Reckoner</em> (1673) could not only add and subtract but multiply and divide. Yet Leibniz's deeper gift to our story was not a device but an idea. He became fascinated with the <strong>binary system</strong> — the notion that any number could be written using only ones and zeros. To him it carried an almost mystical elegance; to us it is the literal alphabet in which every modern computer thinks. Leibniz was writing the language of machines that would not exist for three hundred years.</p>
+          <p>The final thread came from an unlikely place: a weaver's workshop. In 1804 <strong>Joseph-Marie Jacquard</strong> unveiled a loom whose intricate patterns were dictated not by the weaver's hands but by a chain of stiff cards punched with holes. Where there was a hole, a hook passed through and lifted a thread; where there was none, it did not. The cloth's design, in other words, was a <em>program</em> — instructions stored outside the machine and fed into it. Jacquard had unknowingly invented the idea that a machine's behavior could be changed simply by changing the cards you gave it.</p>
 
           <div class="callout">
-            <strong>🔑 Key idea:</strong>
-            <p>Two threads emerge here that define all of computing: <strong>mechanized arithmetic</strong> (Pascal, Leibniz) and <strong>programmable control via stored instructions</strong> (Jacquard). Babbage would be the first to try to unite them.</p>
+            <strong>🔑 Two rivers converging:</strong>
+            <p>Notice that two separate streams have now appeared. From Pascal and Leibniz comes <strong>mechanized arithmetic</strong> — machines that compute. From Jacquard comes <strong>programmable control</strong> — machines that follow stored instructions. For decades they ran apart. The genius of the next figure in our story was to see that they were meant to be one river.</p>
           </div>
 
           <h2 id="babbage">Charles Babbage — The Engines</h2>
-          <p><strong>Charles Babbage (1791–1871)</strong>, an English mathematician, is often called the "father of the computer" for conceiving machines that anticipated the modern computer by a century.</p>
-
-          <h3>The Difference Engine</h3>
-          <ul>
-            <li>A special-purpose mechanical calculator designed to tabulate polynomial functions automatically, eliminating human error in mathematical tables.</li>
-            <li>Used the <strong>method of finite differences</strong> so only addition was required.</li>
-            <li>Never fully completed in his lifetime due to funding and engineering tolerances of the era. A working version was later built by the Science Museum in London (1991) and worked exactly as designed.</li>
-          </ul>
-
-          <h3>The Analytical Engine</h3>
-          <p>Babbage's masterpiece design — a <strong>general-purpose, programmable</strong> mechanical computer. It contained the essential components of a modern computer:</p>
-          <ul>
-            <li>The <strong>"Mill"</strong> — the processing unit (equivalent to a modern CPU/ALU).</li>
-            <li>The <strong>"Store"</strong> — memory to hold numbers.</li>
-            <li><strong>Punched-card input</strong> — borrowed from the Jacquard loom, for both program and data.</li>
-            <li>Conditional branching and loops — a genuine control flow.</li>
-          </ul>
+          <p>Enter <strong>Charles Babbage</strong>, a brilliant, irascible English mathematician who is often called the father of the computer — a title he earned not by building one, but by imagining, in astonishing completeness, what one would have to be. Babbage was tormented by the errors in the printed mathematical tables of his day, tables that sailors and engineers trusted with their lives. A single mistyped digit could wreck a ship. Legend has it that, poring over a page of mistakes, he exclaimed that he wished the whole thing could be done by steam.</p>
+          <p>His first answer was the <strong>Difference Engine</strong>, a massive special-purpose calculator designed to compute mathematical tables automatically using a clever technique called the method of finite differences, which reduced everything to repeated addition. It was elegant in conception but brutal in execution — thousands of precision parts machined to tolerances at the edge of what the era could manage. Funding dried up, and Babbage never finished it. (The vindication came over a century later: in 1991 the Science Museum in London built his Difference Engine from the original drawings, and it worked flawlessly, printing perfect tables just as he had promised.)</p>
+          <p>But Babbage's restless mind had already leapt somewhere far grander. He conceived the <strong>Analytical Engine</strong> — not a calculator for one task, but a <em>general-purpose, programmable machine</em>. And here the two rivers finally meet. From Jacquard he borrowed punched cards to feed in both instructions and data. The machine had a "Store" to hold numbers — what we would call memory — and a "Mill" where the arithmetic happened — what we would call the processor. It could make decisions, branching one way or another depending on a result, and it could loop, repeating steps as needed. In other words, it had everything the machine on your desk has today, rendered in brass gears and driven by steam.</p>
 
           <div class="callout callout-warning">
-            <strong>⚠️ Ahead of its time:</strong>
-            <p>The Analytical Engine was never built, but its architecture — separating processing, memory, input, and output — mirrors the machines we use today. Babbage designed a Turing-complete computer using only gears and steam.</p>
+            <strong>⚠️ A computer that never breathed:</strong>
+            <p>The Analytical Engine was never built — it was too vast, too costly, too far ahead of Victorian engineering. Yet its architecture, separating memory, processor, input, and output, is precisely the shape of every computer since. Babbage had designed a fully general computer a full century before the technology existed to make one live.</p>
           </div>
 
           <h2 id="lovelace">Ada Lovelace — The First Programmer</h2>
-          <p><strong>Augusta Ada King, Countess of Lovelace (1815–1852)</strong>, daughter of the poet Lord Byron and a gifted mathematician, collaborated with Babbage on the Analytical Engine.</p>
-          <ul>
-            <li>In 1843 she translated an Italian article on the engine and appended her own <strong>"Notes"</strong>, which were far longer than the original.</li>
-            <li>Note G contained a detailed algorithm to compute <strong>Bernoulli numbers</strong> — widely regarded as the <strong>first published computer program</strong>.</li>
-            <li>She grasped that the engine could manipulate <strong>symbols</strong>, not just numbers — foreseeing that machines could one day compose music or manipulate any content that could be represented numerically. This is the conceptual leap to <strong>general-purpose computing</strong>.</li>
-          </ul>
+          <p>If Babbage built the body of the idea, it was a young woman who first glimpsed its soul. <strong>Augusta Ada King, Countess of Lovelace</strong>, was the daughter of the poet Lord Byron, raised by a mother who steered her toward mathematics precisely to keep the perceived madness of poetry at bay. The result was a mind that fused rigor with imagination — exactly what the moment required.</p>
+          <p>In 1843 Lovelace translated a French account of the Analytical Engine, and to it she appended a series of her own "Notes" that ran nearly three times longer than the original text. Buried in Note G was something the world had never seen: a complete, step-by-step sequence of operations for the engine to compute a series of numbers known as the Bernoulli numbers. It was, in every meaningful sense, the <strong>first computer program</strong> — written for a machine that did not yet, and would never in her lifetime, exist.</p>
+          <p>Yet her true leap was philosophical. Where Babbage saw a superb calculator, Lovelace saw further. If numbers could stand for other things — notes of music, letters, logical relationships — then the engine could manipulate <em>anything</em> that could be represented as symbols. It might, she mused, one day compose music. She had grasped, alone in her century, the defining idea of the general-purpose computer: that it is not a number-cruncher but a <em>symbol-manipulator</em>, and therefore a machine for almost any purpose we can imagine.</p>
           <div class="callout">
-            <strong>🔑 Legacy:</strong>
-            <p>The U.S. Department of Defense named its programming language <strong>Ada</strong> (1980) in her honor. Ada Lovelace Day is celebrated each October to recognize women in STEM.</p>
+            <strong>🔑 A name that endures:</strong>
+            <p>The connection was so clearly understood that when the U.S. Department of Defense created a programming language in 1980, it named the language <strong>Ada</strong> in her honor. Each October, Ada Lovelace Day celebrates women in science and technology — a lineage traced straight back to those Notes.</p>
           </div>
 
           <h2 id="boole">George Boole — Logic as Algebra</h2>
-          <p><strong>George Boole (1815–1864)</strong>, an English mathematician, created <strong>Boolean algebra</strong> in his 1854 work <em>An Investigation of the Laws of Thought</em>.</p>
-          <ul>
-            <li>Reduced logic to algebra using just two values — <strong>true/false</strong> (1/0) — and operators <code>AND</code>, <code>OR</code>, and <code>NOT</code>.</li>
-            <li>At the time it was pure mathematics with no obvious application to machines.</li>
-            <li>Nearly a century later, Claude Shannon showed Boolean algebra could describe electrical switching circuits — making it the <strong>mathematical foundation of all digital logic</strong>.</li>
-          </ul>
+          <p>While Babbage and Lovelace dreamed of machines, a quiet, self-taught English schoolmaster was quietly building the intellectual scaffolding those machines would one day stand on. <strong>George Boole</strong> was interested not in gears but in <em>thought</em> itself. In his 1854 masterpiece, <em>An Investigation of the Laws of Thought</em>, he did something audacious: he reduced logic — reasoning, the very act of concluding one thing from another — to a kind of algebra.</p>
+          <p>In Boole's system there were only two values, true and false, which we may as well write as 1 and 0. Statements could be combined with just three operations — <code>AND</code>, <code>OR</code>, and <code>NOT</code> — and their truth calculated as mechanically as sums. To his contemporaries this was abstract, even eccentric, mathematics with no evident use in the physical world. Boole died in 1864 with little inkling of what he had wrought.</p>
+          <p>And yet this is one of the most consequential ideas in our entire story. Boole had discovered that reasoning could be <em>computed</em>. Nearly a century later a young engineer named Claude Shannon would notice that an electrical switch, which is either on or off, behaves exactly like a Boolean value — and that circuits of switches could therefore perform logic. Every logic gate, every transistor, every processor ever made is, at bottom, an incarnation of the algebra a Victorian schoolteacher scratched out in chalk.</p>
 
           <h2 id="hollerith">Herman Hollerith — Punched-Card Tabulation</h2>
-          <p><strong>Herman Hollerith (1860–1929)</strong> brought automated computing into practical, commercial use.</p>
-          <ul>
-            <li>Invented an <strong>electromechanical tabulating machine</strong> that read data from punched cards, used for the <strong>1890 U.S. Census</strong>.</li>
-            <li>The 1880 census had taken roughly eight years to process by hand; Hollerith's machines cut the 1890 tabulation to a fraction of that time.</li>
-            <li>He founded the <strong>Tabulating Machine Company (1896)</strong>, which through mergers became the <strong>Computing-Tabulating-Recording Company (1911)</strong> and was renamed <strong>IBM</strong> in 1924.</li>
-          </ul>
+          <p>So far our story has lived in the realm of dreams and pure ideas. It was an American inventor who dragged automated computing into the practical, money-making world — and in doing so founded an empire. The problem <strong>Herman Hollerith</strong> confronted was mundane but enormous: the United States census. The 1880 count had taken the better part of a decade to tabulate by hand, and the nation was growing so fast that officials feared the 1890 census would not be finished before the next one began.</p>
+          <p>Hollerith's solution drew directly on Jacquard's old idea. Each citizen's data was encoded as a pattern of holes punched into a card. His electromechanical tabulating machines could then read those cards — a metal pin passing through a hole would dip into mercury and complete a circuit, advancing a counter — sorting and counting the whole population at a speed no army of clerks could match. The 1890 census was tabulated in a fraction of the time, and the machine age of data had arrived.</p>
+          <p>Hollerith understood he was sitting on something valuable. He founded the Tabulating Machine Company in 1896 to rent his machines to railroads, governments, and insurers. Through a series of mergers it grew into the Computing-Tabulating-Recording Company, and in 1924 it took the name by which the world would come to know it: <strong>International Business Machines</strong> — IBM.</p>
           <div class="callout">
-            <strong>🔑 Why it matters:</strong>
-            <p>Hollerith proved that data processing was a business. Punched cards remained the dominant input medium into the 1970s, and his company became the giant that would define much of 20th-century computing.</p>
+            <strong>🔑 The business of data:</strong>
+            <p>Hollerith proved that processing information was not merely a scientific curiosity but a <em>commercial engine</em>. The punched card he popularized would remain the dominant way of feeding data into machines all the way into the 1970s, and the company he founded would go on to shape half a century of computing history.</p>
           </div>
 
-          <h2 id="legacy">Legacy &amp; Timeline</h2>
+          <h2 id="legacy">The Thread That Ties It Together</h2>
+          <p>Step back and the shape of the century becomes clear. Pascal and Leibniz proved arithmetic could be mechanized; Jacquard proved a machine could be programmed; Babbage united the two into the design of a true computer; Lovelace saw that such a machine could manipulate any symbol, not just numbers; Boole gave that manipulation a rigorous logic; and Hollerith turned the whole enterprise into a working, profitable industry. None of them had the electronics to finish the job — that would take another lifetime and a world war — but every essential idea of the computer was, by 1900, already on the table. The timeline below is not a list to memorize but a map of how one insight handed itself to the next.</p>
           <div class="code-block">
             <div class="code-block-header">Timeline — the mechanical era</div>
             <pre><code>1642  Pascal      Pascaline adding machine

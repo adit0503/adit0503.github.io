@@ -69,54 +69,42 @@
         </nav>
 
         <div class="article-content">
+          <p>The previous chapter left us with a paradox. By 1900 nearly every practical ingredient of the computer existed — mechanized arithmetic, programmability, logic reduced to algebra, even a data-processing industry. And yet no one could yet say what a computer fundamentally <em>was</em>, or what the limits of computation might be. Before engineers could build a universal machine, mathematicians had to answer a deeper question: what does it even mean to <em>compute</em> something? This chapter is the story of the small band of thinkers who, in a remarkable burst between the two world wars, answered it — and in doing so wrote the theory that all later hardware would merely obey.</p>
+
           <h2 id="turing">Alan Turing — The Turing Machine</h2>
-          <p><strong>Alan Turing (1912–1954)</strong>, a British mathematician, is the towering figure of theoretical computer science.</p>
-          <ul>
-            <li>In his 1936 paper <em>"On Computable Numbers"</em> he introduced the <strong>Turing machine</strong> — an abstract device with an infinite tape, a read/write head, and a table of rules. It formalized the idea of an <strong>algorithm</strong>.</li>
-            <li>He proved that some problems are <strong>undecidable</strong> — most famously the <strong>Halting Problem</strong>: no algorithm can decide, for all programs, whether they will halt.</li>
-            <li>A <strong>Universal Turing Machine</strong> can simulate any other Turing machine — the theoretical basis for the general-purpose, software-driven computer.</li>
-            <li>During WWII at <strong>Bletchley Park</strong>, he designed the <strong>Bombe</strong> to break the German <strong>Enigma</strong> cipher, work credited with shortening the war.</li>
-            <li>His 1950 paper proposed the <strong>Turing Test</strong> for machine intelligence, founding the philosophy of AI.</li>
-          </ul>
+          <p>The towering figure is <strong>Alan Turing</strong>, a young, socially awkward, fiercely original English mathematician. In 1936, at just twenty-four, he published a paper with the forbidding title <em>"On Computable Numbers."</em> To attack a famous open problem in logic, Turing needed a precise definition of what a "mechanical procedure" was — and rather than describe one abstractly, he imagined a machine.</p>
+          <p>His imaginary device was almost comically simple: an endless paper tape divided into squares, a head that could read and write symbols one square at a time, and a little table of rules telling it what to do next based on what it saw. That was all. And yet Turing showed that this austere contraption could carry out <em>any</em> step-by-step procedure a human calculator could — that it captured the very essence of an <strong>algorithm</strong>. We call it the <strong>Turing machine</strong>, and it remains the definition of computation to this day.</p>
+          <p>Then came the twist that gives his paper its enduring depth. Turing proved that some problems can <em>never</em> be solved by any such machine, no matter how clever or how much time it is given. The most famous is the <strong>Halting Problem</strong>: there can be no general algorithm that decides, for every possible program, whether that program will eventually stop or run forever. Turing had discovered a hard limit on computation itself — a boundary no future machine, however powerful, could cross.</p>
+          <p>His most fertile idea, though, was the <strong>Universal Turing Machine</strong>: a single machine that, given a description of any other machine on its tape, could imitate it perfectly. This is the theoretical heart of everything that follows. It means we do not need a different machine for every task — we need one general machine and the right <em>software</em>. The laptop, the phone, the server: all are physical embodiments of Turing's universal machine.</p>
+          <p>The theory soon became terribly practical. When war came, Turing went to <strong>Bletchley Park</strong> and turned his mind against the German <strong>Enigma</strong> cipher, designing the electromechanical <strong>Bombe</strong> that helped crack the enemy's messages — work historians credit with shortening the war by years and saving countless lives. And in 1950, still restless, he asked whether a machine could think, proposing the imitation game we now call the <strong>Turing Test</strong> and founding the philosophy of artificial intelligence. His own life ended in tragedy, persecuted for his homosexuality; the recognition he deserved came largely after his death.</p>
           <div class="callout">
-            <strong>🔑 Church–Turing thesis:</strong>
-            <p>Anything that can be computed by an effective procedure can be computed by a Turing machine. This defines the limits of what any computer — past, present, or future — can do.</p>
+            <strong>🔑 The Church–Turing thesis:</strong>
+            <p>The lasting principle from this era is deceptively simple: anything that can be computed by any effective procedure can be computed by a Turing machine. It draws the outer boundary of the possible — the map of everything computers can and cannot ever do.</p>
           </div>
 
           <h2 id="church">Alonzo Church — Lambda Calculus</h2>
-          <p><strong>Alonzo Church (1903–1995)</strong>, an American mathematician and Turing's doctoral advisor, arrived at the same conclusion by a different route.</p>
-          <ul>
-            <li>Created the <strong>lambda calculus</strong> (1936), a formal system for expressing computation through function definition and application.</li>
-            <li>Independently proved the undecidability of a key problem in logic (the <em>Entscheidungsproblem</em>).</li>
-            <li>Lambda calculus is the theoretical ancestor of all <strong>functional programming languages</strong> — Lisp, Haskell, ML, and the lambdas in modern Python, Java, and JavaScript.</li>
-          </ul>
+          <p>Turing did not work in a vacuum, and in a striking coincidence of history the same truth was discovered twice, in the same year, from opposite directions. At Princeton, the American logician <strong>Alonzo Church</strong> — who would soon become Turing's doctoral supervisor — reached the very same conclusion about the limits of computation, but by a wholly different path.</p>
+          <p>Church's tool was not a machine but a language of pure functions he called the <strong>lambda calculus</strong>. In it, everything is a function: you define functions, you apply them to arguments, and computation is nothing more than the repeated substitution of one expression into another. It looks nothing like Turing's tape, yet the two systems were proven to be exactly equivalent in power — a beautiful confirmation that they had each captured something real and fundamental rather than an artifact of their particular approach.</p>
+          <p>Where Turing's machine became the mental model for hardware, Church's lambda calculus became the ancestor of a whole family of software. Its ideas flow directly into the <strong>functional programming languages</strong> — Lisp, ML, Haskell — and into the humble <code>lambda</code> that programmers write today in Python, JavaScript, and Java. When you pass a function as an argument, you are speaking Church's language.</p>
 
           <h2 id="shannon">Claude Shannon — Information Theory</h2>
-          <p><strong>Claude Shannon (1916–2001)</strong>, an American engineer at Bell Labs, gave computing two of its most important foundations.</p>
-          <ul>
-            <li>His 1937 master's thesis showed that <strong>Boolean algebra could describe electrical switching circuits</strong> — connecting Boole's logic to real hardware. It has been called the most important master's thesis of the century.</li>
-            <li>His 1948 paper <em>"A Mathematical Theory of Communication"</em> founded <strong>information theory</strong>, introducing the <strong>bit</strong> as the fundamental unit of information and defining channel capacity and entropy.</li>
-            <li>His work underpins <strong>data compression</strong>, <strong>error correction</strong>, and all modern digital communication.</li>
-          </ul>
+          <p>If Turing and Church told us what could be computed, it fell to a modest, unicycle-riding American engineer to tell us what <em>information</em> actually is. <strong>Claude Shannon</strong> makes two appearances in the foundations of computing, and either alone would have secured his place.</p>
+          <p>The first came in 1937, while he was still a graduate student. Recall the loose end left dangling by George Boole: a logic reduced to true and false, waiting a century for a use. Shannon tied it. In his master's thesis he observed that an electrical relay or switch — on or off — behaves precisely like a Boolean value, and that networks of switches could therefore perform any logical operation. In one stroke he connected Boole's abstract algebra to physical circuitry and handed engineers the blueprint for all digital logic. It has been called the most important master's thesis of the twentieth century, and the claim is hard to dispute.</p>
+          <p>His second act, in 1948, was to found an entire field. In <em>"A Mathematical Theory of Communication,"</em> Shannon asked what it means to send a message through a noisy channel, and in answering he defined the <strong>bit</strong> — the binary digit — as the irreducible unit of information. He showed how to measure information, how much a message could be compressed, and how much could be reliably pushed through a channel despite noise. Every act of storing a file, streaming a video, or correcting a garbled signal rests on the mathematics he laid down.</p>
           <div class="callout callout-warning">
-            <strong>⚠️ The bit:</strong>
-            <p>The word "bit" (binary digit) was popularized by Shannon, credited to his colleague John Tukey. Every measure of storage and bandwidth traces back to Shannon's formalism.</p>
+            <strong>⚠️ The birth of the bit:</strong>
+            <p>The very word "bit" was popularized in Shannon's 1948 paper, credited to his colleague John Tukey. From that moment information became something you could quantify and engineer. Every gigabyte and every megabit-per-second is a direct descendant of Shannon's formalism.</p>
           </div>
 
           <h2 id="von-neumann">John von Neumann — The Stored-Program Architecture</h2>
-          <p><strong>John von Neumann (1903–1957)</strong>, a Hungarian-American polymath, contributed to mathematics, physics, economics, and computing.</p>
-          <ul>
-            <li>His 1945 <em>"First Draft of a Report on the EDVAC"</em> described the <strong>stored-program computer</strong> — where <strong>instructions and data live in the same memory</strong>.</li>
-            <li>This <strong>von Neumann architecture</strong> — CPU (control unit + ALU), memory, and I/O connected by a bus — is still the blueprint for nearly every computer today.</li>
-            <li>The single shared bus creates the famous <strong>"von Neumann bottleneck"</strong>, the throughput limit between CPU and memory that architects still design around (caches, pipelines, Harvard variants).</li>
-          </ul>
+          <p>The theory was now in place; what remained was to give it a shape that engineers could pour into metal. That gift came from <strong>John von Neumann</strong>, a Hungarian-born prodigy whose mind ranged so widely — across pure mathematics, quantum physics, economics, and the design of the atomic bomb — that colleagues half-joked he was a more advanced species imitating humans.</p>
+          <p>The early electronic computers of the war years were monsters to reprogram: to change their task you had to physically rewire them, a process that could take days. Von Neumann, drawing on Turing's idea of a universal machine and on his exposure to the ENIAC project, crystallized the solution in his 1945 <em>"First Draft of a Report on the EDVAC."</em> The insight was radical in its simplicity: store the <em>program</em> in the same memory as the <em>data</em>. Instructions become just another kind of number the machine can read, write, and even modify. To give the computer a new task, you simply load new instructions — no rewiring required.</p>
+          <p>This <strong>von Neumann architecture</strong> — a central processor holding a control unit and arithmetic unit, a single memory for both code and data, and channels for input and output — is the design nearly every computer still follows more than seventy-five years later. Its one enduring flaw is equally famous: because instructions and data share a single pathway to memory, the processor can sit idle waiting to be fed, a limit engineers call the <strong>"von Neumann bottleneck."</strong> Much of the last half-century of computer design — caches, pipelines, clever memory hierarchies — is an ongoing campaign against that very bottleneck.</p>
 
           <h2 id="wiener">Norbert Wiener — Cybernetics</h2>
-          <p><strong>Norbert Wiener (1894–1964)</strong>, an American mathematician, founded <strong>cybernetics</strong> (1948) — the study of control and communication in machines and living things.</p>
-          <ul>
-            <li>Formalized <strong>feedback loops</strong>, central to control systems, robotics, and later machine learning.</li>
-            <li>His ideas influenced automation, adaptive systems, and the framing of information as something machines and organisms both process.</li>
-          </ul>
+          <p>One more thinker rounds out this founding generation, and he asked a question the others had not: what do machines and living things have in common? <strong>Norbert Wiener</strong>, a former child prodigy turned MIT mathematician, answered in 1948 with a new discipline he named <strong>cybernetics</strong> — from the Greek for "steersman" — the study of control and communication in animals and machines alike.</p>
+          <p>His central concept was the <strong>feedback loop</strong>: a system that senses the results of its own actions and adjusts accordingly, the way a thermostat reads the temperature it has changed and corrects course. This deceptively simple idea underlies control systems, robotics, automation, and — decades later — the training loops at the heart of machine learning. Wiener also insisted that information itself was a thing both organisms and machines process, a framing that quietly prepared the ground for how we think about intelligent systems today.</p>
+          <p>Together, these five — Turing and Church defining the computable, Shannon measuring information, von Neumann giving it an architecture, and Wiener binding it to control and feedback — handed the engineers of the coming decades a complete theoretical inheritance. The machines of the electronic age, which we turn to next, were in a real sense already designed. All that remained was to build them.</p>
 
           <div class="code-block">
             <div class="code-block-header">Timeline — the theory era</div>

@@ -70,61 +70,40 @@
         </nav>
 
         <div class="article-content">
+          <p>By the 1970s computers were becoming common, but each was an island. A machine in one laboratory could no more share its work with a machine in another than two people could converse across an ocean without a telephone line. The final act of our history is the story of how those islands were connected — first a few, then thousands, then the whole world — until the network became so vast and so useful that it changed what a computer was <em>for</em>. It is worth holding onto one distinction from the start, because it is the most common confusion in all of technology: the <em>internet</em> and the <em>web</em> are not the same thing, and their inventors are different people separated by two decades.</p>
+
           <h2 id="licklider">J.C.R. Licklider — The Vision</h2>
-          <p><strong>J.C.R. Licklider (1915–1990)</strong>, a psychologist and computer scientist, wrote about a <strong>"Intergalactic Computer Network"</strong> in the early 1960s.</p>
-          <ul>
-            <li>Foresaw interactive computing and globally interconnected computers sharing data and programs.</li>
-            <li>As a director at <strong>ARPA</strong>, he funded the research that led to time-sharing and eventually the ARPANET.</li>
-          </ul>
+          <p>The dream came before the wires. In the early 1960s a visionary psychologist-turned-computer-scientist named <strong>J.C.R. Licklider</strong> — "Lick" to everyone who knew him — circulated memos about what he half-jokingly called an "Intergalactic Computer Network," a future in which computers everywhere would be linked together, sharing data and programs, and in which people would interact with them conversationally rather than by feeding in stacks of cards. It sounded like science fiction.</p>
+          <p>But Licklider was no idle dreamer; he soon found himself directing computing research at <strong>ARPA</strong>, the U.S. defense department's advanced research agency, with the money and influence to make his vision real. He funded the pioneers of interactive computing and planted, in the minds of a generation of researchers, the conviction that connected computers were both possible and worth pursuing. Nearly everything that follows grew from seeds he sowed.</p>
 
           <h2 id="packet-switching">Baran &amp; Davies — Packet Switching</h2>
-          <p>The key technical idea was <strong>packet switching</strong> — breaking data into small packets routed independently across a network.</p>
-          <ul>
-            <li><strong>Paul Baran</strong> (RAND, USA) proposed a <strong>distributed, survivable network</strong> that could keep working even if parts were destroyed.</li>
-            <li><strong>Donald Davies</strong> (NPL, UK) independently developed the same concept and coined the term "packet."</li>
-            <li>Packet switching replaced fragile, dedicated circuit connections with a resilient, shared network.</li>
-          </ul>
+          <p>To connect computers you first had to solve a hard technical problem, and the answer was a genuinely counterintuitive idea called <strong>packet switching</strong>. The old telephone system worked by circuit switching: it opened a single dedicated line between two parties for the length of a call — reliable, but wasteful and, crucially, fragile, since cutting the line ended the conversation. Two researchers, working independently on opposite sides of the Atlantic, saw a better way.</p>
+          <p>In the United States, <strong>Paul Baran</strong> at the RAND Corporation was wrestling with a Cold War nightmare: how to build a communications network that could survive a nuclear strike. His answer was a <em>distributed</em> network with no central point to destroy, in which messages were chopped into small chunks that could each find their own path and reassemble at the far end — so if part of the network was gone, the pieces simply routed around the damage. In Britain, <strong>Donald Davies</strong> arrived at the very same design for entirely civilian reasons of efficiency, and gave the chunks the name that stuck: <strong>packets</strong>. Together they had invented the resilient, shared foundation on which everything else would be built.</p>
 
           <h2 id="arpanet">ARPANET — The First Network</h2>
-          <p>The <strong>ARPANET</strong> went live in <strong>1969</strong>, funded by the U.S. Department of Defense's ARPA.</p>
-          <ul>
-            <li>The first message was sent between UCLA and Stanford; the system crashed after transmitting "LO" of "LOGIN."</li>
-            <li><strong>Leonard Kleinrock</strong> contributed foundational queuing/network theory and hosted the first node.</li>
-            <li>ARPANET proved that packet-switched networking worked at scale and became the technical ancestor of the internet.</li>
-          </ul>
+          <p>Vision and technique came together in 1969, when ARPA funded the construction of the first real packet-switched network, the <strong>ARPANET</strong>. Its birth was suitably humble. On a night in October, a student at UCLA set out to log in to a machine at Stanford, typing the command letter by letter while confirming each by phone. He typed "L" — it appeared. He typed "O" — it appeared. He typed "G" — and the whole system crashed. The first message ever sent across the ancestor of the internet was, unintentionally, the single word "LO."</p>
+          <p>They fixed it, and the network grew, node by node, knitting together the research computers of universities and laboratories. The theorist <strong>Leonard Kleinrock</strong>, whose work underpinned the mathematics of how such networks behave, hosted that very first node. ARPANET proved, against many doubts, that packet switching worked at scale — and that Licklider's intergalactic network was no longer a fantasy but a functioning, if modest, reality.</p>
 
           <h2 id="tcp-ip">Cerf &amp; Kahn — TCP/IP</h2>
-          <p><strong>Vint Cerf</strong> and <strong>Robert Kahn</strong> designed <strong>TCP/IP</strong> in the 1970s — the protocol suite that defines the internet.</p>
-          <ul>
-            <li>Solved <strong>internetworking</strong>: how to connect many different, independent networks into one "network of networks."</li>
-            <li><strong>IP</strong> handles addressing and routing; <strong>TCP</strong> ensures reliable, ordered delivery.</li>
-            <li>ARPANET switched to TCP/IP on <strong>January 1, 1983</strong> — often cited as the internet's birthday.</li>
-            <li>Cerf and Kahn are frequently called the <strong>"fathers of the internet"</strong> and shared the 2004 Turing Award.</li>
-          </ul>
+          <p>Success bred a new problem. ARPANET worked, but it was only one network; soon there were others — radio networks, satellite networks, rival systems — each speaking its own language, none able to talk to the rest. The task now was not to build a network but to build a way for <em>all</em> networks to interconnect: a network of networks. This is the problem two researchers, <strong>Vint Cerf</strong> and <strong>Robert Kahn</strong>, set out to solve in the 1970s, and their solution is the beating heart of the internet to this day.</p>
+          <p>They devised a common set of rules called <strong>TCP/IP</strong>. The genius lay in a division of labor: <strong>IP</strong>, the Internet Protocol, handled addressing and routing — giving every machine an address and getting packets from one to another across any intervening networks — while <strong>TCP</strong> sat on top and guaranteed that the packets arrived complete and in order, re-requesting any that got lost. On the first day of 1983, ARPANET switched over to TCP/IP, and many mark that moment as the true birthday of the internet. Cerf and Kahn are rightly called the fathers of the internet, and shared the Turing Award in 2004.</p>
           <div class="callout">
-            <strong>🔑 Why it matters:</strong>
-            <p>TCP/IP's genius is that it makes no assumptions about the underlying networks. Any network that can move packets can join, which is why the internet could grow to encompass everything from fiber backbones to Wi-Fi to satellites.</p>
+            <strong>🔑 Why it could swallow the world:</strong>
+            <p>The quiet brilliance of TCP/IP is that it assumes nothing about the wires beneath it. It does not care whether a packet travels by fiber, copper, radio, or satellite — any network able to carry packets can join. That radical openness is exactly why the internet could keep growing to encompass technologies its inventors never imagined, from Wi-Fi to the phone in your pocket.</p>
           </div>
 
           <h2 id="postel">Jon Postel — Steward of the Standards</h2>
-          <p><strong>Jon Postel (1943–1998)</strong> was the quiet steward who kept the early internet coherent.</p>
-          <ul>
-            <li>Edited many foundational <strong>RFCs</strong> (the internet's specification documents) and administered the numbering/naming systems that became <strong>IANA</strong> and later <strong>DNS</strong> concepts.</li>
-            <li>Known for <strong>Postel's Law</strong> (the robustness principle): "Be conservative in what you send, be liberal in what you accept."</li>
-          </ul>
+          <p>A global network held together by shared rules needs someone to tend those rules, and for the early internet that someone was, remarkably, largely one man: <strong>Jon Postel</strong>. A bearded, sandal-wearing computer scientist of legendary modesty, Postel edited the foundational documents — the plainly named "Requests for Comments," or RFCs — through which the internet's standards were proposed and agreed. For years he personally kept the master lists of addresses and names that let the whole system stay coherent, a role so trusted it later grew into formal institutions.</p>
+          <p>He is remembered above all for a principle of engineering wisdom now called Postel's Law: be conservative in what you send, and liberal in what you accept. It is advice about building systems that cooperate gracefully with one another despite imperfections — and it captures something of the generous, interoperable spirit in which the early internet was built.</p>
 
           <h2 id="web">Tim Berners-Lee — The World Wide Web</h2>
-          <p><strong>Tim Berners-Lee</strong>, at <strong>CERN in 1989–1991</strong>, invented the <strong>World Wide Web</strong> — the layer that made the internet usable for everyone.</p>
-          <ul>
-            <li>Created the three pillars still in use today: <strong>HTML</strong> (documents), <strong>HTTP</strong> (transfer protocol), and <strong>URLs</strong> (addresses).</li>
-            <li>Built the first web browser and web server.</li>
-            <li>Crucially, he and CERN released the web <strong>royalty-free (1993)</strong>, ensuring it belonged to everyone.</li>
-            <li>Founded the <strong>W3C</strong> to steward open web standards. Received the 2016 Turing Award.</li>
-          </ul>
+          <p>And so we arrive at the invention that put the internet into the hands of everyone — and at the distinction promised at the outset. By the late 1980s the internet existed and worked, but using it was the province of specialists, a thicket of arcane commands for transferring files and logging into distant machines. At the <strong>CERN</strong> physics laboratory in Switzerland, a British software engineer named <strong>Tim Berners-Lee</strong> grew frustrated that the lab's information was scattered across incompatible systems, and between 1989 and 1991 he built a solution of astonishing simplicity and reach: the <strong>World Wide Web</strong>.</p>
+          <p>His creation rested on three ideas that we still use every day. <strong>HTML</strong>, a simple language for writing documents. <strong>HTTP</strong>, a protocol for a "browser" to fetch those documents from a "server." And the <strong>URL</strong>, a universal address so that any document, anywhere, could be linked to any other by a click. He wrote the first browser and the first server himself, and in a decision that shaped the modern world, he and CERN gave the whole thing away — releasing it royalty-free in 1993 so that no company could own it and anyone could build on it. He later founded the W3C to keep the web's standards open, and received the Turing Award in 2016.</p>
           <div class="callout callout-warning">
-            <strong>⚠️ Internet ≠ Web:</strong>
-            <p>The <em>internet</em> is the underlying global network (TCP/IP, 1969–1983). The <em>web</em> is one application built on top of it (1989–1991). Email, FTP, and streaming are other applications that run on the same internet.</p>
+            <strong>⚠️ The distinction that everyone confuses:</strong>
+            <p>Here, then, is the point to carry away. The <em>internet</em> is the underlying network — the roads, built from packet switching and TCP/IP between 1969 and 1983. The <em>web</em> is one thing that travels on those roads — a way of linking documents, built by Berners-Lee around 1990. Email, video calls, and streaming are other vehicles on the same roads. When people say "the internet" they usually mean the web, but the web is only its most famous passenger.</p>
           </div>
+          <p>And with that, the long chain we began in a Sumerian scribe's clay tablet reaches the present. Writing let a thought outlive its thinker; the printing press let it spread; the computer let it be processed; and the internet and the web let it reach, in an instant, every connected mind on Earth. Each link in that chain was forged by people building on the work of those before them — which is, in the end, the whole story of science.</p>
 
           <div class="code-block">
             <div class="code-block-header">Timeline — connecting the world</div>
