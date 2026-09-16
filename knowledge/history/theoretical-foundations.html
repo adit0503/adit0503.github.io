@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Theoretical Foundations of Computing — Knowledge Base</title>
+    <meta name="description" content="The mathematicians who defined what computation is — Alan Turing, Alonzo Church, Claude Shannon, and John von Neumann — and the ideas of computability, information theory, and the stored-program architecture." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">History of Computing</a>
+        <span>→</span>
+        <span>Theoretical Foundations</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Theory</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Theoretical Foundations — Turing, Shannon &amp; von Neumann</h1>
+          <p class="article-desc">Before engineers could build a computer, mathematicians had to define what "computing" even means. This era produced the theory of computability, information theory, and the architecture nearly every computer still uses.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#turing">Alan Turing — The Turing Machine</a></li>
+            <li><a href="#church">Alonzo Church — Lambda Calculus</a></li>
+            <li><a href="#shannon">Claude Shannon — Information Theory</a></li>
+            <li><a href="#von-neumann">John von Neumann — The Stored-Program Architecture</a></li>
+            <li><a href="#wiener">Norbert Wiener — Cybernetics</a></li>
+            <li><a href="#interview-questions">Key Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="turing">Alan Turing — The Turing Machine</h2>
+          <p><strong>Alan Turing (1912–1954)</strong>, a British mathematician, is the towering figure of theoretical computer science.</p>
+          <ul>
+            <li>In his 1936 paper <em>"On Computable Numbers"</em> he introduced the <strong>Turing machine</strong> — an abstract device with an infinite tape, a read/write head, and a table of rules. It formalized the idea of an <strong>algorithm</strong>.</li>
+            <li>He proved that some problems are <strong>undecidable</strong> — most famously the <strong>Halting Problem</strong>: no algorithm can decide, for all programs, whether they will halt.</li>
+            <li>A <strong>Universal Turing Machine</strong> can simulate any other Turing machine — the theoretical basis for the general-purpose, software-driven computer.</li>
+            <li>During WWII at <strong>Bletchley Park</strong>, he designed the <strong>Bombe</strong> to break the German <strong>Enigma</strong> cipher, work credited with shortening the war.</li>
+            <li>His 1950 paper proposed the <strong>Turing Test</strong> for machine intelligence, founding the philosophy of AI.</li>
+          </ul>
+          <div class="callout">
+            <strong>🔑 Church–Turing thesis:</strong>
+            <p>Anything that can be computed by an effective procedure can be computed by a Turing machine. This defines the limits of what any computer — past, present, or future — can do.</p>
+          </div>
+
+          <h2 id="church">Alonzo Church — Lambda Calculus</h2>
+          <p><strong>Alonzo Church (1903–1995)</strong>, an American mathematician and Turing's doctoral advisor, arrived at the same conclusion by a different route.</p>
+          <ul>
+            <li>Created the <strong>lambda calculus</strong> (1936), a formal system for expressing computation through function definition and application.</li>
+            <li>Independently proved the undecidability of a key problem in logic (the <em>Entscheidungsproblem</em>).</li>
+            <li>Lambda calculus is the theoretical ancestor of all <strong>functional programming languages</strong> — Lisp, Haskell, ML, and the lambdas in modern Python, Java, and JavaScript.</li>
+          </ul>
+
+          <h2 id="shannon">Claude Shannon — Information Theory</h2>
+          <p><strong>Claude Shannon (1916–2001)</strong>, an American engineer at Bell Labs, gave computing two of its most important foundations.</p>
+          <ul>
+            <li>His 1937 master's thesis showed that <strong>Boolean algebra could describe electrical switching circuits</strong> — connecting Boole's logic to real hardware. It has been called the most important master's thesis of the century.</li>
+            <li>His 1948 paper <em>"A Mathematical Theory of Communication"</em> founded <strong>information theory</strong>, introducing the <strong>bit</strong> as the fundamental unit of information and defining channel capacity and entropy.</li>
+            <li>His work underpins <strong>data compression</strong>, <strong>error correction</strong>, and all modern digital communication.</li>
+          </ul>
+          <div class="callout callout-warning">
+            <strong>⚠️ The bit:</strong>
+            <p>The word "bit" (binary digit) was popularized by Shannon, credited to his colleague John Tukey. Every measure of storage and bandwidth traces back to Shannon's formalism.</p>
+          </div>
+
+          <h2 id="von-neumann">John von Neumann — The Stored-Program Architecture</h2>
+          <p><strong>John von Neumann (1903–1957)</strong>, a Hungarian-American polymath, contributed to mathematics, physics, economics, and computing.</p>
+          <ul>
+            <li>His 1945 <em>"First Draft of a Report on the EDVAC"</em> described the <strong>stored-program computer</strong> — where <strong>instructions and data live in the same memory</strong>.</li>
+            <li>This <strong>von Neumann architecture</strong> — CPU (control unit + ALU), memory, and I/O connected by a bus — is still the blueprint for nearly every computer today.</li>
+            <li>The single shared bus creates the famous <strong>"von Neumann bottleneck"</strong>, the throughput limit between CPU and memory that architects still design around (caches, pipelines, Harvard variants).</li>
+          </ul>
+
+          <h2 id="wiener">Norbert Wiener — Cybernetics</h2>
+          <p><strong>Norbert Wiener (1894–1964)</strong>, an American mathematician, founded <strong>cybernetics</strong> (1948) — the study of control and communication in machines and living things.</p>
+          <ul>
+            <li>Formalized <strong>feedback loops</strong>, central to control systems, robotics, and later machine learning.</li>
+            <li>His ideas influenced automation, adaptive systems, and the framing of information as something machines and organisms both process.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Timeline — the theory era</div>
+            <pre><code>1936  Turing     Turing machine, Halting Problem
+1936  Church     Lambda calculus
+1937  Shannon    Boolean logic ↔ switching circuits
+1945  von Neumann  Stored-program (EDVAC report)
+1948  Shannon    Information theory, the "bit"
+1948  Wiener     Cybernetics</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Key Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">What is the significance of the Universal Turing Machine?</div>
+            <div class="qa-answer">
+              <p>It proved that a single machine, given the right program on its tape, can simulate any other computing machine. This is the theoretical justification for the general-purpose computer: one physical device that runs any software, rather than a separate machine per task.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">What is the von Neumann bottleneck?</div>
+            <div class="qa-answer">
+              <p>Because instructions and data share the same memory and bus, the CPU can be starved waiting for memory access — the processor is often faster than the memory feeding it. Caches, instruction pipelining, prefetching, and Harvard-style split caches are all mitigations for this fundamental limit.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">How do Turing and Church relate?</div>
+            <div class="qa-answer">
+              <p>They independently defined computability in 1936 — Turing with an abstract machine, Church with lambda calculus — and the two models were proven equivalent. The combined result is the Church–Turing thesis: both capture exactly the same class of computable functions.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">History of Computing</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

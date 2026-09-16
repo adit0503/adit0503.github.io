@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>The Electronic Computing Era — Knowledge Base</title>
+    <meta name="description" content="The first electronic computers and the people who built them — Atanasoff, Zuse, Flowers and Colossus, Mauchly and Eckert's ENIAC, and Grace Hopper's contributions to software." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">History of Computing</a>
+        <span>→</span>
+        <span>Electronic Era</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Machines</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>The Electronic Computing Era — ENIAC, Colossus &amp; Hopper</h1>
+          <p class="article-desc">The 1930s–1950s turned theory into hardware. Vacuum tubes replaced gears, wartime pressure accelerated invention, and the first true electronic computers were built — along with the first tools that made them programmable.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#zuse">Konrad Zuse — The Z3</a></li>
+            <li><a href="#atanasoff">Atanasoff &amp; Berry — The ABC</a></li>
+            <li><a href="#colossus">Tommy Flowers — Colossus</a></li>
+            <li><a href="#eniac">Mauchly &amp; Eckert — ENIAC &amp; UNIVAC</a></li>
+            <li><a href="#hopper">Grace Hopper — The Birth of Software</a></li>
+            <li><a href="#interview-questions">Key Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="zuse">Konrad Zuse — The Z3</h2>
+          <p><strong>Konrad Zuse (1910–1995)</strong>, a German engineer, built working computers largely in isolation.</p>
+          <ul>
+            <li>His <strong>Z3 (1941)</strong> was the world's first <strong>programmable, fully automatic digital computer</strong>, using electromechanical relays and <strong>binary floating-point</strong> arithmetic.</li>
+            <li>He designed <strong>Plankalkül</strong>, arguably the first high-level programming language, though it was not implemented for decades.</li>
+            <li>The original Z3 was destroyed in a 1943 air raid; a replica confirmed the design worked.</li>
+          </ul>
+
+          <h2 id="atanasoff">Atanasoff &amp; Berry — The ABC</h2>
+          <p><strong>John Atanasoff (1903–1995)</strong> and his student <strong>Clifford Berry</strong> built the <strong>Atanasoff–Berry Computer (ABC, 1937–1942)</strong> at Iowa State College.</p>
+          <ul>
+            <li>The first <strong>electronic digital computing device</strong> to use <strong>vacuum tubes</strong> for computation and binary representation.</li>
+            <li>Special-purpose (solving systems of linear equations) and not programmable, but pioneering.</li>
+            <li>A 1973 U.S. court ruling (<em>Honeywell v. Sperry Rand</em>) invalidated the ENIAC patent, crediting Atanasoff with key ideas — a landmark in computing history.</li>
+          </ul>
+
+          <h2 id="colossus">Tommy Flowers — Colossus</h2>
+          <p><strong>Tommy Flowers (1905–1998)</strong>, a British Post Office engineer, built <strong>Colossus (1943–1944)</strong> at Bletchley Park.</p>
+          <ul>
+            <li>The world's first <strong>programmable electronic digital computer</strong>, using ~1,500–2,400 vacuum tubes.</li>
+            <li>Used to break the German <strong>Lorenz cipher</strong> (higher-level than Enigma), contributing to Allied victory.</li>
+            <li>Kept secret for decades under wartime classification, so it had little influence on later commercial machines but proved large-scale electronic computing was viable.</li>
+          </ul>
+          <div class="callout callout-warning">
+            <strong>⚠️ "First computer" is contested:</strong>
+            <p>ABC (first electronic, not programmable), Z3 (first programmable, electromechanical), Colossus (first programmable electronic, special-purpose), and ENIAC (first general-purpose programmable electronic) each claim a "first" depending on the qualifiers. Context matters.</p>
+          </div>
+
+          <h2 id="eniac">Mauchly &amp; Eckert — ENIAC &amp; UNIVAC</h2>
+          <p><strong>John Mauchly (1907–1980)</strong> and <strong>J. Presper Eckert (1919–1995)</strong> at the University of Pennsylvania built <strong>ENIAC (1945)</strong>.</p>
+          <ul>
+            <li>The first <strong>general-purpose, programmable, electronic</strong> computer — ~18,000 vacuum tubes, weighing 30 tons.</li>
+            <li>Originally programmed by physically rewiring plugboards; reprogramming took days.</li>
+            <li>The <strong>ENIAC programmers</strong> — Kay McNulty, Betty Jennings, Betty Holberton, Marlyn Wescoff, Frances Bilas, and Ruth Lichterman — were pioneering software engineers whose work was long uncredited.</li>
+            <li>Mauchly and Eckert went on to build <strong>UNIVAC I (1951)</strong>, the first commercial computer in the U.S., famous for predicting the 1952 presidential election result on live TV.</li>
+          </ul>
+
+          <h2 id="hopper">Grace Hopper — The Birth of Software</h2>
+          <p><strong>Grace Hopper (1906–1992)</strong>, a U.S. Navy rear admiral and computer scientist, shaped how humans talk to machines.</p>
+          <ul>
+            <li>Programmed the <strong>Harvard Mark I</strong> during WWII.</li>
+            <li>Built the first <strong>compiler</strong> (the A-0 system, 1952), proving that programs could be written in human-readable form and translated to machine code.</li>
+            <li>Drove the creation of <strong>COBOL (1959)</strong>, making business computing accessible with English-like syntax.</li>
+            <li>Popularized the term <strong>"debugging"</strong> after a moth was found in the Mark II relay (the actual moth is taped in her logbook).</li>
+          </ul>
+          <div class="callout">
+            <strong>🔑 Why it matters:</strong>
+            <p>Hopper's compiler was a radical idea — that a machine should do the tedious work of translation. It set computing on the path from wiring plugboards toward the high-level languages every developer uses today.</p>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">Timeline — the electronic era</div>
+            <pre><code>1937  Atanasoff   ABC — first electronic digital device
+1941  Zuse        Z3 — first programmable computer
+1943  Flowers     Colossus — programmable electronic
+1945  Mauchly/Eckert  ENIAC — general-purpose electronic
+1951  Eckert/Mauchly  UNIVAC I — first US commercial computer
+1952  Hopper      A-0 compiler
+1959  Hopper et al.   COBOL</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Key Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">Why is ENIAC often called the "first computer" when ABC and Colossus came earlier?</div>
+            <div class="qa-answer">
+              <p>ENIAC was the first machine that was simultaneously electronic, general-purpose, and programmable. ABC was electronic but special-purpose and not programmable; Colossus was programmable and electronic but built only for codebreaking. ENIAC could be reprogrammed for arbitrary problems, which is the key qualifier.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">What made Grace Hopper's compiler revolutionary?</div>
+            <div class="qa-answer">
+              <p>At the time, many believed computers could only do arithmetic and must be programmed in machine code. Hopper's compiler translated symbolic, human-readable instructions into machine code automatically, proving software abstraction was possible. This idea led directly to high-level languages like COBOL and FORTRAN.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Why were early computers so unreliable?</div>
+            <div class="qa-answer">
+              <p>They used thousands of vacuum tubes, which generated heat and burned out frequently. ENIAC's tubes failed often enough that engineers spent significant time locating dead tubes. This unreliability was a major driver toward the transistor, which was smaller, cooler, and far more dependable.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">History of Computing</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

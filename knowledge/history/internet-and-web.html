@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>The Internet &amp; the World Wide Web — Knowledge Base</title>
+    <meta name="description" content="How computers learned to talk to each other — Licklider's vision, Baran's packet switching, Cerf and Kahn's TCP/IP, the ARPANET, Postel's stewardship, and Tim Berners-Lee's World Wide Web." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">History of Computing</a>
+        <span>→</span>
+        <span>Internet &amp; Web</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Networks</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>The Internet &amp; the World Wide Web</h1>
+          <p class="article-desc">The final leap: connecting the world's computers into one network. This is the story of packet switching, the protocols that let any machine talk to any other, and the web that made it usable by everyone.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#licklider">J.C.R. Licklider — The Vision</a></li>
+            <li><a href="#packet-switching">Baran &amp; Davies — Packet Switching</a></li>
+            <li><a href="#arpanet">ARPANET — The First Network</a></li>
+            <li><a href="#tcp-ip">Cerf &amp; Kahn — TCP/IP</a></li>
+            <li><a href="#postel">Jon Postel — Steward of the Standards</a></li>
+            <li><a href="#web">Tim Berners-Lee — The World Wide Web</a></li>
+            <li><a href="#interview-questions">Key Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="licklider">J.C.R. Licklider — The Vision</h2>
+          <p><strong>J.C.R. Licklider (1915–1990)</strong>, a psychologist and computer scientist, wrote about a <strong>"Intergalactic Computer Network"</strong> in the early 1960s.</p>
+          <ul>
+            <li>Foresaw interactive computing and globally interconnected computers sharing data and programs.</li>
+            <li>As a director at <strong>ARPA</strong>, he funded the research that led to time-sharing and eventually the ARPANET.</li>
+          </ul>
+
+          <h2 id="packet-switching">Baran &amp; Davies — Packet Switching</h2>
+          <p>The key technical idea was <strong>packet switching</strong> — breaking data into small packets routed independently across a network.</p>
+          <ul>
+            <li><strong>Paul Baran</strong> (RAND, USA) proposed a <strong>distributed, survivable network</strong> that could keep working even if parts were destroyed.</li>
+            <li><strong>Donald Davies</strong> (NPL, UK) independently developed the same concept and coined the term "packet."</li>
+            <li>Packet switching replaced fragile, dedicated circuit connections with a resilient, shared network.</li>
+          </ul>
+
+          <h2 id="arpanet">ARPANET — The First Network</h2>
+          <p>The <strong>ARPANET</strong> went live in <strong>1969</strong>, funded by the U.S. Department of Defense's ARPA.</p>
+          <ul>
+            <li>The first message was sent between UCLA and Stanford; the system crashed after transmitting "LO" of "LOGIN."</li>
+            <li><strong>Leonard Kleinrock</strong> contributed foundational queuing/network theory and hosted the first node.</li>
+            <li>ARPANET proved that packet-switched networking worked at scale and became the technical ancestor of the internet.</li>
+          </ul>
+
+          <h2 id="tcp-ip">Cerf &amp; Kahn — TCP/IP</h2>
+          <p><strong>Vint Cerf</strong> and <strong>Robert Kahn</strong> designed <strong>TCP/IP</strong> in the 1970s — the protocol suite that defines the internet.</p>
+          <ul>
+            <li>Solved <strong>internetworking</strong>: how to connect many different, independent networks into one "network of networks."</li>
+            <li><strong>IP</strong> handles addressing and routing; <strong>TCP</strong> ensures reliable, ordered delivery.</li>
+            <li>ARPANET switched to TCP/IP on <strong>January 1, 1983</strong> — often cited as the internet's birthday.</li>
+            <li>Cerf and Kahn are frequently called the <strong>"fathers of the internet"</strong> and shared the 2004 Turing Award.</li>
+          </ul>
+          <div class="callout">
+            <strong>🔑 Why it matters:</strong>
+            <p>TCP/IP's genius is that it makes no assumptions about the underlying networks. Any network that can move packets can join, which is why the internet could grow to encompass everything from fiber backbones to Wi-Fi to satellites.</p>
+          </div>
+
+          <h2 id="postel">Jon Postel — Steward of the Standards</h2>
+          <p><strong>Jon Postel (1943–1998)</strong> was the quiet steward who kept the early internet coherent.</p>
+          <ul>
+            <li>Edited many foundational <strong>RFCs</strong> (the internet's specification documents) and administered the numbering/naming systems that became <strong>IANA</strong> and later <strong>DNS</strong> concepts.</li>
+            <li>Known for <strong>Postel's Law</strong> (the robustness principle): "Be conservative in what you send, be liberal in what you accept."</li>
+          </ul>
+
+          <h2 id="web">Tim Berners-Lee — The World Wide Web</h2>
+          <p><strong>Tim Berners-Lee</strong>, at <strong>CERN in 1989–1991</strong>, invented the <strong>World Wide Web</strong> — the layer that made the internet usable for everyone.</p>
+          <ul>
+            <li>Created the three pillars still in use today: <strong>HTML</strong> (documents), <strong>HTTP</strong> (transfer protocol), and <strong>URLs</strong> (addresses).</li>
+            <li>Built the first web browser and web server.</li>
+            <li>Crucially, he and CERN released the web <strong>royalty-free (1993)</strong>, ensuring it belonged to everyone.</li>
+            <li>Founded the <strong>W3C</strong> to steward open web standards. Received the 2016 Turing Award.</li>
+          </ul>
+          <div class="callout callout-warning">
+            <strong>⚠️ Internet ≠ Web:</strong>
+            <p>The <em>internet</em> is the underlying global network (TCP/IP, 1969–1983). The <em>web</em> is one application built on top of it (1989–1991). Email, FTP, and streaming are other applications that run on the same internet.</p>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">Timeline — connecting the world</div>
+            <pre><code>1962  Licklider   "Intergalactic Network" vision
+1964  Baran        Packet switching (distributed net)
+1969  ARPA         ARPANET goes live
+1974  Cerf/Kahn    TCP/IP design
+1983  —            ARPANET adopts TCP/IP ("internet birthday")
+1989  Berners-Lee  World Wide Web proposal
+1991  Berners-Lee  First website
+1993  CERN         Web released royalty-free</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Key Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">What is the difference between the internet and the World Wide Web?</div>
+            <div class="qa-answer">
+              <p>The internet is the global network infrastructure that moves data between computers using TCP/IP. The web is one application layered on top of it, using HTTP, HTML, and URLs to link documents. You can use the internet without the web (email, video calls, file transfer) — the web is just its most famous use.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Why was packet switching such an important idea?</div>
+            <div class="qa-answer">
+              <p>Traditional circuit switching dedicates a whole connection to one conversation, which is wasteful and fragile. Packet switching breaks data into packets routed independently, so many conversations share the same links and the network can route around failures. This made a resilient, scalable global network possible.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">What made TCP/IP able to scale into the global internet?</div>
+            <div class="qa-answer">
+              <p>TCP/IP is layered and network-agnostic. IP provides universal addressing and routing across heterogeneous networks; TCP adds reliability on top. Because it assumes nothing about the physical medium, any network that can carry packets can interconnect, allowing organic, decentralized growth.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">History of Computing</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

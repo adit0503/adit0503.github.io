@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>The Transistor &amp; Integrated Circuit — Knowledge Base</title>
+    <meta name="description" content="How the transistor and integrated circuit shrank the computer — Shockley, Bardeen and Brattain, Jack Kilby, Robert Noyce, Gordon Moore, and the birth of Silicon Valley and the microprocessor." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">History of Computing</a>
+        <span>→</span>
+        <span>Transistor &amp; IC</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Hardware</span>
+            <span class="read-time">13 min read</span>
+          </div>
+          <h1>The Transistor &amp; Integrated Circuit Revolution</h1>
+          <p class="article-desc">The single most important hardware advance in computing: replacing the vacuum tube with the transistor, then packing millions of them onto a sliver of silicon. This is how the room-sized computer became the chip in your pocket.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#transistor">The Transistor — Bardeen, Brattain &amp; Shockley</a></li>
+            <li><a href="#integrated-circuit">The Integrated Circuit — Kilby &amp; Noyce</a></li>
+            <li><a href="#silicon-valley">Silicon Valley &amp; Fairchild</a></li>
+            <li><a href="#moores-law">Gordon Moore &amp; Moore's Law</a></li>
+            <li><a href="#microprocessor">The Microprocessor — Intel 4004</a></li>
+            <li><a href="#interview-questions">Key Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="transistor">The Transistor — Bardeen, Brattain &amp; Shockley</h2>
+          <p>At <strong>Bell Labs in 1947</strong>, <strong>John Bardeen</strong>, <strong>Walter Brattain</strong>, and <strong>William Shockley</strong> invented the <strong>transistor</strong>, a solid-state switch that could amplify and switch electrical signals.</p>
+          <ul>
+            <li>It replaced the bulky, hot, fragile <strong>vacuum tube</strong> with a small, cool, reliable, low-power device.</li>
+            <li>The three shared the <strong>1956 Nobel Prize in Physics</strong>. (Bardeen would later win a second Nobel for superconductivity.)</li>
+            <li>Shockley moved to California and founded <strong>Shockley Semiconductor</strong>, seeding the region that became Silicon Valley.</li>
+          </ul>
+          <div class="callout">
+            <strong>🔑 Why it mattered:</strong>
+            <p>The transistor is the fundamental building block of all modern electronics. Every logic gate and memory cell in a computer is built from transistors — a modern CPU contains tens of billions of them.</p>
+          </div>
+
+          <h2 id="integrated-circuit">The Integrated Circuit — Kilby &amp; Noyce</h2>
+          <p>Wiring individual transistors together by hand did not scale. The solution came almost simultaneously from two inventors:</p>
+          <ul>
+            <li><strong>Jack Kilby</strong> at Texas Instruments (1958) built the first working <strong>integrated circuit</strong>, placing multiple components on a single piece of semiconductor. He won the <strong>2000 Nobel Prize in Physics</strong>.</li>
+            <li><strong>Robert Noyce</strong> at Fairchild Semiconductor (1959) independently devised a <strong>silicon-based IC using the planar process</strong>, which was far more practical to manufacture — the design that made mass production possible.</li>
+          </ul>
+
+          <h2 id="silicon-valley">Silicon Valley &amp; Fairchild</h2>
+          <p>Eight engineers — the <strong>"Traitorous Eight"</strong>, including Noyce and Gordon Moore — left Shockley Semiconductor in 1957 to found <strong>Fairchild Semiconductor</strong>.</p>
+          <ul>
+            <li>Fairchild became the birthplace of the practical silicon IC and the training ground for a generation of chip pioneers.</li>
+            <li>Its alumni ("Fairchildren") founded dozens of companies, including <strong>Intel</strong> and <strong>AMD</strong>, giving <strong>Silicon Valley</strong> its name and its industry.</li>
+          </ul>
+
+          <h2 id="moores-law">Gordon Moore &amp; Moore's Law</h2>
+          <p><strong>Gordon Moore</strong>, co-founder of Intel, observed in <strong>1965</strong> that the number of transistors on a chip was roughly <strong>doubling about every year</strong>, later revised to about every <strong>two years</strong>.</p>
+          <ul>
+            <li><strong>Moore's Law</strong> became the industry's self-fulfilling roadmap for decades, driving exponential gains in computing power and drops in cost.</li>
+            <li>Physical limits (heat, quantum effects, atomic scale) have slowed the pace, pushing the industry toward multi-core designs, specialized accelerators (GPUs, TPUs), and advanced packaging.</li>
+          </ul>
+          <div class="callout callout-warning">
+            <strong>⚠️ Not a law of physics:</strong>
+            <p>Moore's Law is an economic and engineering observation, not a physical law. It held for roughly half a century because the industry organized itself around meeting it.</p>
+          </div>
+
+          <h2 id="microprocessor">The Microprocessor — Intel 4004</h2>
+          <p>The IC's ultimate expression was putting an entire CPU on one chip.</p>
+          <ul>
+            <li>In <strong>1971</strong>, Intel released the <strong>4004</strong>, the first commercial <strong>microprocessor</strong>, designed by a team including <strong>Federico Faggin</strong>, <strong>Ted Hoff</strong>, and <strong>Masatoshi Shima</strong>.</li>
+            <li>It packed ~2,300 transistors and put the power of ENIAC onto a chip the size of a fingernail.</li>
+            <li>The microprocessor made the <strong>personal computer</strong> possible — a general-purpose CPU cheap enough for individuals.</li>
+          </ul>
+
+          <div class="code-block">
+            <div class="code-block-header">Timeline — shrinking the computer</div>
+            <pre><code>1947  Bardeen/Brattain/Shockley  Transistor (Bell Labs)
+1957  "Traitorous Eight"          Fairchild Semiconductor
+1958  Kilby                       First integrated circuit (TI)
+1959  Noyce                       Silicon planar IC (Fairchild)
+1965  Moore                       Moore's Law
+1968  Noyce/Moore                 Intel founded
+1971  Intel                       4004 microprocessor</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Key Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">Why did the transistor replace the vacuum tube?</div>
+            <div class="qa-answer">
+              <p>Transistors are smaller, use far less power, generate less heat, switch faster, and are much more reliable and durable. Vacuum tubes burned out frequently and consumed enormous power. This shift made computers smaller, cheaper, and dependable enough for widespread use.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Kilby or Noyce — who invented the integrated circuit?</div>
+            <div class="qa-answer">
+              <p>Both are credited. Kilby (TI) built the first working IC in 1958. Noyce (Fairchild) independently created a silicon IC using the planar process in 1959, which was practical to manufacture at scale. The industry generally recognizes them as co-inventors; Kilby received the Nobel Prize in 2000 (Noyce had died in 1990).</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Is Moore's Law dead?</div>
+            <div class="qa-answer">
+              <p>The classic transistor-doubling cadence has slowed as devices approach atomic scale and hit power/heat limits. Rather than "dead," the industry has shifted strategies: multi-core CPUs, GPUs and domain-specific accelerators, chiplets, and 3D stacking now deliver performance gains that single-die density alone no longer provides.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">History of Computing</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>

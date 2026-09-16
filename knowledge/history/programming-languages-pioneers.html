@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Programming Languages &amp; Their Pioneers — Knowledge Base</title>
+    <meta name="description" content="The people who taught computers new languages — John Backus (FORTRAN), John McCarthy (Lisp), Dennis Ritchie and Ken Thompson (C, Unix), Niklaus Wirth, Bjarne Stroustrup, Barbara Liskov, Dijkstra, and Knuth." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../index.html">Home</a>
+          <a href="../../pages/experience.html">Experience</a>
+          <a href="../../pages/projects.html">Projects</a>
+          <a href="../../pages/skills.html">Skills</a>
+          <a class="active" href="../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="index.html">History of Computing</a>
+        <span>→</span>
+        <span>Language Pioneers</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">Software</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Programming Languages &amp; Their Pioneers</h1>
+          <p class="article-desc">Hardware is inert without software. These are the people who invented the languages and disciplines that let humans express ideas to machines — from FORTRAN and Lisp to C, C++, and the science of algorithms.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#backus">John Backus — FORTRAN &amp; BNF</a></li>
+            <li><a href="#mccarthy">John McCarthy — Lisp &amp; AI</a></li>
+            <li><a href="#unix-c">Ritchie &amp; Thompson — C and Unix</a></li>
+            <li><a href="#wirth">Niklaus Wirth — Pascal &amp; Simplicity</a></li>
+            <li><a href="#oop">Object-Oriented Pioneers — Kay, Stroustrup, Liskov</a></li>
+            <li><a href="#dijkstra-knuth">Dijkstra &amp; Knuth — The Science of Programming</a></li>
+            <li><a href="#interview-questions">Key Questions</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="backus">John Backus — FORTRAN &amp; BNF</h2>
+          <p><strong>John Backus (1924–2007)</strong> led the IBM team that created <strong>FORTRAN (1957)</strong>, the first widely used <strong>high-level programming language</strong>.</p>
+          <ul>
+            <li>FORTRAN (Formula Translation) let scientists write math-like code instead of assembly, and its optimizing compiler produced code fast enough to win skeptics over.</li>
+            <li>Backus later co-developed <strong>Backus–Naur Form (BNF)</strong>, the standard notation for describing programming language <strong>grammar/syntax</strong> — still taught and used today.</li>
+            <li>Received the <strong>1977 Turing Award</strong>.</li>
+          </ul>
+
+          <h2 id="mccarthy">John McCarthy — Lisp &amp; AI</h2>
+          <p><strong>John McCarthy (1927–2011)</strong> created <strong>Lisp (1958)</strong>, the second-oldest high-level language still in use.</p>
+          <ul>
+            <li>Introduced ideas that shaped modern programming: <strong>recursion</strong>, <strong>garbage collection</strong>, <strong>conditionals</strong>, and treating <strong>code as data</strong> (homoiconicity).</li>
+            <li>Coined the term <strong>"Artificial Intelligence"</strong> in 1956 and founded the AI labs at MIT and Stanford.</li>
+            <li>Received the <strong>1971 Turing Award</strong>.</li>
+          </ul>
+
+          <h2 id="unix-c">Ritchie &amp; Thompson — C and Unix</h2>
+          <p>At <strong>Bell Labs</strong>, <strong>Dennis Ritchie (1941–2011)</strong> and <strong>Ken Thompson (b. 1943)</strong> built two of the most influential pieces of software ever written.</p>
+          <ul>
+            <li>Thompson created the first <strong>Unix</strong> (1969); Ritchie created the <strong>C language</strong> (1972) and they rewrote Unix in C — making the OS <strong>portable</strong> across hardware.</li>
+            <li><strong>C</strong> became the foundation for operating systems, embedded systems, and nearly every later language (C++, Java, C#, Go, Rust all trace lineage to it).</li>
+            <li><strong>Unix</strong> shaped Linux, macOS, Android, and the philosophy of small composable tools.</li>
+            <li>Both shared the <strong>1983 Turing Award</strong>.</li>
+          </ul>
+          <div class="callout">
+            <strong>🔑 Enduring impact:</strong>
+            <p>The C/Unix combination is arguably the most consequential software project in history. Most of the digital infrastructure running today descends from it, directly or by influence.</p>
+          </div>
+
+          <h2 id="wirth">Niklaus Wirth — Pascal &amp; Simplicity</h2>
+          <p><strong>Niklaus Wirth (1934–2024)</strong>, a Swiss computer scientist, designed <strong>Pascal (1970)</strong> and later Modula-2 and Oberon.</p>
+          <ul>
+            <li>Pascal was designed for <strong>teaching structured programming</strong> and dominated computer science education for decades.</li>
+            <li>Championed clarity and minimalism — "Wirth's Law": software gets slower faster than hardware gets faster.</li>
+            <li>Received the <strong>1984 Turing Award</strong>.</li>
+          </ul>
+
+          <h2 id="oop">Object-Oriented Pioneers — Kay, Stroustrup, Liskov</h2>
+          <ul>
+            <li><strong>Alan Kay</strong> — pioneered <strong>Smalltalk</strong> and coined "object-oriented programming," envisioning software built from communicating objects. Turing Award 2003.</li>
+            <li><strong>Bjarne Stroustrup</strong> — created <strong>C++ (1979–1985)</strong>, adding object orientation to C. It powers browsers, game engines, databases, and high-performance systems.</li>
+            <li><strong>Barbara Liskov</strong> — pioneered <strong>data abstraction</strong> and the CLU language; the <strong>Liskov Substitution Principle</strong> (the "L" in SOLID) is named for her. Turing Award 2008.</li>
+            <li><strong>Kristen Nygaard &amp; Ole-Johan Dahl</strong> — created <strong>Simula (1960s)</strong>, the first object-oriented language, introducing classes and objects. Turing Award 2001.</li>
+          </ul>
+
+          <h2 id="dijkstra-knuth">Dijkstra &amp; Knuth — The Science of Programming</h2>
+          <ul>
+            <li><strong>Edsger Dijkstra (1930–2002)</strong> — advocated <strong>structured programming</strong> ("Go To Statement Considered Harmful"), invented Dijkstra's shortest-path algorithm, and worked on concurrency (semaphores). Turing Award 1972.</li>
+            <li><strong>Donald Knuth (b. 1938)</strong> — author of <em>The Art of Computer Programming</em>, formalized algorithm analysis (Big-O usage), and created the <strong>TeX</strong> typesetting system. Turing Award 1974.</li>
+          </ul>
+          <div class="callout callout-warning">
+            <strong>⚠️ Software as engineering:</strong>
+            <p>Dijkstra and Knuth pushed programming from ad-hoc craft toward a rigorous discipline with provable correctness and analyzable performance — the intellectual backbone of computer science.</p>
+          </div>
+
+          <div class="code-block">
+            <div class="code-block-header">Timeline — languages &amp; ideas</div>
+            <pre><code>1957  Backus     FORTRAN
+1958  McCarthy   Lisp
+1960s Nygaard/Dahl  Simula (first OOP)
+1969  Thompson   Unix
+1970  Wirth      Pascal
+1972  Ritchie    C
+1972  Dijkstra   Structured programming
+1980s Stroustrup C++
+1970s Liskov     Data abstraction / CLU</code></pre>
+          </div>
+
+          <h2 id="interview-questions">Key Questions</h2>
+          <div class="qa-block">
+            <div class="qa-question">Why was FORTRAN a turning point?</div>
+            <div class="qa-answer">
+              <p>It was the first high-level language with a compiler good enough that programmers would trust it over hand-written assembly. It proved that abstraction need not sacrifice performance, opening the door to every high-level language that followed.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">Why is C considered so influential?</div>
+            <div class="qa-answer">
+              <p>C is low-level enough to write operating systems yet portable across hardware. Unix was rewritten in C, making it the first portable OS. C's syntax and semantics became the template for C++, Java, C#, JavaScript, Go, and more, so its influence is everywhere even in code that isn't C.</p>
+            </div>
+          </div>
+          <div class="qa-block">
+            <div class="qa-question">What is the Liskov Substitution Principle?</div>
+            <div class="qa-answer">
+              <p>Objects of a subclass should be usable anywhere the parent class is expected without breaking correctness. Named after Barbara Liskov's work on data abstraction, it is the "L" in the SOLID design principles and a cornerstone of sound object-oriented design.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../index.html">Home</a>
+          <a href="../index.html">Knowledge Base</a>
+          <a href="index.html">History of Computing</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../js/main.js"></script>
+  </body>
+</html>
