@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>John Atanasoff — The Forgotten Father of the Electronic Computer — Knowledge Base</title>
+    <meta name="description" content="The life of John Atanasoff — the physics professor whose idea for the first electronic digital computer came to him on a long night drive, and whose invention was quietly confirmed decades later when a court struck down the ENIAC patent." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../../css/styles.css" />
+    <link rel="stylesheet" href="../../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../../index.html">Home</a>
+          <a href="../../../pages/experience.html">Experience</a>
+          <a href="../../../pages/projects.html">Projects</a>
+          <a href="../../../pages/skills.html">Skills</a>
+          <a class="active" href="../../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="../index.html">History of Computing</a>
+        <span>→</span>
+        <a href="index.html">Prominent Figures</a>
+        <span>→</span>
+        <span>John Atanasoff</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">1903–1995</span>
+            <span class="read-time">14 min read</span>
+          </div>
+          <h1>John Atanasoff — The Forgotten Father of the Electronic Computer</h1>
+          <p class="article-desc">Stuck on a problem no machine could solve, a physics professor drove two hundred miles through the winter night, ordered a drink in a roadside tavern, and worked out — on a paper napkin, so the story goes — the core ideas of the first electronic digital computer. For thirty years almost no one knew. Then a courtroom rewrote the history books.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#roots">A Bulgarian Immigrant's Son</a></li>
+            <li><a href="#drive">The Drive Through the Winter Night</a></li>
+            <li><a href="#abc">The Atanasoff–Berry Computer</a></li>
+            <li><a href="#visit">The Fateful Visit</a></li>
+            <li><a href="#trial">The ENIAC Patent Trial</a></li>
+            <li><a href="#legacy">A Recognition Long Delayed</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="roots">A Bulgarian Immigrant's Son</h2>
+          <p><strong>John Vincent Atanasoff</strong> was born on 4 October 1903 in Hamilton, New York, the son of a Bulgarian immigrant who had come to America as a boy and become an electrical engineer. Young John's fascination with mathematics was sparked early by, of all things, his father's new <strong>slide rule</strong> — a gift that sent the nine-year-old tumbling into logarithms, trigonometry, and the pure joy of calculation. He would recall it as the moment his intellectual life began.</p>
+          <p>He earned degrees in electrical engineering and mathematics, then a <strong>PhD in theoretical physics</strong> from the University of Wisconsin in 1930, and took up a professorship at <strong>Iowa State College</strong>. His doctoral work had required weeks of grinding numerical calculation on a mechanical desktop calculator, and the tedium lodged in him a conviction that would define his career: there had to be a better, faster, electronic way to compute. The problem was that no one knew how to build one.</p>
+
+          <h2 id="drive">The Drive Through the Winter Night</h2>
+          <p>By the late 1930s Atanasoff had been wrestling for years with how to make an automatic computing machine, and he was stuck. The account he gave, and repeated for the rest of his life, has become one of the most cherished origin stories in computing. One winter night in the <strong>winter of 1937–38</strong>, frustrated and unable to think, he got into his car and simply drove — fast, for hours, more than two hundred miles across Iowa and over the Mississippi into Illinois, where the state's liquor laws differed.</p>
+          <p>He stopped at a roadside <strong>tavern</strong>, ordered a drink (bourbon and soda, by his telling), and there, with his mind loosened and calm, the pieces suddenly fell into place. In that tavern he settled on four decisions that would define his machine: it would be <strong>electronic</strong>, using vacuum tubes for speed; it would use <strong>binary</strong> (base-2) numbers rather than decimal; it would use <strong>capacitors</strong> for memory, "regenerating" their charge to keep from losing it; and it would compute by direct <strong>logical action</strong> rather than by counting. He drove home with the design of the first electronic digital computer taking shape in his head.</p>
+          <div class="callout">
+            <strong>🔑 Four ideas ahead of their time:</strong>
+            <p>Every one of those four choices — electronic switching, binary arithmetic, regenerative capacitor memory, and direct logic — pointed the way the whole industry would eventually go. The "regenerative memory" idea, refreshing stored charge before it leaks away, is the same principle used in the <strong>DRAM</strong> chips inside your computer right now. Atanasoff arrived at it in a tavern in 1937.</p>
+          </div>
+
+          <h2 id="abc">The Atanasoff–Berry Computer</h2>
+          <p>Back at Iowa State, Atanasoff took on a talented graduate student, <strong>Clifford Berry</strong>, and together, from 1939, they built a machine that would come to be called the <strong>Atanasoff–Berry Computer</strong>, or <strong>ABC</strong>. Completed in prototype by 1942, it was the first computing device to use <strong>vacuum tubes for electronic calculation</strong>, worked in binary, and used a rotating drum of capacitors for its memory, refreshed on each turn. It was designed to solve large systems of <strong>linear equations</strong> — a common and punishing chore in physics and engineering.</p>
+          <p>The ABC was not a general-purpose computer; it could not be programmed to do arbitrary tasks, and it was never fully perfected — its punched-card input/output system, which burned holes in cards with sparks, was unreliable. But in its core ideas — electronic, digital, binary — it was a genuine first, and a machine unlike anything built before. Then the world intervened. When the United States entered the war, Atanasoff was called away to defense work in Washington, Berry left too, and the ABC was abandoned in a basement. Years later, needing the space, the college <strong>dismantled it for parts</strong>, and almost no one thought to save it.</p>
+          <div class="callout callout-warning">
+            <strong>⚠️ First, but not finished:</strong>
+            <p>It is important to be precise: the ABC was the first <em>electronic digital</em> computer, but it was special-purpose and not programmable, and it never ran fully reliably. The later <strong>ENIAC</strong> was the first large-scale, general-purpose electronic computer that actually went into service. Atanasoff's claim is not that he built the first working general computer — it is that the foundational electronic ideas were his first.</p>
+          </div>
+
+          <h2 id="visit">The Fateful Visit</h2>
+          <p>Here the story takes the turn that would make it famous. In June 1940 Atanasoff met a physicist named <strong>John Mauchly</strong> at a scientific conference. The two struck up a warm correspondence, and in <strong>June 1941</strong> Mauchly traveled to Iowa and stayed for several days as Atanasoff's houseguest. During that visit, Mauchly examined the ABC closely, discussed its workings at length with Atanasoff, and read his detailed design manuscript.</p>
+          <p>Not long after, Mauchly joined the University of Pennsylvania and, with <strong>J. Presper Eckert</strong>, went on to build the celebrated <strong>ENIAC</strong> and to file a broad patent claiming the invention of the electronic digital computer. Atanasoff, absorbed in wartime work and by nature not a self-promoter, let his own machine and claims fade quietly into the past. For years, the ENIAC team was widely credited as the sole originator of the electronic computer, and Atanasoff's name was all but unknown.</p>
+
+          <h2 id="trial">The ENIAC Patent Trial</h2>
+          <p>The reckoning came through commerce and law. The ENIAC patent, eventually held by the Sperry Rand corporation, was worth a fortune in royalties, and a rival firm, <strong>Honeywell</strong>, challenged it in court. The case, <em>Honeywell v. Sperry Rand</em>, produced one of the longest trials in the history of American patent law and turned, remarkably, on that houseguest visit in Iowa two decades earlier.</p>
+          <p>On <strong>19 October 1973</strong>, Judge <strong>Earl Larson</strong> issued his ruling. He found the ENIAC patent invalid and declared that Eckert and Mauchly "did not themselves first invent the automatic electronic digital computer, but instead derived that subject matter from one <strong>Dr. John Vincent Atanasoff</strong>." In the eyes of the law, the fundamental invention traced back to the professor from Iowa and his tavern insight. The ruling drew relatively little press at the time — it was overshadowed by the Watergate scandal unfolding the very same week — but for the history of computing it was seismic.</p>
+          <div class="callout callout-tip">
+            <strong>💡 A quiet man who never crusaded:</strong>
+            <p>What is striking is how little Atanasoff seemed to resent the long neglect. By the time of the trial he had built a successful later career in defense and engineering, held dozens of patents, and founded a company. He testified plainly about what he had done and let the record speak. He was, by all accounts, a modest man who took more satisfaction in having gotten the ideas right than in getting the credit.</p>
+          </div>
+
+          <h2 id="legacy">A Recognition Long Delayed</h2>
+          <p>After 1973 the world slowly caught up with Atanasoff. Historians revisited the birth of computing and gave the ABC its due as the first electronic digital computer. Honors followed, capped in <strong>1990</strong> when President George H. W. Bush awarded him the <strong>National Medal of Technology</strong>. In the 1990s, engineers at Iowa State built a full, working <strong>replica of the ABC</strong> from the original plans, proving that the design worked as Atanasoff had claimed all along. He lived to see much of this vindication, dying on 15 June 1995 at the age of ninety-one.</p>
+          <p>Atanasoff's story is the counterpoint to the tale of famous inventors: a reminder that the origins of world-changing ideas are often tangled, contested, and quiet. He did not build the machine that made computing famous, and he never sought the spotlight. But the essential decisions — to make the machine electronic, digital, and binary, with memory that refreshes itself — were arrived at first by a physics professor who cleared his head with a long drive and a drink, and who was content, for decades, to let history figure it out on its own. It finally did.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">A life in brief</div>
+            <pre><code>1903  Born in Hamilton, New York
+1913  A slide rule sparks a lifelong love of math
+1930  PhD in physics; joins Iowa State College
+1937  The winter drive; conceives the electronic computer
+1939  Begins building the ABC with Clifford Berry
+1941  John Mauchly visits and studies the ABC
+1942  ABC prototype working; Atanasoff leaves for war work
+1973  Honeywell v. Sperry Rand voids the ENIAC patent
+1990  Awarded the National Medal of Technology
+1995  Dies at 91, his invention finally recognized</code></pre>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What was the Atanasoff–Berry Computer (ABC)?</div>
+            <div class="qa-answer">
+              <p>Built at Iowa State from 1939 with student Clifford Berry, the ABC was the first electronic digital computer. It used vacuum tubes for calculation, worked in binary, and stored numbers in regenerative capacitor memory — the same refreshing principle used in modern DRAM. It was special-purpose (solving linear equations) and not programmable, and it was never fully perfected before being dismantled during the war.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What was the ENIAC patent dispute about?</div>
+            <div class="qa-answer">
+              <p>Eckert and Mauchly patented the ENIAC as the invention of the electronic digital computer. In Honeywell v. Sperry Rand, the court examined Mauchly's 1941 visit to study Atanasoff's ABC. In 1973 Judge Earl Larson invalidated the patent, ruling that Mauchly had derived key ideas from Atanasoff — legally crediting Atanasoff with the fundamental invention.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">So was Atanasoff really the inventor of the computer?</div>
+            <div class="qa-answer">
+              <p>It's nuanced. He invented the first electronic digital computer and originated the core ideas — electronic, binary, regenerative memory. But the ABC was special-purpose and unreliable, while ENIAC was the first general-purpose electronic machine to actually work in service. The 1973 ruling credits Atanasoff with the foundational invention; the fuller truth is that modern computing drew on the work of many, with Atanasoff first among the electronic pioneers.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../../index.html">Home</a>
+          <a href="../../index.html">Knowledge Base</a>
+          <a href="../index.html">History of Computing</a>
+          <a href="index.html">Prominent Figures</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../../js/main.js"></script>
+  </body>
+</html>

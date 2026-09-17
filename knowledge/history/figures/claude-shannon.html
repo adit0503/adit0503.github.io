@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Claude Shannon — The Man Who Invented Information — Knowledge Base</title>
+    <meta name="description" content="The life of Claude Shannon — the playful genius who turned logic into circuits, gave the world the word 'bit', founded information theory, and juggled on a unicycle down the halls of Bell Labs." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../../css/styles.css" />
+    <link rel="stylesheet" href="../../../css/knowledge.css" />
+    <noscript><style>.animate-in{opacity:1!important;transform:none!important;}</style></noscript>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t);})();</script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a href="../../../index.html" class="logo">AC</a>
+        <nav class="top-nav" id="main-nav">
+          <a href="../../../index.html">Home</a>
+          <a href="../../../pages/experience.html">Experience</a>
+          <a href="../../../pages/projects.html">Projects</a>
+          <a href="../../../pages/skills.html">Skills</a>
+          <a class="active" href="../../index.html">Knowledge Base</a>
+        </nav>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <div class="breadcrumb">
+        <a href="../../index.html">Knowledge Base</a>
+        <span>→</span>
+        <a href="../index.html">History of Computing</a>
+        <span>→</span>
+        <a href="index.html">Prominent Figures</a>
+        <span>→</span>
+        <span>Claude Shannon</span>
+      </div>
+
+      <article>
+        <header class="article-header">
+          <div class="article-meta">
+            <span class="kb-tag">1916–2001</span>
+            <span class="read-time">15 min read</span>
+          </div>
+          <h1>Claude Shannon — The Man Who Invented Information</h1>
+          <p class="article-desc">He proved that logic and electricity are the same thing, then invented a whole science that measures <em>meaning</em> in numbers. Along the way he taught himself to juggle on a unicycle, built a mechanical mouse that could learn a maze, and treated the deepest ideas of the twentieth century as a kind of glorious play.</p>
+        </header>
+
+        <nav class="toc">
+          <h4>Table of Contents</h4>
+          <ol>
+            <li><a href="#gaylord">A Tinkerer from Gaylord, Michigan</a></li>
+            <li><a href="#thesis">The Most Important Master's Thesis Ever Written</a></li>
+            <li><a href="#theory">1948 — A Mathematical Theory of Communication</a></li>
+            <li><a href="#bit">The Birth of the Bit</a></li>
+            <li><a href="#play">Theseus, Unicycles, and Serious Play</a></li>
+            <li><a href="#legacy">The Quiet Architect of the Digital Age</a></li>
+          </ol>
+        </nav>
+
+        <div class="article-content">
+          <h2 id="gaylord">A Tinkerer from Gaylord, Michigan</h2>
+          <p><strong>Claude Elwood Shannon</strong> was born on 30 April 1916 in Petoskey, Michigan, and grew up in the small town of Gaylord, where his father was a businessman and his mother a language teacher and school principal. He was, from the start, a boy who preferred building to reading. He rigged a barbed-wire telegraph line to a friend's house half a mile away, repaired radios for the local department store, and idolized <strong>Thomas Edison</strong> — whom, in a coincidence he only learned of much later, he was distantly related to.</p>
+          <p>His hero was less the abstract theorist than the hands-on inventor, and that instinct never left him. Shannon would spend his whole life being two people at once: a mathematician of pristine rigor, and a gadgeteer who could not walk past a workshop without wanting to make something whir. He studied both electrical engineering and mathematics at the University of Michigan, unwilling to choose. It was the perfect training for a man about to prove that the two were secretly the same.</p>
+
+          <h2 id="thesis">The Most Important Master's Thesis Ever Written</h2>
+          <p>In 1936, Shannon arrived at the Massachusetts Institute of Technology, where he took a job running the <strong>differential analyzer</strong> — a room-sized mechanical computer of gears and rotating shafts built by <strong>Vannevar Bush</strong>. Programming it meant physically reconfiguring a maze of relay switches, and Shannon, staring at those clicking relays, saw something no one else had.</p>
+          <p>He knew from a philosophy course that a nineteenth-century Englishman named <a href="george-boole.html">George Boole</a> had built an algebra of logic — a system in which statements were <em>true</em> or <em>false</em> and combined with <code>AND</code>, <code>OR</code>, and <code>NOT</code>. Shannon realized that an electrical switch is also a thing of two states: <em>on</em> or <em>off</em>, closed or open. And so the two-valued logic of Boole and the two-valued behavior of a relay circuit were, mathematically, <strong>identical</strong>. You could build any logical operation out of switches, and you could analyze any switching circuit as if it were a chain of logical statements.</p>
+          <p>He wrote this up in 1937 as his master's thesis, <em>A Symbolic Analysis of Relay and Switching Circuits</em>. It has been called the most important master's thesis of the twentieth century. In one stroke, it gave engineers the mathematical tools to design the complex digital circuits underlying every computer ever built. He was twenty-one years old.</p>
+          <div class="callout">
+            <strong>🔑 Why this matters:</strong>
+            <p>Before Shannon, designing a switching circuit was an art of trial and error. After Shannon, it was a branch of mathematics. Every logic gate, every processor, every chip is designed on the foundation he laid: that circuits <em>are</em> logic made physical. This is the reason computers are digital at all.</p>
+          </div>
+
+          <h2 id="theory">1948 — A Mathematical Theory of Communication</h2>
+          <p>After a doctorate at MIT and wartime work on cryptography and fire-control systems, Shannon joined <strong>Bell Labs</strong>, the legendary research arm of the American telephone system. There he turned to a question that had never been asked precisely: what, exactly, <em>is</em> communication, and how much of it can a channel carry?</p>
+          <p>The answer arrived in 1948 as a paper titled <em>A Mathematical Theory of Communication</em>, published in the <em>Bell System Technical Journal</em>. It landed like a thunderclap. Shannon proposed that <strong>information could be measured</strong> — divorced entirely from meaning. A message was not about words or pictures; it was about <em>reducing uncertainty</em>. The more surprising a message, the more information it carried. He borrowed the physics term <strong>entropy</strong> to name this quantity, on the half-joking advice of von Neumann that no one really understood what entropy was, so he would always have the upper hand in an argument.</p>
+          <p>From this single idea, Shannon derived astonishing results. He proved that every communication channel has a maximum capacity, a hard ceiling on how many bits per second it can carry. He proved — counterintuitively — that as long as you stay below that ceiling, you can transmit information with <em>arbitrarily few errors</em>, no matter how noisy the channel, by cleverly encoding it. He founded the entire field of <strong>error-correcting codes</strong> in a few pages. Every modem, every hard drive, every deep-space probe, every mobile phone that pulls a clean signal from static owes its existence to that theorem.</p>
+          <div class="callout callout-warning">
+            <strong>⚠️ Information is not meaning:</strong>
+            <p>Shannon was careful and insistent about this: his theory measures the <em>quantity</em> of information, not its significance. A page of pure random noise contains more Shannon information than a page of English, because it is less predictable. This distinction confused people for years — and confuses some still — but it is exactly what made the theory so powerful and so general.</p>
+          </div>
+
+          <h2 id="bit">The Birth of the Bit</h2>
+          <p>In that same 1948 paper, Shannon introduced a small word that would come to define an age. Looking for a name for the fundamental unit of information — a single choice between two equally likely possibilities, a yes or a no, a one or a zero — he credited his Bell Labs colleague <strong>John Tukey</strong> with a coinage: <strong>bit</strong>, a contraction of <em>binary digit</em>.</p>
+          <p>It is difficult now to appreciate how radical it was to say that a photograph, a symphony, and a sentence could all be measured in the same currency of bits. Shannon's framework made it thinkable — and eventually inevitable — that all information could be turned into strings of ones and zeros, stored, transmitted, and reconstructed with perfect fidelity. The digital world runs on his unit. When you read that a file is "two megabytes" or a connection is "a hundred megabits per second," you are speaking Shannon's language.</p>
+
+          <h2 id="play">Theseus, Unicycles, and Serious Play</h2>
+          <p>What makes Shannon so beloved is that this monumental work came from a man who treated genius as a form of fun. The corridors of Bell Labs and, later, MIT are full of stories. He was famous for riding a <strong>unicycle</strong> through the halls — sometimes while <strong>juggling</strong> — and he built a unicycle with an off-center wheel just to make the challenge harder. He was fascinated by juggling itself and later derived a mathematical theorem describing the relationship between the number of balls, the time each spends in the air, and the time in the hand.</p>
+          <p>In 1950 he built <strong>Theseus</strong>, a mechanical mouse driven by relays under a maze board, which could explore a maze, remember the correct path, and run it flawlessly the second time — one of the earliest demonstrations of machine learning, presented with the showmanship of a magician. He built a machine whose only function was to turn itself off: flip the switch, a lid opens, a mechanical hand reaches out, switches it off, and withdraws. He built a chess-playing device, a Roman-numeral calculator he called <strong>THROBAC</strong>, and juggling robots. His house filled with these contraptions.</p>
+          <div class="callout callout-tip">
+            <strong>💡 The playful mind and the deep mind were the same mind:</strong>
+            <p>Colleagues sometimes wondered whether Shannon took anything seriously. But the juggling theorems, the maze-running mouse, the fascination with gambling odds that he and his wife Betty took to Las Vegas and the stock market — these were not distractions from his genius. They were <em>expressions</em> of it. Shannon simply refused to draw a line between profound problems and playful ones.</p>
+          </div>
+
+          <h2 id="legacy">The Quiet Architect of the Digital Age</h2>
+          <p>Shannon largely stepped back from the field he had created. He never chased the fame his work earned him, disliked administration, and by the 1960s had drifted toward his hobbies, his gadgets, and mathematical amusements. He and Betty — herself a skilled mathematician who worked alongside him — cultivated a life of curiosity rather than ambition.</p>
+          <p>In his final years he suffered from <strong>Alzheimer's disease</strong>, and there is a quiet poignancy in the fact that the man who taught the world to preserve and transmit information without loss slowly lost his own memories. He died on 24 February 2001, having by then been largely unaware of the digital revolution — the internet, the mobile phone, the compressed music and streamed video — that his 1948 paper had made possible.</p>
+          <p>It is hard to name a figure whose ideas are more woven into daily life and less known to the public. <a href="alan-turing.html">Alan Turing</a> told us what a computer <em>is</em>; Shannon told us what <em>information</em> is, and how to move it perfectly through an imperfect world. Every time a clear voice crosses an ocean, a photo uploads without a smudge, or a scratched disc still plays, Claude Shannon's theorems are quietly at work — the legacy of a man who found the deepest truths by refusing to stop playing.</p>
+
+          <div class="code-block">
+            <div class="code-block-header">A life in brief</div>
+            <pre><code>1916  Born in Petoskey, Michigan
+1936  Joins MIT, runs the differential analyzer
+1937  Master's thesis links Boolean logic to circuits
+1940  PhD from MIT
+1941  Joins Bell Labs; wartime cryptography work
+1948  "A Mathematical Theory of Communication"
+1948  The word "bit" enters the language
+1950  Builds Theseus, the maze-learning mouse
+1956  Returns to MIT as a professor
+2001  Dies at 84 after years with Alzheimer's</code></pre>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What did Shannon's master's thesis actually prove?</div>
+            <div class="qa-answer">
+              <p>That the two-state behavior of electrical switches (on/off) is mathematically identical to George Boole's two-valued logic (true/false). This meant any logical operation could be built from switching circuits, and any circuit could be analyzed as logic. It gave engineers the mathematical foundation for designing all digital circuits, making it arguably the most consequential master's thesis ever written.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">What is information theory and why does it matter?</div>
+            <div class="qa-answer">
+              <p>Introduced in Shannon's 1948 paper, information theory measures information as the reduction of uncertainty, quantified in bits. It proved that every channel has a maximum capacity and that reliable, near-error-free communication is possible below that limit even over noisy channels. It underpins data compression, error correction, and essentially all modern digital communication and storage.</p>
+            </div>
+          </div>
+
+          <div class="qa-block">
+            <div class="qa-question">Did Shannon really invent the word "bit"?</div>
+            <div class="qa-answer">
+              <p>He popularized it and gave it its technical meaning in his 1948 paper, but he credited the coinage — a contraction of "binary digit" — to his Bell Labs colleague John Tukey. Shannon made the bit the fundamental, measurable unit of information, which is why the entire digital world now counts in bits and bytes.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>© 2026 Aditya Shashank Chavan. Built with care.</p>
+        <div class="footer-links">
+          <a href="../../../index.html">Home</a>
+          <a href="../../index.html">Knowledge Base</a>
+          <a href="../index.html">History of Computing</a>
+          <a href="index.html">Prominent Figures</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../../../js/main.js"></script>
+  </body>
+</html>
